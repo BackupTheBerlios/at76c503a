@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.11 2003/03/27 22:25:24 jal2 Exp $
+/* $Id: at76c503.c,v 1.12 2003/03/30 11:26:39 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -3528,7 +3528,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.11 2003/03/27 22:25:24 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.12 2003/03/30 11:26:39 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
@@ -3618,6 +3618,7 @@ struct at76c503 *at76c503_do_probe(struct module *mod, struct usb_device *udev, 
 		at76c503_delete_device(dev);
 		goto error;
 	}
+	info("registered %s", dev->netdev->name);
 
 	return dev;
 
