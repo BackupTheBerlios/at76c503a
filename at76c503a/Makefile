@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.35 2004/07/23 23:28:18 jal2 Exp $
+#$Id: Makefile,v 1.36 2004/08/01 22:52:38 jal2 Exp $
 
 VERSION = 0.12beta14
 
@@ -40,6 +40,8 @@ TOPDISTFILES =
 DISTNAME = at76c503-$(VERSION)
 DISTDIR = ../dist
 
+# delete any old module in this tree before installing a new one
+DEL_MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNEL_VERSION)
 MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNEL_VERSION)/kernel/drivers/usb/
 DEPMOD = /sbin/depmod
 
@@ -63,8 +65,13 @@ modules:
 	$(MAKE) -C $(KERNEL_SRC) SUBDIRS=$(SRCDIR) MODVERDIR=$(MODVERDIR) \
 		EXTRA_CFLAGS="-g -DDRIVER_VERSION=\\\"v$(DVERSION)\\\" $(FW_DL)" modules
 
-install: all
+mv_old:
+	for i in $(MODULES:%.o=%.ko); do \
+	  find $(DEL_MODULE_DIR) -name $$i -exec mv {} {}.orig \; ;done 
+
+install: all mv_old
 	mkdir -p $(MODULE_DIR)
+#	for i in $(MODULES:%.o=%.ko); do find $(DEL_MODULE_DIR) -name $$i -exec mv $$i $$i.orig \; done
 	install -m 644 -o 0 -g 0 $(MODULES:%.o=%.ko) $(MODULE_DIR)
 	$(DEPMOD) -ae
 
@@ -95,7 +102,11 @@ TAR = tar
 
 all: $(MODULES)
 
-install:
+mv_old:
+	for i in $(MODULES); do \
+	  find $(DEL_MODULE_DIR) -name $$i -exec mv {} {}.orig \; ;done 
+
+install: all mv_old
 	mkdir -p $(MODULE_DIR)
 	for f in $(MODULES); do install -m 644 -o 0 -g 0 $$f $(MODULE_DIR)/$$f; done
 	/sbin/depmod -a
