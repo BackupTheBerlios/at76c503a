@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.40 2004/08/26 20:41:45 jal2 Exp $
+#$Id: Makefile,v 1.41 2004/09/19 19:17:29 jal2 Exp $
 #
 # Copyright (c) 2002 - 2003 Oliver Kurth
 #           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -11,9 +11,19 @@
 
 CC=gcc
 
-KERNEL_VERSION = $(shell uname -r)
+ifneq (,$(KVERS))
+ KERNEL_VERSION=$(KVERS)
+else
+ KERNEL_VERSION = $(shell uname -r)
+endif
 
-KERNEL_SRC = /lib/modules/$(KERNEL_VERSION)/build
+
+ifneq (,$(KSRC))
+ KERNEL_SRC = $(KSRC)
+else
+ KERNEL_SRC = /lib/modules/$(KERNEL_VERSION)/build
+endif
+
 KERNEL_HEADERS = $(KERNEL_SRC)/include
 FW_DL=
 
@@ -81,10 +91,11 @@ mv_old:
 	for i in $(MODULES:%.o=%.ko); do \
 	  find $(DEL_MODULE_DIR) -name $$i -exec rm -f {} {}.orig \; ;done 
 
-install: all mv_old
+install-modules: all mv_old
 	mkdir -p $(MODULE_DIR)
-#	for i in $(MODULES:%.o=%.ko); do find $(DEL_MODULE_DIR) -name $$i -exec mv $$i $$i.orig \; done
 	install -m 644 -o 0 -g 0 $(MODULES:%.o=%.ko) $(MODULE_DIR)
+
+install: install-modules
 	$(DEPMOD) -ae
 
 uninstall:
@@ -117,15 +128,15 @@ mv_old:
 	for i in $(MODULES); do \
 	  find $(DEL_MODULE_DIR) -name $$i -exec rm -f {} {}.orig \; ;done 
 
-install: all mv_old
+install-modules: all mv_old
 	mkdir -p $(MODULE_DIR)
 	for f in $(MODULES); do install -m 644 -o 0 -g 0 $$f $(MODULE_DIR)/$$f; done
-	/sbin/depmod -a
+
+install: install-modules
+	$(DEPMOD) -ae
 
 uninstall:
 	for f in $(MODULES); do rm $(MODULE_DIR)/$$f; done
-
-.PHONY: dist kernel_patch rmmod
 
 %.o: %.c
 	$(CC) -MD $(CFLAGS) $(CPPFLAGS) $(MFLAG) -c $<
@@ -139,6 +150,8 @@ uninstall:
 -include $(SRCS:%.c=%.d)
 
 endif
+
+.PHONY: all dist kernel_patch rmmod mv_old install-modules install modules
 
 TAGS:
 	rm -f TAGS
