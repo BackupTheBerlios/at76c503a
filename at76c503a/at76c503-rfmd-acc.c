@@ -35,6 +35,7 @@
 
 #include <linux/module.h>
 #include <linux/usb.h>
+#include <linux/init.h>
 
 #include "at76c503.h"
 #include "usbdfu.h"

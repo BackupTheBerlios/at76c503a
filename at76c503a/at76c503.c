@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.32 2003/07/11 20:53:32 jal2 Exp $
+/* $Id: at76c503.c,v 1.33 2003/07/15 19:57:05 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -74,6 +74,7 @@
  */
 
 #include <linux/config.h>
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/signal.h>
@@ -4514,7 +4515,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.32 2003/07/11 20:53:32 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.33 2003/07/15 19:57:05 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
