@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.61 2004/06/29 21:26:24 jal2 Exp $
+/* $Id: at76c503.c,v 1.62 2004/08/10 23:05:08 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -114,6 +114,12 @@
 #include "at76c503.h"
 #include "ieee802_11.h"
 #include "usbdfu.h"
+
+/* timeout in seconds for the usb_control_msg in get_cmd_status
+ * and set_card_command
+ */
+#define USB_CTRL_GET_TIMEOUT 5
+#define USB_CTRL_SET_TIMEOUT 5
 
 /* try to make it compile for both 2.4.x and 2.6.x kernels */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
@@ -970,6 +976,7 @@ static int get_hw_config(struct at76c503 *dev)
 
 	  case BOARDTYPE_505_RFMD:
 	  case BOARDTYPE_505_RFMD_2958:
+	  case BOARDTYPE_505A_RFMD_2958:
 		ret = get_hw_cfg_rfmd(dev->udev, (unsigned char *)&hwcfg->r5, sizeof(hwcfg->r5));
 		if (ret < 0) break;
 		memcpy(dev->cr39_values, hwcfg->r5.cr39_values, 14);
@@ -1038,7 +1045,7 @@ int get_cmd_status(struct usb_device *udev,
 	return usb_control_msg(udev, usb_rcvctrlpipe(udev,0),
 			       0x22, INTERFACE_VENDOR_REQUEST_IN,
 			       cmd, 0,
-			       cmd_status, 40, HZ);
+			       cmd_status, 40, HZ * USB_CTRL_GET_TIMEOUT);
 }
 
 #define EXT_FW_BLOCK_SIZE 1024
@@ -1103,7 +1110,7 @@ int set_card_command(struct usb_device *udev, int cmd,
 				      0, 0,
 				      cmd_buf,
 				      sizeof(struct at76c503_command) + buf_size,
-				      HZ);
+				      HZ * USB_CTRL_SET_TIMEOUT);
 		kfree(cmd_buf);
 		return ret;
 	}
@@ -3985,7 +3992,7 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 {
 	struct at76c503 *dev = (struct at76c503 *)(netdev->priv);
 	struct net_device_stats *stats = &dev->stats;
-	int ret;
+	int ret = 0;
 	int wlen;
 	int submit_len;
 	struct at76c503_tx_buffer *tx_buffer =
@@ -3993,6 +4000,22 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	struct ieee802_11_hdr *i802_11_hdr =
 		(struct ieee802_11_hdr *)&(tx_buffer->packet);
 	u8 *payload = tx_buffer->packet + sizeof(struct ieee802_11_hdr);
+
+	if (netif_queue_stopped(netdev)) {
+		err("%s: %s called while netdev is stopped", netdev->name,
+		    __FUNCTION__);
+		//skip this packet
+		dev_kfree_skb(skb);
+		return 0;
+	}
+
+	if (dev->write_urb->status == USB_ST_URB_PENDING) {
+		err("%s: %s called while dev->write_urb is pending for tx",
+		    netdev->name, __FUNCTION__);
+		//skip this packet
+		dev_kfree_skb(skb);
+		return 0;
+	}
 
 	if (skb->len < 2*ETH_ALEN) {
 		err("%s: %s: skb too short (%d)", dev->netdev->name,
@@ -4091,6 +4114,11 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	if(ret){
 		stats->tx_errors++;
 		err("%s: error in tx submit urb: %d", netdev->name, ret);
+		if (ret == -EINVAL)
+			err("-EINVAL: urb %p urb->hcpriv %p urb->complete %p",
+			    dev->write_urb,
+			    dev->write_urb ? dev->write_urb->hcpriv : (void *)-1,
+			    dev->write_urb ? dev->write_urb->complete : (void *)-1);
 		goto err;
 	}
 
@@ -6537,7 +6565,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.61 2004/06/29 21:26:24 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.62 2004/08/10 23:05:08 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -6583,6 +6611,7 @@ int init_new_device(struct at76c503 *dev)
 	netdev->get_wireless_stats = at76c503_get_wireless_stats;
 	netdev->hard_start_xmit = at76c503_tx;
 	netdev->tx_timeout = at76c503_tx_timeout;
+	netdev->watchdog_timeo = 2 * HZ;
 #if WIRELESS_EXT > 12
 	netdev->wireless_handlers = 
 		(struct iw_handler_def*)&at76c503_handler_def;
