@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.51 2004/04/10 18:56:08 jal2 Exp $
+/* $Id: at76c503.c,v 1.52 2004/04/14 22:15:44 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -2648,6 +2648,23 @@ int wep_matched(struct at76c503 *dev, struct bss_info *ptr)
 	return 1;
 }
 
+static inline
+int bssid_matched(struct at76c503 *dev, struct bss_info *ptr)
+{
+	if (!dev->wanted_bssid_valid ||
+		!memcmp(ptr->bssid, dev->wanted_bssid, ETH_ALEN)) {
+		return 1;
+	} else {
+		if (debug & DBG_BSS_MATCH) {
+			dbg_uc("%s: requested bssid - %s does not match", 
+				dev->netdev->name, mac2str(dev->wanted_bssid));
+			dbg_uc("       AP bssid - %s of bss table entry %p", 
+				mac2str(ptr->bssid), ptr);
+		}
+		return 0;
+	}
+}
+
 static void dump_bss_table(struct at76c503 *dev, int force_output)
 {
 	struct bss_info *ptr;
@@ -2700,7 +2717,8 @@ static struct bss_info *find_matching_bss(struct at76c503 *dev,
 		if (essid_matched(dev,ptr) &&
 		    mode_matched(dev,ptr)  &&
 		    wep_matched(dev,ptr)   &&
-		    rates_matched(dev,ptr))
+		    rates_matched(dev,ptr) &&
+		    bssid_matched(dev,ptr))
 			break;
 		curr = curr->next;
 	}
@@ -4794,14 +4812,29 @@ int at76c503_iw_handler_get_thrspy(struct net_device *netdev,
 }
 #endif //#if WIRELESS_EXT > 15
 
-/*static 
+static 
 int at76c503_iw_handler_set_wap(struct net_device *netdev,
 				IW_REQUEST_INFO *info,
 				struct sockaddr *ap_addr,
 				char *extra)
 {
-	return -EOPNOTSUPP;
-}*/
+	struct at76c503 *dev = (struct at76c503*)netdev->priv;
+	
+	dbg(DBG_IOCTL, "%s: SIOCSIWAP - wap/bssid %s", netdev->name, 
+		mac2str(ap_addr->sa_data));
+	
+	// if the incomming address == ff:ff:ff:ff:ff:ff, the user has 
+	// chosen any or auto AP preference
+	if (!memcmp(ap_addr->sa_data, bc_addr, ETH_ALEN)) {
+		dev->wanted_bssid_valid = 0;
+	} else {
+		// user wants to set a preferred AP address
+		dev->wanted_bssid_valid = 1;
+		memcpy(dev->wanted_bssid, ap_addr->sa_data, ETH_ALEN);
+	}
+	
+	return -EIWCOMMIT;
+}
 
 static
 int at76c503_iw_handler_get_wap(struct net_device *netdev,
@@ -5636,7 +5669,7 @@ static const iw_handler	at76c503_handlers[] =
 	(iw_handler) NULL,				// SIOCGIWTHRSPY
 #endif
 
-	(iw_handler) NULL,				// SIOCSIWAP
+	(iw_handler) at76c503_iw_handler_set_wap,	// SIOCSIWAP
 	(iw_handler) at76c503_iw_handler_get_wap,	// SIOCGIWAP
 	(iw_handler) NULL,				// -- hole --
 	(iw_handler) NULL,				// SIOCGIWAPLIST
@@ -5830,10 +5863,12 @@ sspyerror:
 	break;
 #endif // #if (WIRELESS_EXT <= 15) && (IW_MAX_SPY > 0)
 	
-	/*case SIOCSIWAP:
+	case SIOCSIWAP:
 	{
+		at76c503_iw_handler_set_wap(netdev, NULL, 
+			&(wrq->u.ap_addr), NULL);
 	}
-	break;*/
+	break;
 	
 	case SIOCGIWAP:
 	{
@@ -6382,7 +6417,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.51 2004/04/10 18:56:08 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.52 2004/04/14 22:15:44 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,

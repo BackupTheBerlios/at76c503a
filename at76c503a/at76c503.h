@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.21 2004/03/18 20:54:57 jal2 Exp $
+/* $Id: at76c503.h,v 1.22 2004/04/14 22:15:44 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -538,7 +538,10 @@ struct at76c503 {
 				      we operate on */
 	struct bss_info *new_bss; /* if istate == REASSOC dev->new_bss
 				     is the new bss we want to reassoc to */
-
+	
+	u8 wanted_bssid[ETH_ALEN];
+	int wanted_bssid_valid; /* != 0 if wanted_bssid is to be used */
+	
 	/* some data for infrastructure mode only */
 	spinlock_t mgmt_spinlock; /* this spinlock protects access to
 				     next_mgmt_bulk and istate */
