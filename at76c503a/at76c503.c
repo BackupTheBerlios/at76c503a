@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.46 2004/03/18 20:54:57 jal2 Exp $
+/* $Id: at76c503.c,v 1.47 2004/03/22 17:10:25 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -6283,7 +6283,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.46 2004/03/18 20:54:57 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.47 2004/03/22 17:10:25 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -6497,7 +6497,7 @@ int at76c503_do_probe(struct module *mod, struct usb_device *udev,
 		}
 	}
 
-	SET_NETDEV_DEV(dev->netdev, &udev->dev);
+	SET_NETDEV_DEV(dev->netdev, &intf->dev);
 
 	*devptr = dev; /* return dev for 2.4.x kernel probe functions */
 	return 0;
