@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.48 2004/03/26 21:54:10 jal2 Exp $
+/* $Id: at76c503.c,v 1.49 2004/04/09 20:47:01 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -4016,10 +4016,10 @@ int startup_device(struct at76c503 *dev)
 		       dev->channel,
 		       dev->wep_enabled ? "enabled" : "disabled",
 		       dev->wep_key_id, dev->wep_keys_len[dev->wep_key_id]);
-		dbg_uc("%s param: preamble %s rts %d frag %d txrate %s auth_mode %d",
+		dbg_uc("%s param: preamble %s rts %d retry %d frag %d txrate %s auth_mode %d",
 		       dev->netdev->name,		       
 		       dev->preamble_type == PREAMBLE_TYPE_SHORT ? "short" : "long",
-		       dev->rts_threshold, dev->frag_threshold,
+		       dev->rts_threshold, dev->short_retry_limit, dev->frag_threshold,
 		       dev->txrate == TX_RATE_1MBIT ? "1MBit" :
 		       dev->txrate == TX_RATE_2MBIT ? "2MBit" :
 		       dev->txrate == TX_RATE_5_5MBIT ? "5.5MBit" :
@@ -5237,35 +5237,32 @@ int at76c503_iw_handler_get_txpow(struct net_device *netdev,
 	return 0;
 }
 
-// disabled as setting the retry value seems to not be possible with 
-// at76c50x devices
-// adapted (ripped) from atmel.c
-/*static 
+/* jal: short retry is handled by the firmware (at least 0.90.x),
+   while long retry is not (?) */
+static 
 int at76c503_iw_handler_set_retry(struct net_device *netdev,
 				  IW_REQUEST_INFO *info,
 				  struct iw_param *retry,
 				  char *extra)
 {
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
-	int ret = -EINPROGRESS;
+	int ret = -EIWCOMMIT;
+	
+	dbg(DBG_IOCTL, "%s: SIOCSIWRETRY disabled %d  flags x%x val %d",
+	    netdev->name, retry->disabled, retry->flags, retry->value);
 	
 	if(!retry->disabled && (retry->flags & IW_RETRY_LIMIT)) {
-		//if(retry->flags & IW_RETRY_MAX) {
-		//	priv->long_retry_limit = retry->value;
-		//} else 
-		if (retry->flags & IW_RETRY_MIN) {
+		if ((retry->flags & IW_RETRY_MIN) || 
+		    !(retry->flags & IW_RETRY_MAX)) {
 			dev->short_retry_limit = retry->value;
-		} else {
-			// No modifier : set both
-			//priv->long_retry = retry->value;
-			dev->short_retry_limit = retry->value;
-		}
+		} else
+			ret = -EINVAL;
 	} else {
 		ret = -EINVAL;
 	}
 	
 	return ret;
-}*/
+}
 
 // adapted (ripped) from atmel.c
 static 
@@ -5275,6 +5272,8 @@ int at76c503_iw_handler_get_retry(struct net_device *netdev,
 				  char *extra)
 {
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
+	
+	dbg(DBG_IOCTL, "%s: SIOCGIWRETRY", netdev->name);
 	
 	retry->disabled = 0;      // Can't be disabled
 	
@@ -5657,7 +5656,7 @@ static const iw_handler	at76c503_handlers[] =
 	(iw_handler) at76c503_iw_handler_get_frag,	// SIOCGIWFRAG
 	(iw_handler) NULL,				// SIOCSIWTXPOW
 	(iw_handler) at76c503_iw_handler_get_txpow,	// SIOCGIWTXPOW
-	/*(iw_handler) at76c503_iw_handler_set_retry,	// SIOCSIWRETRY*/
+	(iw_handler) at76c503_iw_handler_set_retry,	// SIOCSIWRETRY
 	(iw_handler) NULL,				// SIOCSIWRETRY
 	(iw_handler) at76c503_iw_handler_get_retry,	// SIOCGIWRETRY
 	(iw_handler) at76c503_iw_handler_set_encode,	// SIOCSIWENCODE
@@ -5996,12 +5995,12 @@ snickerror:
 	}
 	break;
 	
-	/*case SIOCSIWRETRY:
+	case SIOCSIWRETRY:
 	{
 		ret = at76c503_iw_handler_set_retry(netdev, NULL, 
 			&(wrq->u.retry), NULL);
 	}
-	break;*/
+	break;
 	
 	case SIOCGIWRETRY:
 	{
@@ -6384,7 +6383,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.48 2004/03/26 21:54:10 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.49 2004/04/09 20:47:01 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
