@@ -82,6 +82,9 @@ Wireless USB Adapter SMC2662W (v1) */
 #define VENDOR_ID_ADDTRON             0x05dd  /* Addtron */
 #define PRODUCT_ID_ADDTRON_AWU120     0xff31 /* AWU-120 */
 
+#define VENDOR_ID_CONCEPTRONIC        0x0d8e
+#define PRODUCT_ID_CONCEPTRONIC_C11U  0x7100
+
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_503I        ) },
 	{ USB_DEVICE(VENDOR_ID_LINKSYS,  PRODUCT_ID_LINKSYS_WUSB11_V21) },
@@ -93,6 +96,7 @@ static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_SMC,      PRODUCT_ID_SMC2662W_V1       ) },
 	{ USB_DEVICE(VENDOR_ID_BENQ,     PRODUCT_ID_BENQ_AWL_300      ) },
 	{ USB_DEVICE(VENDOR_ID_ADDTRON,  PRODUCT_ID_ADDTRON_AWU120    ) },
+	{ USB_DEVICE(VENDOR_ID_CONCEPTRONIC,PRODUCT_ID_CONCEPTRONIC_C11U) },
 	{ }
 };
 
