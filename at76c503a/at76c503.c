@@ -1,5 +1,6 @@
 /* -*- linux-c -*- */
-/*
+/* $Id: at76c503.c,v 1.11 2003/03/27 22:25:24 jal2 Exp $
+ *
  * USB at76c503/at76c505 driver
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth <oku@masqmail.cx>
@@ -294,6 +295,7 @@ struct ieee802_11_deauth_frame {
 #define KEVENT_JOIN 6
 #define KEVENT_STARTIBSS 7
 #define KEVENT_SUBMIT_RX 8
+#define KEVENT_RESTART 9 /* restart the device */
 
 static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 
@@ -322,6 +324,7 @@ static int reassoc_req(struct at76c503 *dev, struct bss_info *curr,
 		       struct bss_info *new);
 static void dump_bss_table(struct at76c503 *dev);
 static int submit_rx_urb(struct at76c503 *dev);
+static int startup_device(struct at76c503 *dev);
 
 /* hexdump len many bytes from buf into obuf, separated by delim,
    add a trailing \0 into obuf */
@@ -952,6 +955,14 @@ int join_bss(struct at76c503 *dev, struct bss_info *ptr)
 				sizeof(struct at76c503_join));
 } /* join_bss */
 
+/* the restart timer timed out */
+void restart_timeout(unsigned long par)
+{
+	struct at76c503 *dev = (struct at76c503 *)par;
+	defer_kevent(dev, KEVENT_RESTART);
+}
+
+
 /* we got a timeout for a infrastructure mgmt packet */
 void mgmt_timeout(unsigned long par)
 {
@@ -1036,7 +1047,6 @@ void handle_mgmt_timeout(struct at76c503 *dev)
 		break;
 
 	case INIT:
-		assert(0);
 		break;
 
 	default:
@@ -1545,6 +1555,8 @@ end_startibss:
 		struct bss_info *start = dev->curr_bss != NULL ?
 			dev->curr_bss->next : dev->first_bss;
 		clear_bit(KEVENT_JOIN, &dev->kevent_flags);
+		if (dev->istate == INIT)
+			goto end_join;
 		assert(dev->istate == JOINING);
 		if ((dev->curr_bss=find_matching_bss(dev, start)) != NULL) {
 			if ((ret=join_bss(dev,dev->curr_bss)) < 0) {
@@ -1605,6 +1617,8 @@ end_join:
 
 	if (test_bit(KEVENT_SCAN, &dev->kevent_flags)) {
 		clear_bit(KEVENT_SCAN, &dev->kevent_flags);
+		if (dev->istate == INIT)
+			goto end_scan;
 		assert(dev->istate == SCANNING);
 
 		/* empty the driver's bss list */
@@ -1655,6 +1669,16 @@ end_scan:
 	if (test_bit(KEVENT_SUBMIT_RX, &dev->kevent_flags)) {
 		clear_bit(KEVENT_SUBMIT_RX, &dev->kevent_flags);
 		submit_rx_urb(dev);
+	}
+
+
+	if (test_bit(KEVENT_RESTART, &dev->kevent_flags)) {
+		clear_bit(KEVENT_RESTART, &dev->kevent_flags);
+		assert(dev->istate == INIT);
+		startup_device(dev);
+		/* scan again in a second */
+		NEW_STATE(dev,SCANNING);
+		mod_timer(&dev->mgmt_timer, jiffies+HZ);
 	}
 
 	up(&dev->sem);
@@ -1979,28 +2003,27 @@ static void rx_mgmt_deauth(struct at76c503 *dev,
 	    le16_to_cpu(resp->reason),
 	    hex2str(obuf, mgmt->addr1, ETH_ALEN, ':'));
 
-	if (!memcmp(mgmt->addr3, dev->curr_bss->bssid, ETH_ALEN) &&
-		(!memcmp(dev->netdev->dev_addr, mgmt->addr1, ETH_ALEN) ||
-			!memcmp(bc_addr, mgmt->addr1, ETH_ALEN))) {
-		/* this is a DeAuth from the BSS we are connected or
-		   trying to connect to, directed to us or broadcasted */
+	if (dev->istate == DISASSOCIATING ||
+	    dev->istate == AUTHENTICATING ||
+	    dev->istate == ASSOCIATING ||
+	    dev->istate == REASSOCIATING  ||
+	    dev->istate == CONNECTED) {
 
-		if (dev->istate == DISASSOCIATING ||
-		    dev->istate == AUTHENTICATING ||
-		    dev->istate == ASSOCIATING ||
-		    dev->istate == REASSOCIATING  ||
-		    dev->istate == CONNECTED  ||
-		    dev->istate == JOINING)
-		{
+		if (!memcmp(mgmt->addr3, dev->curr_bss->bssid, ETH_ALEN) &&
+		(!memcmp(dev->netdev->dev_addr, mgmt->addr1, ETH_ALEN) ||
+		 !memcmp(bc_addr, mgmt->addr1, ETH_ALEN))) {
+			/* this is a DeAuth from the BSS we are connected or
+			   trying to connect to, directed to us or broadcasted */
 			NEW_STATE(dev,JOINING);
 			defer_kevent(dev,KEVENT_JOIN);
 			del_timer_sync(&dev->mgmt_timer);
-		} else
+		}
+		/* ignore DeAuth to other STA or from other BSSID */
+	} else {
 		/* ignore DeAuth in states SCANNING */
 		info("%s: DeAuth in state %d ignored",
 		     dev->netdev->name, dev->istate);
 	}
-	/* ignore DeAuth to other STA or from other BSSID */
 } /* rx_mgmt_deauth */
 
 static void rx_mgmt_beacon(struct at76c503 *dev,
@@ -3311,7 +3334,8 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		ret = -EOPNOTSUPP;
 	}
 
-#if 1
+#if 1 
+
 	/* we only startup the device if it was already opened before. */
 	if ((changed) && (dev->open_count > 0)) {
 
@@ -3324,22 +3348,28 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 
 		/* stop any pending tx bulk urb */
 
-		/* stop pending management stuff */
-		del_timer_sync(&dev->mgmt_timer);
+		/* jal: TODO: protect access to dev->istate by a spinlock
+		   (ISR's on other processors may read/write it) */
+		if (dev->istate != INIT) {
+			dev->istate = INIT;
+			/* stop pending management stuff */
+			del_timer_sync(&dev->mgmt_timer);
 
-		spin_lock_irqsave(&dev->mgmt_spinlock,flags);
-		if (dev->next_mgmt_bulk) {
-			kfree(dev->next_mgmt_bulk);
-			dev->next_mgmt_bulk = NULL;
+			spin_lock_irqsave(&dev->mgmt_spinlock,flags);
+			if (dev->next_mgmt_bulk) {
+				kfree(dev->next_mgmt_bulk);
+				dev->next_mgmt_bulk = NULL;
+			}
+			spin_unlock_irqrestore(&dev->mgmt_spinlock,flags);
+
+			netif_carrier_off(dev->netdev);
+			netif_stop_queue(dev->netdev);
 		}
-		spin_unlock_irqrestore(&dev->mgmt_spinlock,flags);
 
-		ret = startup_device(dev);
-
-		NEW_STATE(dev,SCANNING);
-		defer_kevent(dev,KEVENT_SCAN);
-		netif_carrier_off(dev->netdev);
-		netif_stop_queue(dev->netdev);
+		/* do the restart after two seconds to catch
+		   following ioctl's (from more params of iwconfig)
+		   in _one_ restart */
+		mod_timer(&dev->restart_timer, jiffies+2*HZ);
 	}
 #endif
 	up(&dev->sem);
@@ -3456,6 +3486,10 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 
 	dev->open_count = 0;
 
+	init_timer(&dev->restart_timer);
+	dev->restart_timer.data = (unsigned long)dev;
+	dev->restart_timer.function = restart_timeout;
+
 	init_timer(&dev->mgmt_timer);
 	dev->mgmt_timer.data = (unsigned long)dev;
 	dev->mgmt_timer.function = mgmt_timeout;
@@ -3493,6 +3527,8 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		err("this probably means that the ext. fw was not loaded correctly");
 		goto error;
 	}
+
+	info("$Id: at76c503.c,v 1.11 2003/03/27 22:25:24 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);

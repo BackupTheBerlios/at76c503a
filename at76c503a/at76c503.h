@@ -457,6 +457,8 @@ struct at76c503 {
 						     send via bulk out */
 	enum infra_state istate;
 
+	struct timer_list restart_timer; /* the timer we use to delay the restart a bit */
+
 	struct timer_list mgmt_timer; /* the timer we use to repeat auth_req etc. */
 	int retries; /* counts backwards while re-trying to send auth/assoc_req's */
 	u16 assoc_id; /* the assoc_id for states JOINING, REASSOCIATING, CONNECTED */
