@@ -71,6 +71,10 @@
 #define VENDOR_ID_DYNALINK            0x069a
 #define PRODUCT_ID_DYNALINK_WLL013_I  0x0320 /* Dynalink/Askey WLL013 (intersil) */
 
+#define VENDOR_ID_SMC                 0x0d5c
+#define PRODUCT_ID_SMC2662W_V1        0xa001 /* EZ connect 11Mpbs
+Wireless USB Adapter SMC2662W (v1) */
+
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_503I        ) },
 	{ USB_DEVICE(VENDOR_ID_LINKSYS,  PRODUCT_ID_LINKSYS_WUSB11_V21) },
@@ -79,6 +83,7 @@ static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_HP,       PRODUCT_ID_HP_HN210W         ) },
 	{ USB_DEVICE(VENDOR_ID_M4Y750,   PRODUCT_ID_M4Y750            ) },
 	{ USB_DEVICE(VENDOR_ID_DYNALINK, PRODUCT_ID_DYNALINK_WLL013_I ) },
+	{ USB_DEVICE(VENDOR_ID_SMC,      PRODUCT_ID_SMC2662W_V1 ) },
 	{ }
 };
 
