@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.15 2003/05/01 19:48:29 jal2 Exp $
+/* $Id: at76c503.c,v 1.16 2003/05/01 22:03:00 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -92,6 +92,7 @@
 #include <linux/if_arp.h>
 #include <linux/etherdevice.h>
 #include <linux/wireless.h>
+#include <linux/rtnetlink.h>  /* for rtnl_lock() */
 
 #include "at76c503.h"
 #include "ieee802_11.h"
@@ -3507,7 +3508,15 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 void at76c503_delete_device(struct at76c503 *dev)
 {
 	if(dev){
+		int sem_taken;
+		if ((sem_taken=down_trylock(&rtnl_sem)) != 0)
+			dbg("%s: rtnl_sem already down'ed", __FUNCTION__);
 		unregister_netdevice(dev->netdev);
+		if (!sem_taken)
+			rtnl_unlock();
+
+		// assuming we used keventd, it must quiesce too
+		flush_scheduled_tasks ();
 
 		if(dev->bulk_out_buffer != NULL)
 			kfree(dev->bulk_out_buffer);
@@ -3522,7 +3531,7 @@ void at76c503_delete_device(struct at76c503 *dev)
 			kfree_skb(dev->rx_skb);
 		if(dev->ctrl_buffer != NULL)
 			usb_free_urb(dev->ctrl_urb);
-    
+
 		free_bss_list(dev);
 
 		kfree (dev->netdev); /* dev is in net_dev */ 
@@ -3662,7 +3671,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.15 2003/05/01 19:48:29 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.16 2003/05/01 22:03:00 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
@@ -3748,6 +3757,8 @@ struct at76c503 *at76c503_do_probe(struct module *mod, struct usb_device *udev, 
 	}
 
 	dev->netdev->owner = mod;
+
+	/* putting this inside rtnl_lock() - rtnl_unlock() hangs modprobe ...? */
 	ret = register_netdev(dev->netdev);
 	if (ret) {
 		err("Unable to register netdevice %s (status %d)!",
