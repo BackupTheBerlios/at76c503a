@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.69 2004/09/05 14:07:09 jal2 Exp $
+/* $Id: at76c503.c,v 1.70 2004/10/13 23:58:23 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -115,6 +115,11 @@
 
 #endif // #if WIRELESS_EXT > 12
 
+/* not defined in WIRELESS_EXT < 15 */
+#ifndef IW_MODE_MONITOR
+# define IW_MODE_MONITOR  6
+#endif
+ 
 #include <linux/rtnetlink.h>  /* for rtnl_lock() */
 
 #include "at76c503.h"
@@ -7316,7 +7321,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.69 2004/09/05 14:07:09 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.70 2004/10/13 23:58:23 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
