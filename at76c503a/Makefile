@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.33 2004/06/13 22:03:08 jal2 Exp $
+#$Id: Makefile,v 1.34 2004/06/15 19:53:42 jal2 Exp $
 
 VERSION = 0.12beta14
 
@@ -20,16 +20,17 @@ DVERSION = $(VERSION)
 endif
 
 MODULES = at76c503.o usbdfu.o at76c503-i3861.o at76c503-rfmd.o at76c503-rfmd-acc.o \
-          at76c505-rfmd.o at76c503-i3863.o at76c505-rfmd2958.o
+          at76c505-rfmd.o at76c503-i3863.o at76c505-rfmd2958.o at76c505a-rfmd2958.o
 
 SRCS = at76c503.c usbdfu.c at76c503-rfmd.c at76c505-rfmd.c at76c503-rfmd-acc.c \
-       at76c503-i3861.c at76c503-i3863.c at76c505-rfmd2958.c
+       at76c503-i3861.c at76c503-i3863.c at76c505-rfmd2958.c at76c505a-rfmd2958.o
 
 HDRS = at76c503.h ieee802_11.h usbdfu.h at76c503-fw_skel.c fw-empty.h
 FW_HDRS= fw-pkg-505-rfmd2958-1.101.0-86.h  fw-pkg-i3863.h  \
 	fw-pkg-rfmd-1.101.0-84.h fw-pkg-i3861.h \
 	fw-pkg-rfmd-0.90.2-140.h \
-	fw-pkg-r505.h fw-pkg-rfmd-acc-1.101.0-84.h
+	fw-pkg-r505.h fw-pkg-rfmd-acc-1.101.0-84.h \
+	fw-pkg-505a-rfmd2958-1.102.0-113.h
 
 SCRIPTS = fwbin2h fwbin2pkg.sh fwconvert fwversion
 

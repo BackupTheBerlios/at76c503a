@@ -1,4 +1,4 @@
-/* $Id: gen_fw.c,v 1.5 2004/01/17 12:15:45 jal2 Exp $ */
+/* $Id: gen_fw.c,v 1.6 2004/06/15 19:53:42 jal2 Exp $ */
 
 /* This file includes the old style firmwares and outputs new, binary files. */
 
@@ -14,6 +14,7 @@ typedef unsigned int u32;
 #define BOARDTYPE_503_RFMD_ACC      4
 #define BOARDTYPE_505_RFMD          5
 #define BOARDTYPE_505_RFMD_2958     6
+#define BOARDTYPE_505A_RFMD_2958    7
 
 #include "fw-rfmd-0.90.2-140.h"
 u8 intfw_503rfmd_0_90_2[] = FW_503RFMD_INTERNAL;
@@ -27,6 +28,10 @@ u8 extfw_503rfmd_0_90_2[] = FW_503RFMD_EXTERNAL;
 #include "fw-i3863.h"
 #include "fw-r505.h"
 #include "fw-505rfmd2958-1.101.0-86.h"
+
+#define atuwi_fw_rfmd2958_smc_int intfw_505a_rfmd2958
+#define atuwi_fw_rfmd2958_smc_ext extfw_505a_rfmd2958
+#include "atuwi_rfmd2958-smc_fw.h"
 
 /* The struct of the firmware header: */
 typedef struct {
@@ -68,7 +73,7 @@ struct fw {
 	u32 extfw_sz;
 } fws[] = {
 	{ "atmel_at76c503-rfmd-0.90.2-140.bin", BOARDTYPE_503_RFMD,
-	  0x01650054, "0.90.2-140 503 RFMD "
+	  0x005a028c, "0.90.2-140 503 RFMD "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
 	  intfw_503rfmd_0_90_2, sizeof(intfw_503rfmd_0_90_2),
           extfw_503rfmd_0_90_2, sizeof(extfw_503rfmd_0_90_2)},
@@ -108,6 +113,12 @@ struct fw {
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
 	  intfw_505rfmd2958, sizeof(intfw_505rfmd2958),
 	  extfw_505rfmd2958, sizeof(extfw_505rfmd2958)},
+
+	{ "atmel_at76c505a-rfmd2958.bin", BOARDTYPE_505A_RFMD_2958,
+	  0x01660071, "1.102.0-113 505A RFMD 2958"
+	  "Copyright (c) 1999-2004 by Atmel Corporation",
+	  intfw_505a_rfmd2958, sizeof(intfw_505a_rfmd2958),
+	  extfw_505a_rfmd2958, sizeof(extfw_505a_rfmd2958)},
 };
 
 int nr_fws = sizeof(fws) / sizeof(struct fw);

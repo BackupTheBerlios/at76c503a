@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.23 2004/06/14 00:05:04 jal2 Exp $
+/* $Id: at76c503.h,v 1.24 2004/06/15 19:53:42 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -149,6 +149,7 @@
 #define BOARDTYPE_503_RFMD_ACC      4
 #define BOARDTYPE_505_RFMD          5
 #define BOARDTYPE_505_RFMD_2958     6
+#define BOARDTYPE_505A_RFMD_2958    7
 
 struct hwcfg_r505 {
 	u8 cr39_values[14];
