@@ -152,6 +152,7 @@ struct at76c503_command{
 } __attribute__ ((packed));
 
 #define MAX_PACKET 1536
+#define AT76C503_RX_HDRLEN 12
 
 struct at76c503_rx_buffer {
 	u16 wlength;
@@ -372,8 +373,7 @@ struct at76c503 {
 	char			num_bulk_in;		/* number of bulk in endpoints we have */
 	char			num_bulk_out;		/* number of bulk out endpoints we have */
 	
-	unsigned char *	bulk_in_buffer;		/* the buffer to receive data */
-	int			bulk_in_size;		/* the size of the receive buffer */
+	struct sk_buff *	rx_skb;			/* skbuff for receiving packets */
 	__u8			bulk_in_endpointAddr;	/* the address of the bulk in endpoint */
 	
 	unsigned char *	bulk_out_buffer;	/* the buffer to send data */

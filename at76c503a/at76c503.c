@@ -144,7 +144,11 @@ static int debug;
 MODULE_PARM(debug, "i");
 #define DRIVER_AUTHOR \
 "Oliver Kurth <oku@masqmail.cx>, Joerg Albert <joerg.albert@gmx.de>, Alex <alex@foogod.com>"
-MODULE_PARM_DESC(debug, "Debug enabled or not");
+MODULE_PARM_DESC(debug, "Debugging level");
+
+static int rx_copybreak = 200;
+MODULE_PARM(rx_copybreak, "i");
+MODULE_PARM_DESC(rx_copybreak, "rx packet copy threshold");
 
 struct header_struct {
         /* 802.3 */
@@ -287,11 +291,20 @@ struct ieee802_11_deauth_frame {
 #define KEVENT_SCAN 5 
 #define KEVENT_JOIN 6
 #define KEVENT_STARTIBSS 7
+#define KEVENT_SUBMIT_RX 8
 
 static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 
+static u8 snapsig[] = {0xaa, 0xaa, 0x03};
+#ifdef COLLAPSE_RFC1042
+/* RFC 1042 encapsulates Ethernet frames in 802.2 SNAP (0xaa, 0xaa, 0x03) with
+ * a SNAP OID of 0 (0x00, 0x00, 0x00) */
+static u8 rfc1042sig[] = {0xaa, 0xaa, 0x03, 0x00, 0x00, 0x00};
+#endif /* COLLAPSE_RFC1042 */
+
 /* local function prototypes */
 	
+static void at76c503_read_bulk_callback (struct urb *urb);
 static void at76c503_write_bulk_callback(struct urb *urb);
 static void defer_kevent (struct at76c503 *dev, int flag);
 static int find_matching_bss(struct at76c503 *dev, int start);
@@ -300,6 +313,7 @@ static int disassoc_req(struct at76c503 *dev, int idx);
 static int assoc_req(struct at76c503 *dev, int idx);
 static int reassoc_req(struct at76c503 *dev, int curr, int new);
 static void dump_bss_table(struct at76c503 *dev);
+static int submit_rx_urb(struct at76c503 *dev);
 
 /* hexdump len many bytes from buf into obuf, separated by delim,
    add a trailing \0 into obuf */
@@ -1566,6 +1580,11 @@ end_join:
 	} /* if (test_bit(KEVENT_SCAN, &dev->kevent_flags)) */
 end_scan:
 
+	if (test_bit(KEVENT_SUBMIT_RX, &dev->kevent_flags)) {
+		clear_bit(KEVENT_SUBMIT_RX, &dev->kevent_flags);
+		submit_rx_urb(dev);
+	}
+
 	up(&dev->sem);
 
 	return;
@@ -2006,11 +2025,167 @@ static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 	return;
 }
 
-/* shamelessly copied from orinoco.c */
-static inline int
-is_snap(struct header_struct *hdr)
+static void dbg_dumpbuf(const char *tag, const u8 *buf, int size)
 {
-	return (hdr->dsap == 0xaa) && (hdr->ssap == 0xaa) && (hdr->ctrl == 0x03);
+	int i;
+
+	if (!debug) return;
+
+	for (i=0; i<size; i++) {
+		if ((i % 8) == 0) {
+			if (i) printk("\n");
+			printk(KERN_DEBUG __FILE__ ": %s: ", tag);
+		}
+		printk("%02x ", buf[i]);
+	}
+	printk("\n");
+}
+
+/* Convert the 802.11 header on a packet into an ethernet-style header
+ * (basically, pretend we're an ethernet card receiving ethernet packets)
+ *
+ * This routine returns with the skbuff pointing to the actual data (just past
+ * the end of the newly-created ethernet header), and the CRC trimmed off.
+ */
+static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
+{
+	struct ieee802_11_hdr *i802_11_hdr;
+	struct ethhdr *eth_hdr;
+	u8 *src_addr;
+	u8 *dest_addr;
+	unsigned short proto = 0;
+	int build_ethhdr = 1;
+
+	i802_11_hdr = (struct ieee802_11_hdr *)skb->data;
+	skb_pull(skb, sizeof(struct ieee802_11_hdr));
+	skb_trim(skb, skb->len - 4); /* Trim CRC */
+
+	src_addr = iw_mode == IW_MODE_ADHOC ? i802_11_hdr->addr2
+	       				    : i802_11_hdr->addr3;
+	dest_addr = i802_11_hdr->addr1;
+
+	eth_hdr = (struct ethhdr *)skb->data;
+	if (!memcmp(eth_hdr->h_source, src_addr, ETH_ALEN) &&
+	    !memcmp(eth_hdr->h_dest, dest_addr, ETH_ALEN)) {
+		/* An ethernet frame is encapsulated within the data portion.
+		 * Just use its header instead. */
+		skb_pull(skb, sizeof(struct ethhdr));
+		build_ethhdr = 0;
+	} else if (!memcmp(skb->data, snapsig, sizeof(snapsig))) {
+		/* SNAP frame. */
+#ifdef COLLAPSE_RFC1042
+		if (!memcmp(skb->data, rfc1042sig, sizeof(rfc1042sig))) {
+			/* RFC1042 encapsulated packet.  Collapse it to a
+			 * simple Ethernet-II or 802.3 frame */
+			/* NOTE: prism2 doesn't collapse Appletalk frames (why?). */
+			skb_pull(skb, sizeof(rfc1042sig)+2);
+			proto = *(unsigned short *)(skb->data - 2);
+		} else
+#endif /* COLLAPSE_RFC1042 */
+		proto = htons(skb->len);
+	} else {
+#if IEEE_STANDARD
+		/* According to all standards, we should assume the data
+		 * portion contains 802.2 LLC information, so we should give it
+		 * an 802.3 header (which has the same implications) */
+		proto = htons(skb->len);
+#else /* IEEE_STANDARD */
+		/* Unfortunately, it appears no actual 802.11 implementations
+		 * follow any standards specs.  They all appear to put a
+		 * 16-bit ethertype after the 802.11 header instead, so we take
+		 * that value and make it into an Ethernet-II packet. */
+		/* Note that this means we can never support non-SNAP 802.2
+		 * frames (because we can't tell when we get one) */
+		proto = *(unsigned short *)(skb->data);
+		skb_pull(skb, 2);
+#endif /* IEEE_STANDARD */
+	}
+
+	eth_hdr = (struct ethhdr *)(skb->data-sizeof(struct ethhdr));
+	skb->mac.ethernet = eth_hdr;
+	if (build_ethhdr) {
+		/* This needs to be done in this order (eth_hdr->h_dest may
+		 * overlap src_addr) */
+		memcpy(eth_hdr->h_source, src_addr, ETH_ALEN);
+		memcpy(eth_hdr->h_dest, dest_addr, ETH_ALEN);
+		/* make an 802.3 header (proto = length) */
+		eth_hdr->h_proto = proto;
+	}
+
+	/* TODO: check this max length */
+	if (ntohs(eth_hdr->h_proto) >= 1536) {
+		skb->protocol = eth_hdr->h_proto;
+	} else if (*(unsigned short *)skb->data == 0xFFFF) {
+		/* Magic hack for Novell IPX-in-802.3 packets */
+		skb->protocol = htons(ETH_P_802_3);
+	} else {
+		/* Assume it's an 802.2 packet (it should be, and we have no
+		 * good way to tell if it isn't) */
+		skb->protocol = htons(ETH_P_802_2);
+	}
+}
+
+/* Adjust the skb to trim the hardware header and CRC, and set up skb->mac,
+ * skb->protocol, etc.
+ */ 
+static void ieee80211_fixup(struct sk_buff *skb, int iw_mode)
+{
+	struct ieee802_11_hdr *i802_11_hdr;
+	struct ethhdr *eth_hdr;
+	u8 *src_addr;
+	u8 *dest_addr;
+	unsigned short proto = 0;
+
+	i802_11_hdr = (struct ieee802_11_hdr *)skb->data;
+	skb_pull(skb, sizeof(struct ieee802_11_hdr));
+	skb_trim(skb, skb->len - 4); /* Trim CRC */
+
+	src_addr = iw_mode == IW_MODE_ADHOC ? i802_11_hdr->addr2
+	       				    : i802_11_hdr->addr3;
+	dest_addr = i802_11_hdr->addr1;
+
+	skb->mac.raw = (unsigned char *)i802_11_hdr;
+
+	eth_hdr = (struct ethhdr *)skb->data;
+	if (!memcmp(eth_hdr->h_source, src_addr, ETH_ALEN) &&
+	    !memcmp(eth_hdr->h_dest, dest_addr, ETH_ALEN)) {
+		/* There's an ethernet header encapsulated within the data
+		 * portion, count it as part of the hardware header */
+		skb_pull(skb, sizeof(struct ethhdr));
+		proto = eth_hdr->h_proto;
+	} else if (!memcmp(skb->data, snapsig, sizeof(snapsig))) {
+		/* SNAP frame */
+#ifdef COLLAPSE_RFC1042
+		if (!memcmp(skb->data, rfc1042sig, sizeof(rfc1042sig))) {
+			/* RFC1042 encapsulated packet.  Treat the SNAP header
+			 * as part of the HW header and note the protocol. */
+			/* NOTE: prism2 doesn't collapse Appletalk frames (why?). */
+			skb_pull(skb, sizeof(rfc1042sig) + 2);
+			proto = *(unsigned short *)(skb->data - 2);
+		} else
+#endif /* COLLAPSE_RFC1042 */
+		proto = htons(ETH_P_802_2);
+	}
+
+	/* TODO: check this max length */
+	if (ntohs(proto) >= 1536) {
+		skb->protocol = proto;
+	} else {
+#ifdef IEEE_STANDARD
+		/* According to all standards, we should assume the data
+		 * portion contains 802.2 LLC information */
+		skb->protocol = htons(ETH_P_802_2);
+#else /* IEEE_STANDARD */
+		/* Unfortunately, it appears no actual 802.11 implementations
+		 * follow any standards specs.  They all appear to put a
+		 * 16-bit ethertype after the 802.11 header instead, so we'll
+		 * use that (and consider it part of the hardware header). */
+		/* Note that this means we can never support non-SNAP 802.2
+		 * frames (because we can't tell when we get one) */
+		skb->protocol = *(unsigned short *)(skb->data - 2);
+		skb_pull(skb, 2);
+#endif /* IEEE_STANDARD */
+	}
 }
 
 static void rx_data(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
@@ -2018,57 +2193,91 @@ static void rx_data(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 	struct net_device *netdev = (struct net_device *)dev->netdev;
 	struct net_device_stats *stats = &dev->stats;
 	struct ieee802_11_hdr *i802_11_hdr = (struct ieee802_11_hdr *)buf->packet;
-	struct sk_buff *skb;
-	struct header_struct *hdr_eth = (struct header_struct *)&buf->packet[10];
-	int length, offset;
+	struct sk_buff *skb = dev->rx_skb;
+	int length;
 
-	if(is_snap(hdr_eth)){
-		length = le16_to_cpu(buf->wlength) - 18 - 4;
-		offset = 18;
-	}else{
-		info("it's not a snap frame");
-		length = le16_to_cpu(buf->wlength) - 10 - 4;
-		offset = 10;
+	length = le16_to_cpu(buf->wlength);
+
+	if (debug > 1) {
+		dbg("%s received data packet:", netdev->name);
+		dbg_dumpbuf(" rxhdr", skb->data, AT76C503_RX_HDRLEN);
+		dbg_dumpbuf("packet", skb->data + AT76C503_RX_HDRLEN, length);
 	}
 
-	/* TODO: submit skb->data directly, this saves the memcpy */
-	skb = dev_alloc_skb(length+2);
-	if(skb == NULL) {
-		err("%s: could not allocate skb for rx\n", netdev->name);
-		stats->rx_dropped++;
-		goto drop;
+	if (length < rx_copybreak && (skb = dev_alloc_skb(length)) != NULL) {
+		memcpy(skb_put(skb, length),
+			dev->rx_skb->data + AT76C503_RX_HDRLEN, length);
+	} else {
+		skb_pull(skb, AT76C503_RX_HDRLEN);
+		skb_trim(skb, length);
+		/* Use a new skb for the next receive */
+		dev->rx_skb = NULL;
 	}
-	skb_reserve(skb, 2);
-
-	memcpy(skb_put(skb, length), &(buf->packet[offset]), length);
-
-	hdr_eth = (struct header_struct *)skb->data;
-
-	if(dev->iw_mode == IW_MODE_ADHOC){
-		memcpy(hdr_eth->dest, i802_11_hdr->addr1, ETH_ALEN);
-		memcpy(hdr_eth->src, i802_11_hdr->addr2, ETH_ALEN);
-	}else if(dev->iw_mode == IW_MODE_INFRA){
-		memcpy(hdr_eth->dest, i802_11_hdr->addr1, ETH_ALEN);
-		memcpy(hdr_eth->src, i802_11_hdr->addr3, ETH_ALEN);
-	}
-
-#if 0
-	info("rx addr1: %s", mac2str(i802_11_hdr->addr1));
-	info("rx addr2: %s", mac2str(i802_11_hdr->addr2));
-	info("rx addr3: %s", mac2str(i802_11_hdr->addr3));
-#endif
 
 	skb->dev = netdev;
-	skb->protocol = eth_type_trans(skb, netdev);
+	skb->ip_summed = CHECKSUM_NONE; /* TODO: should check CRC */
+
+	if (i802_11_hdr->addr1[0] & 1) {
+		if (!memcmp(i802_11_hdr->addr1, netdev->broadcast, ETH_ALEN))
+			skb->pkt_type = PACKET_BROADCAST;
+		else
+			skb->pkt_type = PACKET_MULTICAST;
+	} else if (memcmp(i802_11_hdr->addr1, netdev->dev_addr, ETH_ALEN)) {
+		skb->pkt_type=PACKET_OTHERHOST;
+	}
+
+	if (netdev->type == ARPHRD_ETHER) {
+		ieee80211_to_eth(skb, dev->iw_mode);
+	} else {
+		ieee80211_fixup(skb, dev->iw_mode);
+	}
+
 	netdev->last_rx = jiffies;
-	skb->ip_summed = CHECKSUM_NONE;
 	netif_rx(skb);
 	stats->rx_packets++;
 	stats->rx_bytes += length;
 
- drop:
 	return;
 }
+
+static int submit_rx_urb(struct at76c503 *dev)
+{
+	int ret, size;
+	struct sk_buff *skb = dev->rx_skb;
+
+	if (skb == NULL) {
+		skb = dev_alloc_skb(sizeof(struct at76c503_rx_buffer));
+		if (skb == NULL) {
+			err("%s: unable to allocate rx skbuff.", dev->netdev->name);
+			ret = -ENOMEM;
+			goto exit;
+		}
+		dev->rx_skb = skb;
+	} else {
+		skb_push(skb, skb_headroom(skb));
+		skb_trim(skb, 0);
+	}
+
+	size = skb_tailroom(skb);
+	usb_fill_bulk_urb(dev->read_urb, dev->udev,
+		usb_rcvbulkpipe(dev->udev, dev->bulk_in_endpointAddr),
+		skb_put(skb, size), size,
+		at76c503_read_bulk_callback, dev);
+	ret = usb_submit_urb(dev->read_urb);
+	if (ret < 0) {
+		err("%s: rx, usb_submit_urb failed: %d", dev->netdev->name, ret);
+	}
+
+exit:
+	if (ret < 0) {
+		/* If we can't submit the URB, the adapter becomes completely
+		 * useless, so try again later */
+		/* TODO: should we limit the number of retries? */
+		defer_kevent(dev, KEVENT_SUBMIT_RX);
+	}
+	return ret;
+}
+
 
 /* we are doing a lot of things here in an interrupt. Need
    a bh handler (Watching TV with a TV card is probably
@@ -2076,6 +2285,8 @@ static void rx_data(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
    Currently I do see flickers... even with our tasklet :-( )
    Maybe because the bttv driver and usb-uhci use the same interrupt
 */
+/* Or maybe because our BH handler is preempting bttv's BH handler.. BHs don't
+ * solve everything.. (alex) */
 static void at76c503_read_bulk_callback (struct urb *urb)
 {
 	struct at76c503 *dev = (struct at76c503 *)urb->context;
@@ -2091,9 +2302,8 @@ static void rx_tasklet(unsigned long param)
 	struct at76c503 *dev = (struct at76c503 *)param;
 	struct urb *urb = dev->rx_urb;
 	struct net_device *netdev = (struct net_device *)dev->netdev;
-	struct at76c503_rx_buffer *buf = (struct at76c503_rx_buffer *)dev->bulk_in_buffer;
+	struct at76c503_rx_buffer *buf = (struct at76c503_rx_buffer *)dev->rx_skb->data;
 	struct ieee802_11_hdr *i802_11_hdr = (struct ieee802_11_hdr *)buf->packet;
-	int ret;
 	u8 frame_type;
 //	int flags;
 
@@ -2113,7 +2323,7 @@ static void rx_tasklet(unsigned long param)
 
 	/* there is a new bssid around, accept it: */
 	if(buf->newbss && dev->iw_mode == IW_MODE_ADHOC){
-		info("%s: rx newbss", netdev->name);
+		dbg("%s: rx newbss", netdev->name);
 		defer_kevent(dev, KEVENT_NEW_BSS);
 	}
 
@@ -2128,22 +2338,14 @@ static void rx_tasklet(unsigned long param)
 //		info("rx: it's a mgmt frame");
 		rx_mgmt(dev, buf);
 	}else if(frame_type == IEEE802_11_FTYPE_CTL)
-		info("rx: it's a ctrl frame: %2x", i802_11_hdr->frame_ctl);
+		dbg("%s: received ctrl frame: %2x", dev->netdev->name,
+		    i802_11_hdr->frame_ctl);
 	else
-		info("rx: it's a frame from mars: %2x", i802_11_hdr->frame_ctl);
+		dbg("%s: it's a frame from mars: %2x", dev->netdev->name,
+		    i802_11_hdr->frame_ctl);
 
  next_urb:
-	FILL_BULK_URB(dev->read_urb, dev->udev,
-		      usb_rcvbulkpipe(dev->udev, dev->bulk_in_endpointAddr),
-		      dev->bulk_in_buffer, sizeof(struct at76c503_rx_buffer),
-		      at76c503_read_bulk_callback, dev);
-	ret = usb_submit_urb(dev->read_urb);
-	if(ret < 0){
-		err("%s: rx, usb_submit_urb failed: %d", netdev->name, ret);
-		goto exit;
-	}
-
- exit:
+	submit_rx_urb(dev);
 	return;
 }
 
@@ -2364,14 +2566,9 @@ int at76c503_open(struct net_device *netdev)
 	set_rts(dev, dev->rts_threshold);
 	set_autorate_fallback(dev, dev->txrate == 4 ? 1 : 0);
 
-	FILL_BULK_URB(dev->read_urb, dev->udev,
-		      usb_rcvbulkpipe(dev->udev, dev->bulk_in_endpointAddr),
-		      dev->bulk_in_buffer, sizeof(struct at76c503_rx_buffer),
-		      at76c503_read_bulk_callback, dev);
-
-	ret = usb_submit_urb(dev->read_urb);
+	ret = submit_rx_urb(dev);
 	if(ret < 0){
-		err("%s: open: usb_submit_urb failed: %d", netdev->name, ret);
+		err("%s: open: submit_rx_urb failed: %d", netdev->name, ret);
 		goto err;
 	}
 
@@ -2776,8 +2973,6 @@ void at76c503_delete_device(struct at76c503 *dev)
 	if(dev){
 		unregister_netdevice(dev->netdev);
 
-		if(dev->bulk_in_buffer != NULL)
-			kfree(dev->bulk_in_buffer);
 		if(dev->bulk_out_buffer != NULL)
 			kfree(dev->bulk_out_buffer);
 		if(dev->ctrl_buffer != NULL)
@@ -2787,6 +2982,8 @@ void at76c503_delete_device(struct at76c503 *dev)
 			usb_free_urb(dev->write_urb);
 		if(dev->read_urb != NULL)
 			usb_free_urb(dev->read_urb);
+		if(dev->rx_skb != NULL)
+			kfree_skb(dev->rx_skb);
 		if(dev->ctrl_buffer != NULL)
 			usb_free_urb(dev->ctrl_urb);
     
@@ -2814,19 +3011,7 @@ static int at76c503_alloc_urbs(struct at76c503 *dev)
 				err("No free urbs available");
 				return -1;
 			}
-			buffer_size = sizeof(struct at76c503_rx_buffer);
-			dev->bulk_in_size = buffer_size;
 			dev->bulk_in_endpointAddr = endpoint->bEndpointAddress;
-			dev->bulk_in_buffer = kmalloc (buffer_size, GFP_KERNEL);
-			if (!dev->bulk_in_buffer) {
-				err("Couldn't allocate bulk_in_buffer");
-				return -1;
-			}
-			FILL_BULK_URB(dev->read_urb, udev, 
-				      usb_rcvbulkpipe(udev, 
-						      endpoint->bEndpointAddress),
-				      dev->bulk_in_buffer, buffer_size,
-				      at76c503_read_bulk_callback, dev);
 		}
 		
 		if (((endpoint->bEndpointAddress & 0x80) == 0x00) &&
