@@ -1,5 +1,6 @@
 /* -*- linux-c -*- */
-/*
+/* $Id: at76c503.h,v 1.8 2003/05/01 19:48:29 jal2 Exp $
+ *
  * USB at76c503 driver
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth <oku@masqmail.cx>
@@ -37,6 +38,8 @@
 #define PRIV_IOCTL_SET_DEBUG           (SIOCIWFIRSTPRIV + 0x1)
 /* set authentication mode: 0 - open, 1 - shared key */
 #define PRIV_IOCTL_SET_AUTH            (SIOCIWFIRSTPRIV + 0x2)
+/* dump bss table */
+#define PRIV_IOCTL_LIST_BSS            (SIOCIWFIRSTPRIV + 0x3)
 
 #define DEVICE_VENDOR_REQUEST_OUT    0x40
 #define DEVICE_VENDOR_REQUEST_IN     0xc0
@@ -353,11 +356,18 @@ enum infra_state {
 	STARTIBSS
 };
 
+/* how long do we keep a (I)BSS in the bss_list in jiffies 
+   this should be long enough for the user to retrieve the table
+   (by iwlist ?) after the device started, because all entries from
+   other channels than the one the device locks on get removed, too */
+#define BSS_LIST_TIMEOUT (120*HZ)
+
 /* struct to store BSS info found during scan */
-#define MAX_RATE_LEN 32 /* 32 rates should be enough ... */
+#define BSS_LIST_MAX_RATE_LEN 32 /* 32 rates should be enough ... */
 
 struct bss_info{
-	struct bss_info *next; /* link to next entry, or NULL */
+	struct list_head list;
+
 	u8 mac[ETH_ALEN]; /* real mac address, differs 
 			     for ad-hoc from bssid */
 	u8 bssid[ETH_ALEN]; /* bssid */
@@ -369,7 +379,7 @@ struct bss_info{
 		     we only check IEEE802_11 bits in it) */
 	u16 beacon_interval; /* the beacon interval (in cpu endianess -
 				we must calc. values from it */
-	u8 rates[MAX_RATE_LEN]; /* supported rates (list of bytes: 
+	u8 rates[BSS_LIST_MAX_RATE_LEN]; /* supported rates (list of bytes: 
 				   (basic_rate ? 0x80 : 0) + rate/(500 Kbit/s); e.g. 
 				   x82,x84,x8b,x96 for basic rates 1,2,5.5,11 MBit/s) */
 	u8 rates_len;
@@ -378,7 +388,12 @@ struct bss_info{
 	u8 rssi;
 	u8 link_qual;
 	u8 noise_level;
+
+	unsigned long last_rx; /* time (jiffies) of last beacon received */
 };
+
+/* how often do we try to submit a rx urb until giving up */
+#define NR_SUBMIT_RX_TRIES 8
 
 struct at76c503 {
 	struct usb_device *udev;			/* save off the usb device pointer */
@@ -408,7 +423,7 @@ struct at76c503 {
 
 	u32 kevent_flags;
 	struct tq_struct kevent;
-
+	int nr_submit_rx_tries; /* number of tries to submit an rx urb left */
 	struct tasklet_struct tasklet;
 	struct urb *rx_urb; /* tmp urb pointer for rx_tasklet */
 
@@ -441,9 +456,13 @@ struct at76c503 {
         int rts_threshold; /* threshold for RTS mechanism */
 
 	/* the list we got from scanning */
-	struct bss_info *first_bss;
-	struct bss_info *last_bss; /* the last entry in the list ,
-				      or NULL if list is empty */
+	spinlock_t bss_list_spinlock; /* protects bss_list operations and setting
+				     curr_bss and new_bss */
+	struct list_head bss_list; /* the list of bss we received beacons from */
+	struct timer_list bss_list_timer; /* a timer removing old entries from
+					     the bss_list. It must aquire bss_list_spinlock
+					     before and must not remove curr_bss nor
+					     new_bss ! */
 	struct bss_info *curr_bss; /* if istate == AUTH, ASSOC, REASSOC, JOIN or CONN 
 				      dev->bss[curr_bss] is the currently selected BSS
 				      we operate on */

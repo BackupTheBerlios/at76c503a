@@ -1,3 +1,5 @@
+(* $Id: README,v 1.5 2003/05/01 19:48:29 jal2 Exp $ *)
+
 at76c503 - linux driver for Atmel at76c503 based usb wlan adapters
 ------------------------------------------------------------------
 
@@ -7,11 +9,14 @@ any cooperation that builds devices with this chip. My only
 information source is the driver from
 http://atmelwlandriver.sourceforge.net.
 
+Look at http://at76c503a.berlios.de/ for more information, mailing lists and links.
+
 Known devices with this chip are:
 - Belkin F5D6050
 - Dynalink/Askey WLL013
 - Linksys WUSB11 v2.6
 - Netgear MA101B
+and many more.
 
 Reqirements:
 ------------
@@ -78,6 +83,7 @@ In addition to the parameters of iwconfig, some can be set by iwpriv:
 - short preamble: iwpriv wlanX set_preamble 1
 - open system authentication: iwpriv wlanX set_auth 0
 - shared key authentication:  iwpriv wlanX set_auth 1
+- amount of debug messages:   iwpriv wlanX set_debug N  (* N = 0,1,2,3 *)
 
 Be aware that shared key authentication requires a WEP key.
 
@@ -92,4 +98,12 @@ Thanks to:
 - lots of other authors of usb and wlan drivers, where I stole code from
 
 Oliver Kurth <oku@masqmail.cx>, Mon,  6 Jan 2003 22:39:47 +0100
+updated by Joerg Albert, Thu, 1 May 2003
+
+
+
+
+
+
+
 

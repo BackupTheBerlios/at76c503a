@@ -1,4 +1,4 @@
-VERSION = 0.9
+VERSION = 0.10beta1
 
 CC=gcc
 
@@ -41,7 +41,7 @@ TAGS:
 	find $(KERNEL_SRC)/ -name '*.[ch]' | xargs etags --append
 	etags --append $(SRCS) $(HDRS)
 
-install: all
+install:
 	mkdir -p $(MODULE_DIR)
 	for f in $(MODULES); do install -m 644 -o 0 -g 0 $$f $(MODULE_DIR)/$$f; done
 	/sbin/depmod -a

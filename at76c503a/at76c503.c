@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.14 2003/05/01 19:15:03 jal2 Exp $
+/* $Id: at76c503.c,v 1.15 2003/05/01 19:48:29 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -66,14 +66,10 @@
  * - infra structure mode by jal
  * - some small cleanups (removed dead code)
  *
+ * history can now be found in the cvs log at http://at76c503a.berlios.de
+ * 
  * TODO:
  * - monitor mode
- * - should not need do drive device down, if changes are
- *   made with iwconfig
- * - scan for BSS
- * - infrastructure mode (if I can get an AP)
- * - fw 0.100.x
- * - optimize rx and tx (no memcpy)
  *
  */
 
@@ -315,7 +311,7 @@ static void at76c503_read_bulk_callback (struct urb *urb);
 static void at76c503_write_bulk_callback(struct urb *urb);
 static void defer_kevent (struct at76c503 *dev, int flag);
 static struct bss_info *find_matching_bss(struct at76c503 *dev,
-					  struct bss_info *start);
+					  struct bss_info *curr);
 static int auth_req(struct at76c503 *dev, struct bss_info *bss, int seq_nr,
 		    u8 *challenge);
 static int disassoc_req(struct at76c503 *dev, struct bss_info *bss);
@@ -349,16 +345,19 @@ static char *hex2str(char *obuf, u8 *buf, int len, char delim)
 
 static inline void free_bss_list(struct at76c503 *dev)
 {
-	struct bss_info *ptr, *next;
+	struct list_head *next, *ptr;
+	unsigned long flags;
 
-	ptr = dev->first_bss;
-	while (ptr != NULL) {
-		next = ptr->next;
-		kfree(ptr);
-		ptr = next;
+	spin_lock_irqsave(&dev->bss_list_spinlock, flags);
+
+	dev->curr_bss = dev->new_bss = NULL;
+
+	list_for_each_safe(ptr, next, &dev->bss_list) {
+		list_del(ptr);
+		kfree(list_entry(ptr, struct bss_info, list));
 	}
-	dev->curr_bss = dev->first_bss =
-		dev->last_bss = dev->new_bss = NULL;
+
+	spin_unlock_irqrestore(&dev->bss_list_spinlock, flags);
 }
 
 static inline char *mac2str(u8 *mac)
@@ -946,10 +945,9 @@ int join_bss(struct at76c503 *dev, struct bss_info *ptr)
 	join.channel = ptr->channel;
 	join.timeout = 2000;
 
-	dbg("%s join addr %s ssid %d:%s type %d ch %d timeout %d",
+	dbg("%s join addr %s ssid %s type %d ch %d timeout %d",
 	    dev->netdev->name, mac2str(join.bssid), 
-	    join.essid_size, join.essid,
-	    join.bss_type, join.channel, join.timeout);
+	    join.essid, join.bss_type, join.channel, join.timeout);
 	return set_card_command(dev->udev, CMD_JOIN,
 				(unsigned char*)&join,
 				sizeof(struct at76c503_join));
@@ -962,6 +960,33 @@ void restart_timeout(unsigned long par)
 	defer_kevent(dev, KEVENT_RESTART);
 }
 
+/* we got to check the bss_list for old entries */
+void bss_list_timeout(unsigned long par)
+{
+	struct at76c503 *dev = (struct at76c503 *)par;
+	unsigned long flags;
+	struct list_head *lptr, *nptr;
+	struct bss_info *ptr;
+
+	spin_lock_irqsave(&dev->bss_list_spinlock, flags);
+
+	list_for_each_safe(lptr, nptr, &dev->bss_list) {
+
+		ptr = list_entry(lptr, struct bss_info, list);
+
+		if (ptr != dev->curr_bss && ptr != dev->new_bss &&
+		    time_after(jiffies, ptr->last_rx+BSS_LIST_TIMEOUT)) {
+			dbg("%s: bss_list: removing old BSS %s ch %d",
+			    dev->netdev->name, mac2str(ptr->bssid), ptr->channel);
+			list_del(&ptr->list);
+			kfree(ptr);
+		}
+	}
+	spin_unlock_irqrestore(&dev->bss_list_spinlock, flags);
+	/* restart the timer */
+	mod_timer(&dev->bss_list_timer, jiffies+BSS_LIST_TIMEOUT);
+	
+}
 
 /* we got a timeout for a infrastructure mgmt packet */
 void mgmt_timeout(unsigned long par)
@@ -1445,6 +1470,7 @@ kevent(void *data)
 {
 	struct at76c503 *dev = data;
 	int ret;
+	unsigned long flags;
 
 	/* on errors, bits aren't cleared, but no reschedule
 	   is done. So work will be done next time something
@@ -1554,15 +1580,20 @@ end_startibss:
 
 	/* check this _before_ KEVENT_SCAN, 'cause _SCAN sets _JOIN bit */
 	if (test_bit(KEVENT_JOIN, &dev->kevent_flags)) {
-		/* dev->curr_bss == NULL signals a new round,
-		   starting with dev->first_bss */
-		struct bss_info *start = dev->curr_bss != NULL ?
-			dev->curr_bss->next : dev->first_bss;
 		clear_bit(KEVENT_JOIN, &dev->kevent_flags);
 		if (dev->istate == INIT)
 			goto end_join;
 		assert(dev->istate == JOINING);
-		if ((dev->curr_bss=find_matching_bss(dev, start)) != NULL) {
+
+		/* dev->curr_bss == NULL signals a new round,
+		   starting with list_entry(dev->bss_list.next, ...) */
+
+		/* secure the access to dev->curr_bss ! */
+		spin_lock_irqsave(&dev->bss_list_spinlock, flags);
+		dev->curr_bss=find_matching_bss(dev, dev->curr_bss);
+		spin_unlock_irqrestore(&dev->bss_list_spinlock, flags);
+
+		if (dev->curr_bss != NULL) {
 			if ((ret=join_bss(dev,dev->curr_bss)) < 0) {
 				err("%s: join_bss failed with %d",
 				    dev->netdev->name, ret);
@@ -1604,7 +1635,7 @@ end_startibss:
 				mod_timer(&dev->mgmt_timer, jiffies+HZ);
 			}
 			goto end_join;
-		} /* if ((dev->curr_bss=find_matching_bss(dev,dev)) >= 0) */
+		} /* if (dev->curr_bss != NULL) */
 
 		/* here we haven't found a matching (i)bss ... */
 		if (dev->iw_mode == IW_MODE_ADHOC) {
@@ -1662,8 +1693,8 @@ end_join:
 		/* dump the results of the scan with real ssid */
 		dump_bss_table(dev);
 		NEW_STATE(dev,JOINING);
-		assert(dev->curr_bss == NULL); /* done in start_scan, 
-						find_bss will start with dev->first_bss */
+		assert(dev->curr_bss == NULL); /* done in free_bss_list, 
+						  find_bss will start with first bss */
 		/* call join_bss immediately after
 		   re-run of all other threads in kevent */
 		defer_kevent(dev,KEVENT_JOIN);
@@ -1747,15 +1778,22 @@ static void dump_bss_table(struct at76c503 *dev)
 	struct bss_info *ptr;
 	/* hex dump output buffer for debug */
 	char hexssid[IW_ESSID_MAX_SIZE*2+1] __attribute__ ((unused));
-	char hexrates[MAX_RATE_LEN*3+1] __attribute__ ((unused));
+	char hexrates[BSS_LIST_MAX_RATE_LEN*3+1] __attribute__ ((unused));
+	unsigned long flags;
+	struct list_head *lptr;
 
-	dbg("%s BSS table:", dev->netdev->name);
-	for(ptr=dev->first_bss; ptr != NULL; ptr=ptr->next) {
-		dbg("0x%p: ssid %s channel %d ssid %s (%d:%s)"
+	spin_lock_irqsave(&dev->bss_list_spinlock, flags);
+
+	dbg("%s BSS table (curr=%p, new=%p):", dev->netdev->name,
+	    dev->curr_bss, dev->new_bss);
+
+	list_for_each(lptr, &dev->bss_list) {
+		ptr = list_entry(lptr, struct bss_info, list);
+		dbg("0x%p: bssid %s channel %d ssid %s (%s)"
 		    " capa x%04x rates %s rssi %d link %d noise %d",
 		    ptr, mac2str(ptr->bssid),
 		    ptr->channel,
-		    ptr->ssid, ptr->ssid_len,
+		    ptr->ssid,
 		    hex2str(hexssid,ptr->ssid,ptr->ssid_len,'\0'),
 		    le16_to_cpu(ptr->capa),
 		    hex2str(hexrates, ptr->rates, 
@@ -1767,34 +1805,46 @@ static void dump_bss_table(struct at76c503 *dev)
 /* try to find a matching bss in dev->bss, starting at position start.
    returns the ptr to a matching bss in the list or
    NULL if none found */
+/* last is the last bss tried, last == NULL signals a new round,
+   starting with list_entry(dev->bss_list.next, ...) */
+/* this proc must be called inside an aquired dev->bss_list_spinlock
+   otherwise the timeout on bss may remove the newly chosen entry ! */
 static struct bss_info *find_matching_bss(struct at76c503 *dev,
-					  struct bss_info *start)
+					  struct bss_info *last)
 {
 	struct bss_info *ptr;
 	char hexssid[IW_ESSID_MAX_SIZE*2+1] __attribute__ ((unused));
 	char ossid[IW_ESSID_MAX_SIZE+1];
+	struct list_head *curr;
 
-	for(ptr=start; ptr != NULL; ptr = ptr->next) {
+	curr  = last != NULL ? last->list.next : dev->bss_list.next;
+	while (curr != &dev->bss_list) {
+		ptr = list_entry(curr, struct bss_info, list);
 		if (essid_matched(dev,ptr) &&
 		    mode_matched(dev,ptr)  &&
 		    wep_matched(dev,ptr)   &&
 		    rates_matched(dev,ptr))
 			break;
+		curr = curr->next;
 	}
+
+	if (curr == &dev->bss_list)
+		ptr = NULL;
+	/* otherwise ptr points to the struct bss_info we have chosen */
 
 	/* make dev->essid printable */
 	assert(dev->essid_size <= IW_ESSID_MAX_SIZE);
 	memcpy(ossid, dev->essid, dev->essid_size);
 	ossid[dev->essid_size] = '\0';
 
-	dbg("%s %s: try to match ssid %s (%s) mode %s wep %s, preamble %s, start at %p,"
-	    "return %p",
+	dbg("%s %s: try to match ssid %s (%s) mode %s wep %s preamble %s start after %p"
+	    " return %p",
 	    dev->netdev->name, __FUNCTION__, ossid, 
 	    hex2str(hexssid,dev->essid,dev->essid_size,'\0'),
 	    dev->iw_mode == IW_MODE_ADHOC ? "adhoc" : "infra",
 	    dev->wep_enabled ? "enabled" : "disabled", 
 	    dev->preamble_type == PREAMBLE_TYPE_SHORT ? "short" : "long",
-	    start, ptr);
+	    last, ptr);
 
 	return ptr;
 } /* find_matching_bss */
@@ -1818,6 +1868,11 @@ static void rx_mgmt_assoc(struct at76c503 *dev,
 		    min((size_t)*(resp->data+1),(sizeof(orates)-1)/2), '\0'));
 
 	if (dev->istate == ASSOCIATING) {
+
+		assert(dev->curr_bss != NULL);
+		if (dev->curr_bss == NULL)
+			return;
+
 		if (resp->status == IEEE802_11_STATUS_SUCCESS) {
 			struct bss_info *ptr = dev->curr_bss;
 			dev->assoc_id = le16_to_cpu(resp->assoc_id);
@@ -1858,6 +1913,11 @@ static void rx_mgmt_reassoc(struct at76c503 *dev,
 		    min((size_t)*(resp->data+1),(sizeof(orates)-1)/2), '\0'));
 
 	if (dev->istate == REASSOCIATING) {
+
+		assert(dev->new_bss != NULL);
+		if (dev->new_bss == NULL)
+			return;
+
 		if (resp->status == IEEE802_11_STATUS_SUCCESS) {
 			struct bss_info *bptr = dev->new_bss;
 			dev->assoc_id = le16_to_cpu(resp->assoc_id);
@@ -1966,6 +2026,10 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 	if (dev->auth_mode != resp->algorithm)
 		return;
 
+	assert(dev->curr_bss != NULL);
+	if (dev->curr_bss == NULL)
+		return;
+
 	if (!memcmp(mgmt->addr3, dev->curr_bss->bssid, ETH_ALEN) &&
 	    !memcmp(dev->netdev->dev_addr, mgmt->addr1, ETH_ALEN)) {
 		/* this is a AuthFrame from the BSS we are connected or
@@ -2013,6 +2077,10 @@ static void rx_mgmt_deauth(struct at76c503 *dev,
 	    dev->istate == REASSOCIATING  ||
 	    dev->istate == CONNECTED) {
 
+		assert(dev->curr_bss != NULL);
+		if (dev->curr_bss == NULL)
+			return;
+
 		if (!memcmp(mgmt->addr3, dev->curr_bss->bssid, ETH_ALEN) &&
 		(!memcmp(dev->netdev->dev_addr, mgmt->addr1, ETH_ALEN) ||
 		 !memcmp(bc_addr, mgmt->addr1, ETH_ALEN))) {
@@ -2036,66 +2104,70 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 	struct ieee802_11_mgmt *mgmt = (struct ieee802_11_mgmt *)buf->packet;
 	struct ieee802_11_beacon_data *bdata = 
 		(struct ieee802_11_beacon_data *)mgmt->data;
-	struct bss_info *bss_ptr;
+	struct list_head *lptr;
+	struct bss_info *match; /* entry matching addr3 with its bssid */
 	u8 *tlv_ptr;
 	int new_entry = 0;
 	int len;
+	unsigned long flags;
+
+	spin_lock_irqsave(&dev->bss_list_spinlock, flags);
 
 	if (dev->istate == CONNECTED) {
 		/* in state CONNECTED we use the mgmt_timer to control
 		   the beacon of the BSS */
 		assert(dev->curr_bss != NULL);
 		if (dev->curr_bss == NULL)
-			return;
+			goto rx_mgmt_beacon_end;
 		if (!memcmp(dev->curr_bss->bssid, mgmt->addr3, ETH_ALEN)) {
 			mod_timer(&dev->mgmt_timer, jiffies+BEACON_TIMEOUT*HZ);
 			dev->curr_bss->rssi = buf->rssi;
-			return;
+			goto rx_mgmt_beacon_end;
 		}
 	}
 
 	/* look if we have this BSS already in the list */
-	for(bss_ptr=dev->first_bss; bss_ptr != NULL; bss_ptr = bss_ptr->next) {
-		if (!memcmp(bss_ptr->bssid, mgmt->addr3, ETH_ALEN))
-			break;
+	match = NULL;
+
+	if (!list_empty(&dev->bss_list)) {
+		list_for_each(lptr, &dev->bss_list) {
+			struct bss_info *bss_ptr = 
+				list_entry(lptr, struct bss_info, list);
+			if (!memcmp(bss_ptr->bssid, mgmt->addr3, ETH_ALEN)) {
+				match = bss_ptr;
+				break;
+			}
+		}
 	}
 
-	if (bss_ptr == NULL) {
+	if (match == NULL) {
 		/* haven't found the bss in the list */
-		if ((bss_ptr=kmalloc(sizeof(struct bss_info), GFP_ATOMIC)) == NULL) {
+		if ((match=kmalloc(sizeof(struct bss_info), GFP_ATOMIC)) == NULL) {
 			dbg("%s: cannot kmalloc new bss info (%d byte)",
 			    dev->netdev->name, sizeof(struct bss_info));
-			return;
+			goto rx_mgmt_beacon_end;
 		}
-		memset(bss_ptr,0,sizeof(*bss_ptr));
+		memset(match,0,sizeof(*match));
 		new_entry = 1;
 		/* append new struct into list */
-		if (dev->last_bss == NULL) {
-			/* list is empty */
-			assert(dev->first_bss == NULL);
-			dev->first_bss = dev->last_bss = bss_ptr;
-		} else {
-			dev->last_bss->next = bss_ptr;
-			dev->last_bss = bss_ptr;
-			bss_ptr->next = NULL;
-		}
+		list_add_tail(&match->list, &dev->bss_list);
 	}
 
 	/* we either overwrite an existing entry or append a new one
-	   bss_ptr points to the entry in both cases */
+	   match points to the entry in both cases */
 
 	/* capa is in little endian format (!) */
-	bss_ptr->capa = bdata->capability_information;
+	match->capa = bdata->capability_information;
 
 	/* while beacon_interval is not (!) */
-	bss_ptr->beacon_interval = le16_to_cpu(bdata->beacon_interval);
+	match->beacon_interval = le16_to_cpu(bdata->beacon_interval);
 
-	bss_ptr->rssi = buf->rssi;
-	bss_ptr->link_qual = buf->link_quality;
-	bss_ptr->noise_level = buf->noise_level;
+	match->rssi = buf->rssi;
+	match->link_qual = buf->link_quality;
+	match->noise_level = buf->noise_level;
 
-	memcpy(bss_ptr->mac,mgmt->addr2,ETH_ALEN); //just for info
-	memcpy(bss_ptr->bssid,mgmt->addr3,ETH_ALEN);
+	memcpy(match->mac,mgmt->addr2,ETH_ALEN); //just for info
+	memcpy(match->bssid,mgmt->addr3,ETH_ALEN);
 
 	tlv_ptr = bdata->data;
 
@@ -2106,19 +2178,25 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 		   or the incoming SSID is not a cloaked SSID. This will
 		   protect us from overwriting a real SSID read in a
 		   ProbeResponse with a cloaked one from a following beacon. */
-		bss_ptr->ssid_len = len;
-		memcpy(bss_ptr->ssid, tlv_ptr+2, len);
+		match->ssid_len = len;
+		memcpy(match->ssid, tlv_ptr+2, len);
 	}
 	tlv_ptr += (1+1 + *(tlv_ptr+1));
 
 	assert(*tlv_ptr == IE_ID_SUPPORTED_RATES);
-	bss_ptr->rates_len = min(MAX_RATE_LEN,(int)*(tlv_ptr+1));
-	memcpy(bss_ptr->rates, tlv_ptr+2, bss_ptr->rates_len);
+	match->rates_len = min((int)sizeof(match->rates),(int)*(tlv_ptr+1));
+	memcpy(match->rates, tlv_ptr+2, match->rates_len);
 	tlv_ptr += (1+1 + *(tlv_ptr+1));
 
 	assert(*tlv_ptr == IE_ID_DS_PARAM_SET);
-	bss_ptr->channel = *(tlv_ptr+2);
-}
+	match->channel = *(tlv_ptr+2);
+
+	match->last_rx = jiffies; /* record last rx of beacon */
+
+rx_mgmt_beacon_end:
+	spin_unlock_irqrestore(&dev->bss_list_spinlock, flags);
+} /* rx_mgmt_beacon */
+
 
 static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 {
@@ -2131,7 +2209,8 @@ static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 	if (dev->istate != INIT && dev->istate != SCANNING) {
 		/* jal: this is a dirty hack needed by Tim in adhoc mode */
 		if (dev->iw_mode == IW_MODE_ADHOC ||
-		    !memcmp(mgmt->addr3, dev->curr_bss->bssid, ETH_ALEN)) {
+		    (dev->curr_bss != NULL &&
+		     !memcmp(mgmt->addr3, dev->curr_bss->bssid, ETH_ALEN))) {
 			/* Data packets always seem to have a 0 link level, so we
 			   only read link quality info from management packets.
 			   Atmel driver actually averages the present, and previous
@@ -2440,9 +2519,16 @@ exit:
 	if (ret < 0) {
 		/* If we can't submit the URB, the adapter becomes completely
 		 * useless, so try again later */
-		/* TODO: should we limit the number of retries? */
-		defer_kevent(dev, KEVENT_SUBMIT_RX);
-	}
+		if (--dev->nr_submit_rx_tries > 0)
+			defer_kevent(dev, KEVENT_SUBMIT_RX);
+		else {
+			err("%s: giving up to submit rx urb after %d failures -"
+			    " please unload the driver and/or power cycle the device",
+			    dev->netdev->name, NR_SUBMIT_RX_TRIES);
+		}
+	} else
+		/* reset counter to initial value */
+		dev->nr_submit_rx_tries = NR_SUBMIT_RX_TRIES;
 	return ret;
 }
 
@@ -2776,6 +2862,8 @@ int at76c503_open(struct net_device *netdev)
 	if (ret < 0)
 		goto err;
 
+	dev->nr_submit_rx_tries = NR_SUBMIT_RX_TRIES; /* init counter */
+
 	ret = submit_rx_urb(dev);
 	if(ret < 0){
 		err("%s: open: submit_rx_urb failed: %d", netdev->name, ret);
@@ -2818,6 +2906,10 @@ int at76c503_stop(struct net_device *netdev)
 		dev->next_mgmt_bulk = NULL;
 	}
 	spin_unlock_irqrestore(&dev->mgmt_spinlock,flags);
+
+	/* stop bss_list timer and free the bss_list */
+	del_timer_sync(&dev->bss_list_timer);
+	free_bss_list(dev);
 
 	assert(dev->open_count > 0);
 	dev->open_count--;
@@ -3116,7 +3208,8 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 				essid = dev->essid;
 			} else {
 				/* the ANY ssid was specified */
-				if (dev->istate == CONNECTED) {
+				if (dev->istate == CONNECTED &&
+				    dev->curr_bss != NULL) {
 					/* report the SSID we have found */
 					erq->flags=1;
 					erq->length = dev->curr_bss->ssid_len;
@@ -3301,6 +3394,9 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 				{ PRIV_IOCTL_SET_AUTH, 
 				  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0,
 				  "set_auth"}, /* 0 - open , 1 - shared secret */
+
+				{ PRIV_IOCTL_LIST_BSS, 
+				  0, 0, "list_bss"}, /* dump current bss table */
 			};
 
 			wrq->u.data.length = sizeof(priv) / sizeof(priv[0]);
@@ -3356,6 +3452,10 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		}
 	}
 	break;
+
+	case PRIV_IOCTL_LIST_BSS:
+		dump_bss_table(dev);
+		break;
 
 	default:
 		dbg("%s: ioctl not supported (0x%x)", netdev->name, cmd);
@@ -3524,9 +3624,15 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 	dev->mgmt_spinlock = SPIN_LOCK_UNLOCKED;
 	dev->next_mgmt_bulk = NULL;
 	dev->istate = INIT;
+
 	/* initialize empty BSS list */
-	dev->curr_bss = dev->new_bss = 
-	  dev->first_bss = dev->last_bss = NULL;
+	dev->curr_bss = dev->new_bss = NULL;
+	INIT_LIST_HEAD(&dev->bss_list);
+	dev->bss_list_spinlock = SPIN_LOCK_UNLOCKED;
+	dev->bss_list_timer.data = (unsigned long)dev;
+	dev->bss_list_timer.function = bss_list_timeout;
+	/* we let this timer run the whole time this driver instance lives */
+	mod_timer(&dev->bss_list_timer, jiffies+BSS_LIST_TIMEOUT);
 
 #if IW_MAX_SPY > 0
 	dev->iwspy_nr = 0;
@@ -3556,7 +3662,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.14 2003/05/01 19:15:03 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.15 2003/05/01 19:48:29 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
