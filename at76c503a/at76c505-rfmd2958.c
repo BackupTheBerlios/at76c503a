@@ -56,7 +56,9 @@
 /* USB Device IDs supported by this driver */
 
 #define VENDOR_ID_ATMEL               0x03eb
-#define PRODUCT_ID_ATMEL_505R2958     0x7613 /* Generic AT76C505/RFMD device */
+#define PRODUCT_ID_ATMEL_505R2958     0x7613 /* Generic AT76C505/RFMD device 
+					       also OvisLink WL-1130USB */
+
 #define VENDOR_ID_CNET                0x1371
 #define PRODUCT_ID_CNET_CNUSB611G     0x0013 /* CNet CNUSB 611G */
 #define PRODUCT_ID_FL_WL240U          0x0014 /* Fiberline WL-240U with the
@@ -64,11 +66,16 @@
 #define VENDOR_ID_LINKSYS             0x1915 
 #define PRODUCT_ID_LINKSYS_WUSB11V28  0x2233 /* Linksys WUSB11 v2.8 */
 
+#define VENDOR_ID_XTERASYS            0x12fd
+#define PRODUCT_ID_XTERASYS_XN_2122B  0x1001 /* Xterasys XN-2122B, also
+					        IBlitzz BWU613B / BWU613SB */
+
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_505R2958   ) },
-	{ USB_DEVICE(VENDOR_ID_CNET,    PRODUCT_ID_FL_WL240U         ) },
-	{ USB_DEVICE(VENDOR_ID_CNET,    PRODUCT_ID_CNET_CNUSB611G    ) },
-	{ USB_DEVICE(VENDOR_ID_LINKSYS, PRODUCT_ID_LINKSYS_WUSB11V28 ) },
+	{ USB_DEVICE(VENDOR_ID_CNET,     PRODUCT_ID_FL_WL240U         ) },
+	{ USB_DEVICE(VENDOR_ID_CNET,     PRODUCT_ID_CNET_CNUSB611G    ) },
+	{ USB_DEVICE(VENDOR_ID_LINKSYS,  PRODUCT_ID_LINKSYS_WUSB11V28 ) },
+	{ USB_DEVICE(VENDOR_ID_XTERASYS, PRODUCT_ID_XTERASYS_XN_2122B ) },
 	{ }
 };
 
