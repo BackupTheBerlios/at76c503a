@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.26 2004/03/18 20:54:57 jal2 Exp $
+#$Id: Makefile,v 1.27 2004/03/26 21:53:25 jal2 Exp $
 
 VERSION = 0.12beta9
 
@@ -10,8 +10,11 @@ KERNEL_SRC = /lib/modules/$(KERNEL_VERSION)/build
 KERNEL_HEADERS = $(KERNEL_SRC)/include
 FW_DL=
 
-# uncomment to compile for firmware download from user space
-#FW_DL += -DCONFIG_AT76C503_FIRMWARE_DOWNLOAD
+# compile for firmware download from user space
+# if no firmware header files are available
+ifeq ($(wildcard fw-pkg*.h),)
+FW_DL += -DCONFIG_AT76C503_FIRMWARE_DOWNLOAD
+endif
 
 MODULES = at76c503.o usbdfu.o at76c503-i3861.o at76c503-rfmd.o at76c503-rfmd-acc.o \
           at76c505-rfmd.o at76c503-i3863.o at76c505-rfmd2958.o
@@ -19,15 +22,16 @@ MODULES = at76c503.o usbdfu.o at76c503-i3861.o at76c503-rfmd.o at76c503-rfmd-acc
 SRCS = at76c503.c usbdfu.c at76c503-rfmd.c at76c505-rfmd.c at76c503-rfmd-acc.c \
        at76c503-i3861.c at76c503-i3863.c at76c505-rfmd2958.c
 
-HDRS = at76c503.h ieee802_11.h usbdfu.h at76c503-fw_skel.c \
-	fw-pkg-505-rfmd2958-1.101.0-86.h  fw-pkg-i3863.h  \
+HDRS = at76c503.h ieee802_11.h usbdfu.h at76c503-fw_skel.c fw-empty.h
+FW_HDRS= fw-pkg-505-rfmd2958-1.101.0-86.h  fw-pkg-i3863.h  \
 	fw-pkg-rfmd-1.101.0-84.h fw-pkg-i3861.h \
 	fw-pkg-rfmd-0.90.2-140.h \
-	fw-pkg-r505.h fw-empty.h fw-pkg-rfmd-acc-1.101.0-84.h
+	fw-pkg-r505.h fw-pkg-rfmd-acc-1.101.0-84.h
 
 SCRIPTS = fwbin2h fwbin2pkg.sh fwconvert fwversion
 
-DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING CHANGELOG gen_fw.c
+DISTFILES = $(SRCS) $(HDRS) $(FW_HDRS) Makefile README COPYING \
+            CHANGELOG gen_fw.c
 TOPDISTFILES = 
 DISTNAME = at76c503-$(VERSION)
 DISTDIR = ../dist
@@ -128,5 +132,7 @@ dist:
 	mkdir $(DISTNAME)/scripts
 	(cd scripts ; cp -aR $(SCRIPTS) ../$(DISTNAME)/scripts)
 	tar zcvf $(DISTNAME).tar.gz $(DISTNAME)
+	cd $(DISTNAME) ; rm $(FW_HDRS) ; cd ..
+	tar zcvf $(DISTNAME)_no_fw.tar.gz $(DISTNAME)
 	rm -rf $(DISTNAME)
 
