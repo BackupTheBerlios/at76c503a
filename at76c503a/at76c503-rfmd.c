@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-rfmd.c,v 1.21 2004/01/17 12:15:45 jal2 Exp $
+ * $Id: at76c503-rfmd.c,v 1.22 2004/01/17 12:28:44 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using RFMD radio chips
@@ -104,6 +104,9 @@
 #define PRODUCT_ID_BELKIN_F5D6050_V2	0x50	/* Belkin F5D6050, version 2 */
 
 
+#define VENDOR_ID_BLITZ                 0x07b8  
+#define PRODUCT_ID_BLITZ_NETWAVE_BWU613 0xb000 /* iBlitzz, BWU613 (not *B or *SB !) */
+
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_503R        ) },
 	{ USB_DEVICE(VENDOR_ID_DYNALINK, PRODUCT_ID_DYNALINK_WLL013_R ) },
@@ -117,8 +120,9 @@ static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_DICK_SMITH_ELECTR, PRODUCT_ID_WL_200U) },
 	{ USB_DEVICE(VENDOR_ID_BENQ,     PRODUCT_ID_BENQ_AWL_400) },
 	{ USB_DEVICE(VENDOR_ID_3COM, PRODUCT_ID_3COM_3CRSHEW696) },
-	{ USB_DEVICE(VENDOR_ID_SIEMENS, PRODUCT_ID_SIEMENS_SANTIS_WLL013) },
+	{ USB_DEVICE(VENDOR_ID_SIEMENS,  PRODUCT_ID_SIEMENS_SANTIS_WLL013) },
 	{ USB_DEVICE(VENDOR_ID_BELKIN_2, PRODUCT_ID_BELKIN_F5D6050_V2 ) },
+        { USB_DEVICE(VENDOR_ID_BLITZ,    PRODUCT_ID_BLITZ_NETWAVE_BWU613 ) },
 	{ }
 };
 
