@@ -85,6 +85,9 @@
 #define VENDOR_ID_3COM                0x506
 #define PRODUCT_ID_3COM_3CRSHEW696    0xa01 /* 3COM 3CRSHEW696 */
 
+#define VENDOR_ID_SIEMENS             0x681
+#define PRODUCT_ID_SIEMENS_SANTIS_WLL013 0x1b /* Siemens Santis ADSL WLAN 
+						 USB adapter WLL 013 */
 
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_503R        ) },
@@ -100,6 +103,7 @@ static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_DICK_SMITH_ELECTR, PRODUCT_ID_WL_200U) },
 	{ USB_DEVICE(VENDOR_ID_BENQ,     PRODUCT_ID_BENQ_AWL_400) },
 	{ USB_DEVICE(VENDOR_ID_3COM, PRODUCT_ID_3COM_3CRSHEW696) },
+	{ USB_DEVICE(VENDOR_ID_SIEMENS, PRODUCT_ID_SIEMENS_SANTIS_WLL013) },
 	{ }
 };
 
