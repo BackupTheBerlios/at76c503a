@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.24 2004/03/02 20:32:19 jal2 Exp $
+#$Id: Makefile,v 1.25 2004/03/02 20:38:52 jal2 Exp $
 
 VERSION = 0.12beta8
 
@@ -23,11 +23,11 @@ HDRS = at76c503.h ieee802_11.h usbdfu.h at76c503-fw_skel.c \
 	fw-pkg-505-rfmd2958-1.101.0-86.h  fw-pkg-i3863.h  \
 	fw-pkg-rfmd-1.101.0-84.h fw-pkg-i3861.h \
 	fw-pkg-rfmd-0.90.2-140.h \
-	fw-pkg-r505.h fw-pkg-rfmd-acc-1.101.0-84.h
+	fw-pkg-r505.h fw-empty.h fw-pkg-rfmd-acc-1.101.0-84.h
 
 SCRIPTS = fwbin2h fwbin2pkg.sh fwconvert fwversion
 
-DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING CHANGELOG 
+DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING CHANGELOG gen_fw.c
 TOPDISTFILES = 
 DISTNAME = at76c503-$(VERSION)
 DISTDIR = ../dist
