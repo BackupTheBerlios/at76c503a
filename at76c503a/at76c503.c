@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.43 2004/02/20 22:14:42 jal2 Exp $
+/* $Id: at76c503.c,v 1.44 2004/03/16 20:15:44 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -479,6 +479,19 @@ static char *hex2str(char *obuf, u8 *buf, int len, char delim)
   *obuf = '\0';
 
   return ret;
+}
+
+/* == PROC is_cloaked_ssid ==
+   returns != 0, if the given SSID is a cloaked one:
+   - length 0
+   - length > 0, all bytes are \0
+   - length == 1, SSID ' '
+*/
+static inline int is_cloaked_ssid(u8 *ssid, int length)
+{
+	return (length == 0) || 
+		(length == 1 && *ssid == ' ') ||
+		(length > 0 && !memcmp(ssid,zeros,length));
 }
 
 static inline void free_bss_list(struct at76c503 *dev)
@@ -3002,13 +3015,14 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 
 	assert(*tlv_ptr == IE_ID_SSID);
 	len = min(IW_ESSID_MAX_SIZE,(int)*(tlv_ptr+1));
-	if ((new_entry) || (len > 0 && memcmp(tlv_ptr+2,zeros,len))) {
+	if ((new_entry) || !is_cloaked_ssid(tlv_ptr+2, len)) {
 		/* we copy only if this is a new entry,
 		   or the incoming SSID is not a cloaked SSID. This will
 		   protect us from overwriting a real SSID read in a
 		   ProbeResponse with a cloaked one from a following beacon. */
 		match->ssid_len = len;
 		memcpy(match->ssid, tlv_ptr+2, len);
+		match->ssid[len] = '\0'; /* terminate the string for printing */
 	}
 	tlv_ptr += (1+1 + *(tlv_ptr+1));
 
@@ -5105,7 +5119,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.43 2004/02/20 22:14:42 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.44 2004/03/16 20:15:44 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
