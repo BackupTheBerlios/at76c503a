@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.50 2004/04/09 20:56:50 jal2 Exp $
+/* $Id: at76c503.c,v 1.51 2004/04/10 18:56:08 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -5344,7 +5344,7 @@ int at76c503_iw_handler_set_encode(struct net_device *netdev,
 		(dev->auth_mode == IEEE802_11_AUTH_ALG_SHARED_SECRET) ? 
 			"restricted" : "open");
 	
-	return 0;
+	return -EIWCOMMIT;
 }
 
 static 
@@ -6382,7 +6382,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.50 2004/04/09 20:56:50 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.51 2004/04/10 18:56:08 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
