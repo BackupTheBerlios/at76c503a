@@ -1682,7 +1682,7 @@ int wep_matched(struct at76c503 *dev, struct bss_info *ptr)
 		/* we have disabled WEP, but the BSS signals privacy */
 		return 0;
 	/* otherwise if the BSS does not signal privacy it may well
-	   except encrypted packets from us ... */
+	   accept encrypted packets from us ... */
 	return 1;
 }
 
@@ -1847,6 +1847,7 @@ static void rx_mgmt_disassoc(struct at76c503 *dev,
 	    le16_to_cpu(resp->reason),
 	    hex2str(obuf, mgmt->addr1, ETH_ALEN, ':'));
 
+	/* jal TODO: check dev->istate first, dev->curr_bss may be invalid ! */
 	if (!memcmp(mgmt->addr3,dev->bss[dev->curr_bss].bssid, ETH_ALEN) &&
 		(!memcmp(dev->netdev->dev_addr, mgmt->addr1, ETH_ALEN) ||
 			!memcmp(bc_addr, mgmt->addr1, ETH_ALEN))) {
@@ -2045,7 +2046,32 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 {
 	struct ieee802_11_mgmt *mgmt = ( struct ieee802_11_mgmt *)buf->packet;
+	struct iw_statistics *wstats = &dev->wstats;
+	u16 lev_dbm;
 	u16 subtype = mgmt->frame_ctl & IEEE802_11_FCTL_STYPE;
+
+	/* update wstats */
+	if (dev->istate != INIT && dev->istate != SCANNING) {
+		/* jal TODO: implement iwspy, this is a dirty hack
+		   needed by Tim in adhoc mode */
+		if (dev->iw_mode == IW_MODE_ADHOC ||
+		    !memcmp(mgmt->addr3,dev->bss[dev->curr_bss].bssid, ETH_ALEN)) {
+			/* Data packets always seem to have a 0 link level, so we
+			   only read link quality info from management packets.
+			   Atmel driver actually averages the present, and previous
+			   values, we just present the raw value at the moment - TJS */
+			
+			if (buf->rssi > 1) {
+				lev_dbm = (buf->rssi * 10 / 4);
+				if (lev_dbm > 255)
+					lev_dbm = 255;
+				wstats->qual.qual    = buf->link_quality;
+				wstats->qual.level   = lev_dbm;
+				wstats->qual.noise   = buf->noise_level;
+				wstats->qual.updated = 7;
+			}
+		}
+	}
 
 #if 0
 	char obuf[128*2+1] __attribute__ ((unused));
@@ -2684,7 +2710,7 @@ static
 struct net_device_stats *at76c503_get_stats(struct net_device *netdev)
 {
 	struct at76c503 *dev = (struct at76c503 *)netdev->priv;
-        
+
 	return &dev->stats;
 }
 
@@ -2692,7 +2718,7 @@ static
 struct iw_statistics *at76c503_get_wireless_stats(struct net_device *netdev)
 {
 	struct at76c503 *dev = (struct at76c503 *)netdev->priv;
-        
+
 	return &dev->wstats;
 }
 
