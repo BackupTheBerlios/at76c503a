@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.12 2003/03/30 11:26:39 jal2 Exp $
+/* $Id: at76c503.c,v 1.13 2003/04/08 21:30:23 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -990,10 +990,14 @@ void handle_mgmt_timeout(struct at76c503 *dev)
 			   BEACON_TIMEOUT seconds */
 		info("%s: lost beacon bssid %s",
 		     dev->netdev->name, mac2str(dev->curr_bss->bssid));
-		netif_carrier_off(dev->netdev); /* disable running netdev watchdog */
-		netif_stop_queue(dev->netdev); /* stop tx data packets */
-		NEW_STATE(dev,SCANNING);
-		defer_kevent(dev,KEVENT_SCAN);
+		/* jal: starting mgmt_timer in adhoc mode is questionable, 
+		   but I'll leave it here to track down another lockup problem */
+		if (dev->iw_mode != IW_MODE_ADHOC) {
+			netif_carrier_off(dev->netdev);
+			netif_stop_queue(dev->netdev);
+			NEW_STATE(dev,SCANNING);
+			defer_kevent(dev,KEVENT_SCAN);
+		}
 		break;
 
 	case AUTHENTICATING:
@@ -2363,7 +2367,9 @@ static void rx_data(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 	if (debug > 1) {
 		dbg("%s received data packet:", netdev->name);
 		dbg_dumpbuf(" rxhdr", skb->data, AT76C503_RX_HDRLEN);
-		dbg_dumpbuf("packet", skb->data + AT76C503_RX_HDRLEN, length);
+		if (debug > 2)
+			dbg_dumpbuf("packet", skb->data + AT76C503_RX_HDRLEN,
+				    length);
 	}
 
 	if (length < rx_copybreak && (skb = dev_alloc_skb(length)) != NULL) {
@@ -2487,6 +2493,13 @@ static void rx_tasklet(unsigned long param)
 	if(buf->newbss && dev->iw_mode == IW_MODE_ADHOC){
 		dbg("%s: rx newbss", netdev->name);
 		defer_kevent(dev, KEVENT_NEW_BSS);
+	}
+
+	if (debug > 2) {
+		char obuf[2*48+1] __attribute__ ((unused));
+		dbg("%s: rx frame: rate %d %s", dev->netdev->name,
+		    buf->rx_rate,
+		    hex2str(obuf,(u8 *)i802_11_hdr,sizeof(obuf)/2,'\0'));
 	}
 
 	/* no need to care about endianness of constants - is taken care
@@ -2622,6 +2635,15 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	   seems to choose the highest rate set with CMD_STARTUP in
 	   basic_rate_set replacing this value */
 	
+
+	if (debug > 1) {
+		char hbuf[2*24+1], dbuf[2*16]  __attribute__((unused));
+
+		dbg("%s tx  wlen x%x rate %d hdr %s data %s", dev->netdev->name,
+		    tx_buffer->wlength, tx_buffer->tx_rate, 
+		    hex2str(hbuf, (u8 *)i802_11_hdr,sizeof(hbuf)/2,'\0'),
+		    hex2str(dbuf, (u8 *)i802_11_hdr+24,sizeof(dbuf)/2,'\0'));
+	}
 
 	//info("txrate %d\n", dev->txrate);
 
@@ -3309,6 +3331,12 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		int val = *((int *)wrq->u.name);
 		dbg("%s: PRIV_IOCTL_SET_DEBUG, %d",
 		    dev->netdev->name, val);
+		/* jal: some more output to pin down lockups */
+		dbg("%s: netif running %d queue_stopped %d carrier_ok %d",
+		    dev->netdev->name, 
+		    netif_running(dev->netdev),
+		    netif_queue_stopped(dev->netdev),
+		    netif_carrier_ok(dev->netdev));
 		debug = val;
 	}
 	break;
@@ -3528,7 +3556,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.12 2003/03/30 11:26:39 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.13 2003/04/08 21:30:23 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
