@@ -1,4 +1,4 @@
-(* $Id: README,v 1.7 2003/05/19 21:49:30 jal2 Exp $ *)
+(* $Id: README,v 1.8 2003/05/29 10:35:09 jal2 Exp $ *)
 
 at76c503 - linux driver for Atmel at76c503 based usb wlan adapters
 ------------------------------------------------------------------
@@ -105,7 +105,8 @@ In addition to the parameters of iwconfig, some can be set by iwpriv:
 - short preamble: iwpriv wlanX set_preamble 1
 - open system authentication: iwpriv wlanX set_auth 0
 - shared key authentication:  iwpriv wlanX set_auth 1
-- amount of debug messages:   iwpriv wlanX set_debug N  (* N = 0,1,2,3 *)
+- amount of debug messages:   iwpriv wlanX set_debug N
+  with N a combination of bits, see DBG_* in at76c503.c
 - power save mode: iwpriv wlanX set_ps N (* N = 1,2,3 
   for none, save, smart save *)
 
@@ -158,6 +159,8 @@ Thanks to:
 
 Oliver Kurth <oku@masqmail.cx>, Mon,  6 Jan 2003 22:39:47 +0100
 updated by Joerg Albert, Thu, 1 May 2003
+
+
 
 
 

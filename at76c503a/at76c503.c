@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.23 2003/05/22 22:21:59 jal2 Exp $
+/* $Id: at76c503.c,v 1.24 2003/05/29 10:35:09 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -97,17 +97,50 @@
 #include "at76c503.h"
 #include "ieee802_11.h"
 
+/* debug bits */
+#define DBG_PROGRESS        0x000001 /* progress of scan-join-(auth-assoc)-connected */
+#define DBG_BSS_TABLE       0x000002 /* show the bss table after scans */
+#define DBG_IOCTL           0x000004 /* ioctl calls / settings */
+#define DBG_KEVENT          0x000008 /* kevents */
+#define DBG_TX_DATA         0x000010 /* tx header */
+#define DBG_TX_DATA_CONTENT 0x000020 /* tx content */
+#define DBG_TX_MGMT         0x000040
+#define DBG_RX_DATA         0x000080 /* rx data header */
+#define DBG_RX_DATA_CONTENT 0x000100 /* rx data content */
+#define DBG_RX_MGMT         0x000200 /* rx mgmt header except beacon and probe responses */
+#define DBG_RX_BEACON       0x000400 /* rx beacon */
+#define DBG_RX_CTRL         0x000800 /* rx control */
+#define DBG_RX_MGMT_CONTENT 0x001000 /* rx mgmt content */
+#define DBG_RX_FRAGS        0x002000 /* rx data fragment handling */
+#define DBG_DEVSTART        0x004000 /* fw download, device start */
+#define DBG_URB             0x008000 /* rx urb status, ... */
+#define DBG_RX_ATMEL_HDR    0x010000 /* the atmel specific header of each rx packet */
+#define DBG_PROC_ENTRY      0x020000 /* procedure entries and exits */
+#define DBG_PM              0x040000 /* power management settings */
+#define DBG_BSS_MATCH       0x080000 /* show why a certain bss did not match */
+#define DBG_PARAMS          0x100000 /* show the configured parameters */
+#define DBG_WAIT_COMPLETE   0x200000 /* show the wait_completion progress */
+
 #ifdef CONFIG_USB_DEBUG
-static int debug = 1;
+#define DBG_DEFAULTS (DBG_PROGRESS | DBG_PARAMS | DBG_BSS_TABLE)
 #else
-static int debug;
+#define DBG_DEFAULTS 0
 #endif
+static int debug = DBG_DEFAULTS;
 
 static const u8 zeros[32];
 
 /* Use our own dbg macro */
 #undef dbg
-#define dbg(format, arg...) do { if (debug) printk(KERN_DEBUG __FILE__ ": " format "\n" , ## arg); } while (0)
+#define dbg(bits, format, arg...) \
+	do { \
+		if (debug & (bits)) \
+		printk(KERN_DEBUG __FILE__ ": " format "\n" , ## arg);\
+	} while (0)
+
+/* uncond. debug output */
+#define dbg_uc(format, arg...) \
+  printk(KERN_DEBUG __FILE__ ": " format "\n" , ## arg)
 
 #ifndef min
 #define min(x,y) ((x) < (y) ? (x) : (y))
@@ -126,7 +159,7 @@ static const u8 zeros[32];
 
 #define NEW_STATE(dev,newstate) \
   do {\
-    dbg("%s: state %d -> %d (" #newstate ")",\
+    dbg(DBG_PROGRESS, "%s: state %d -> %d (" #newstate ")",\
         dev->netdev->name, dev->istate, newstate);\
     dev->istate = newstate;\
   } while (0)
@@ -548,19 +581,22 @@ int at76c503_download_external_fw(struct usb_device *udev, u8 *buf, int size)
 		return 0;
 	}
 	if (op_mode != OPMODE_NOFLASHNETCARD) {
-		dbg("Unexpected operating mode (%d).  Attempting to download firmware anyway.", op_mode);
+		dbg(DBG_DEVSTART, 
+		    "Unexpected operating mode (%d)."
+		    "Attempting to download firmware anyway.", op_mode);
 	}
 
 	block = kmalloc(EXT_FW_BLOCK_SIZE, GFP_KERNEL);
 	if (block == NULL) return -ENOMEM;
 
-	info("Downloading external firmware...");
+	dbg(DBG_DEVSTART, "Downloading external firmware...");
 
 	while(size > 0){
 		int bsize = size > EXT_FW_BLOCK_SIZE ? EXT_FW_BLOCK_SIZE : size;
 
 		memcpy(block, buf, bsize);
-		dbg("ext fw, size left = %5d, bsize = %4d, i = %2d", size, bsize, i);
+		dbg(DBG_DEVSTART,
+		    "ext fw, size left = %5d, bsize = %4d, i = %2d", size, bsize, i);
 		if((ret = load_ext_fw_block(udev, i, block, bsize)) < 0){
 			err("load_ext_fw_block failed: %d, i = %d", ret, i);
 			goto exit;
@@ -624,9 +660,9 @@ int wait_completion(struct at76c503 *dev, int cmd)
 			err("%s: get_cmd_status failed: %d", netdev->name, ret);
 			break;
 		}
-#if 0
-		info("cmd %d,cmd_status[5] = %d", cmd,cmd_status[5]);
-#endif
+
+		dbg(DBG_WAIT_COMPLETE, "%s: cmd %d,cmd_status[5] = %d",
+		    dev->netdev->name, cmd, cmd_status[5]);
 
 		if(cmd_status[5] == CMD_STATUS_IN_PROGRESS ||
 		   cmd_status[5] == CMD_STATUS_IDLE){
@@ -634,6 +670,7 @@ int wait_completion(struct at76c503 *dev, int cmd)
 			schedule_timeout(HZ/10); // 100 ms
 		}else break;
 	}while(1);
+
 	if (ret >= 0)
 		/* if get_cmd_status did not fail, return the status
 		   retrieved */
@@ -642,9 +679,10 @@ int wait_completion(struct at76c503 *dev, int cmd)
 	return ret;
 }
 
-static inline
-int set_mib(struct usb_device *udev, struct set_mib_buffer *buf)
+static
+int set_mib(struct at76c503 *dev, struct set_mib_buffer *buf)
 {
+	struct usb_device *udev = dev->udev;
 	int ret;
 	struct at76c503_command *cmd_buf =
 		(struct at76c503_command *)kmalloc(
@@ -662,6 +700,13 @@ int set_mib(struct usb_device *udev, struct set_mib_buffer *buf)
 				      cmd_buf,
 				      sizeof(struct at76c503_command) + buf->size + 4,
 				      HZ);
+		if (ret >= 0)
+			if ((ret=wait_completion(dev, CMD_SET_MIB)) != 
+			    CMD_STATUS_COMPLETE) {
+				info("%s: set_mib: wait_completion failed with %d",
+				     dev->netdev->name, ret);
+				ret = -156; /* ??? */
+			}
 		kfree(cmd_buf);
 		return ret;
 	}
@@ -703,7 +748,7 @@ static int set_pm_mode(struct at76c503 *dev, u8 mode)
 
 	mib_buf.data[0] = mode;
 
-	ret = set_mib(dev->udev, &mib_buf);
+	ret = set_mib(dev, &mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (pm_mode) failed: %d", dev->netdev->name, ret);
 	}
@@ -726,7 +771,7 @@ static int set_associd(struct at76c503 *dev, u16 id)
 	mib_buf.data[0] = id & 0xff;
 	mib_buf.data[1] = id >> 8;
 
-	ret = set_mib(dev->udev, &mib_buf);
+	ret = set_mib(dev, &mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (associd) failed: %d", dev->netdev->name, ret);
 	}
@@ -750,7 +795,7 @@ static int set_listen_interval(struct at76c503 *dev, u16 interval)
 	mib_buf.data[0] = interval & 0xff;
 	mib_buf.data[1] = interval >> 8;
 
-	ret = set_mib(dev->udev, &mib_buf);
+	ret = set_mib(dev, &mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (listen_interval) failed: %d",
 		    dev->netdev->name, ret);
@@ -769,7 +814,7 @@ int set_preamble(struct at76c503 *dev, u8 type)
 	mib_buf.size = 1;
 	mib_buf.index = PREAMBLE_TYPE_OFFSET;
 	mib_buf.data[0] = type;
-	ret = set_mib(dev->udev, &mib_buf);
+	ret = set_mib(dev, &mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (preamble) failed: %d", dev->netdev->name, ret);
 	}
@@ -787,7 +832,7 @@ int set_frag(struct at76c503 *dev, u16 size)
 	mib_buf.size = 2;
 	mib_buf.index = FRAGMENTATION_OFFSET;
 	*(u16*)mib_buf.data = cpu_to_le16(size);
-	ret = set_mib(dev->udev, &mib_buf);
+	ret = set_mib(dev, &mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (frag threshold) failed: %d", dev->netdev->name, ret);
 	}
@@ -805,7 +850,7 @@ int set_rts(struct at76c503 *dev, u16 size)
 	mib_buf.size = 2;
 	mib_buf.index = RTS_OFFSET;
 	*(u16*)mib_buf.data = cpu_to_le16(size);
-	ret = set_mib(dev->udev, &mib_buf);
+	ret = set_mib(dev, &mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (rts) failed: %d", dev->netdev->name, ret);
 	}
@@ -823,7 +868,7 @@ int set_autorate_fallback(struct at76c503 *dev, int onoff)
 	mib_buf.size = 1;
 	mib_buf.index = TX_AUTORATE_FALLBACK_OFFSET;
 	mib_buf.data[0] = onoff;
-	ret = set_mib(dev->udev, &mib_buf);
+	ret = set_mib(dev, &mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (autorate fallback) failed: %d", dev->netdev->name, ret);
 	}
@@ -840,7 +885,7 @@ static int set_mac_address(struct at76c503 *dev, void *addr)
         mib_buf.size = ETH_ALEN;
         mib_buf.index = offsetof(struct mib_mac_addr, mac_addr);
         memcpy(mib_buf.data, addr, ETH_ALEN);
-        ret = set_mib(dev->udev, &mib_buf);
+        ret = set_mib(dev, &mib_buf);
         if(ret < 0){
                 err("%s: set_mib (MAC_ADDR, mac_addr) failed: %d",
                     dev->netdev->name, ret);
@@ -861,7 +906,7 @@ static int set_group_address(struct at76c503 *dev, u8 *addr, int n)
         mib_buf.size = ETH_ALEN;
         mib_buf.index = offsetof(struct mib_mac_addr, group_addr) + n*ETH_ALEN;
         memcpy(mib_buf.data, addr, ETH_ALEN);
-        ret = set_mib(dev->udev, &mib_buf);
+        ret = set_mib(dev, &mib_buf);
         if(ret < 0){
                 err("%s: set_mib (MIB_MAC_ADD, group_addr) failed: %d",
                     dev->netdev->name, ret);
@@ -869,14 +914,12 @@ static int set_group_address(struct at76c503 *dev, u8 *addr, int n)
 
 #if 1
 	/* I do not know anything about the group_addr_status field... (oku)*/
-	wait_completion(dev, CMD_SET_MIB);
-
         memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
         mib_buf.type = MIB_MAC_ADD;
         mib_buf.size = 1;
         mib_buf.index = offsetof(struct mib_mac_addr, group_addr_status) + n;
         mib_buf.data[0] = 1;
-        ret = set_mib(dev->udev, &mib_buf);
+        ret = set_mib(dev, &mib_buf);
         if(ret < 0){
                 err("%s: set_mib (MIB_MAC_ADD, group_addr_status) failed: %d",
                     dev->netdev->name, ret);
@@ -897,10 +940,42 @@ int set_promisc(struct at76c503 *dev, int onoff)
 	mib_buf.size = 1;
 	mib_buf.index = offsetof(struct mib_local, promiscuous_mode);
 	mib_buf.data[0] = onoff ? 1 : 0;
-	ret = set_mib(dev->udev, &mib_buf);
+	ret = set_mib(dev, &mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (promiscous_mode) failed: %d", dev->netdev->name, ret);
 	}
+	return ret;
+}
+
+static int dump_mib_mac_addr(struct at76c503 *dev) __attribute__ ((unused));
+static int dump_mib_mac_addr(struct at76c503 *dev)
+{
+	int ret = 0;
+	struct mib_mac_addr *mac_addr =
+		kmalloc(sizeof(struct mib_mac_addr), GFP_KERNEL);
+	char abuf[2*(4*ETH_ALEN)+1] __attribute__ ((unused));
+
+	if(!mac_addr){
+		ret = -ENOMEM;
+		goto exit;
+	}
+	
+	ret = get_mib(dev->udev, MIB_MAC_ADD,
+		      (u8*)mac_addr, sizeof(struct mib_mac_addr));
+	if(ret < 0){
+		err("%s: get_mib (MAC_ADDR) failed: %d", dev->netdev->name, ret);
+		goto err;
+	}
+
+	dbg_uc("%s: MIB MAC_ADDR: mac_addr %s group_addr %s status %d %d %d %d", 
+	       dev->netdev->name, mac2str(mac_addr->mac_addr),
+	       hex2str(abuf, (u8 *)mac_addr->group_addr, (sizeof(abuf)-1)/2,'\0'),
+	       mac_addr->group_addr_status[0], mac_addr->group_addr_status[1],
+	       mac_addr->group_addr_status[2], mac_addr->group_addr_status[3]);
+
+ err:
+	kfree(mac_addr);
+ exit:
 	return ret;
 }
 
@@ -924,7 +999,7 @@ static int dump_mib_mac_wep(struct at76c503 *dev)
 		goto err;
 	}
 
-	dbg("%s: MIB MAC_WEP: priv_invoked %u def_key_id %u key_len %u "
+	dbg_uc("%s: MIB MAC_WEP: priv_invoked %u def_key_id %u key_len %u "
 	    "excl_unencr %u wep_icv_err %u wep_excluded %u encr_level %u key %d: %s",
 	    dev->netdev->name, mac_wep->privacy_invoked,
 	    mac_wep->wep_default_key_id, mac_wep->wep_key_mapping_len,
@@ -961,7 +1036,7 @@ static int dump_mib_mac_mgmt(struct at76c503 *dev)
 		goto err;
 	}
 
-	dbg("%s: MIB MAC_MGMT: station_id x%x pm_mode %d\n",
+	dbg_uc("%s: MIB MAC_MGMT: station_id x%x pm_mode %d\n",
 	    dev->netdev->name, le16_to_cpu(mac_mgmt->station_id),
 	    mac_mgmt->power_mgmt_mode);
  err:
@@ -989,7 +1064,7 @@ static int dump_mib_mac(struct at76c503 *dev)
 		goto err;
 	}
 
-	dbg("%s: MIB MAC: listen_int %d",
+	dbg_uc("%s: MIB MAC: listen_int %d",
 	    dev->netdev->name, le16_to_cpu(mac->listen_interval));
  err:
 	kfree(mac);
@@ -1109,7 +1184,7 @@ int join_bss(struct at76c503 *dev, struct bss_info *ptr)
 	join.channel = ptr->channel;
 	join.timeout = 2000;
 
-	dbg("%s join addr %s ssid %s type %d ch %d timeout %d",
+	dbg(DBG_PROGRESS, "%s join addr %s ssid %s type %d ch %d timeout %d",
 	    dev->netdev->name, mac2str(join.bssid), 
 	    join.essid, join.bss_type, join.channel, join.timeout);
 	return set_card_command(dev->udev, CMD_JOIN,
@@ -1140,7 +1215,7 @@ void bss_list_timeout(unsigned long par)
 
 		if (ptr != dev->curr_bss && ptr != dev->new_bss &&
 		    time_after(jiffies, ptr->last_rx+BSS_LIST_TIMEOUT)) {
-			dbg("%s: bss_list: removing old BSS %s ch %d",
+			dbg(DBG_BSS_TABLE, "%s: bss_list: removing old BSS %s ch %d",
 			    dev->netdev->name, mac2str(ptr->bssid), ptr->channel);
 			list_del(&ptr->list);
 			kfree(ptr);
@@ -1163,7 +1238,8 @@ void mgmt_timeout(unsigned long par)
 void handle_mgmt_timeout(struct at76c503 *dev)
 {
 
-	dbg("%s: timeout, state %d", dev->netdev->name, dev->istate);
+	dbg(DBG_PROGRESS, "%s: timeout, state %d", dev->netdev->name,
+	    dev->istate);
 
 	switch(dev->istate) {
 
@@ -1311,14 +1387,14 @@ int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf)
 			err("%s: %s URB status %d, but mgmt is pending",
 			    dev->netdev->name, __FUNCTION__, urb_status);
 		}
-#if 0
-		dbg("%s: tx mgmt: wlen %d tx_rate %d pad %d %s",
+
+		dbg(DBG_TX_MGMT, "%s: tx mgmt: wlen %d tx_rate %d pad %d %s",
 		    dev->netdev->name, le16_to_cpu(txbuf->wlength),
 		    txbuf->tx_rate, le16_to_cpu(txbuf->padding),
 		    hex2str(obuf,txbuf->packet,
 			    min((sizeof(obuf)-1)/2,
 				(size_t)le16_to_cpu(txbuf->wlength)),'\0'));
-#endif
+
 		/* txbuf was not consumed above -> send mgmt msg immediately */
 		memcpy(dev->bulk_out_buffer, txbuf,
 		       le16_to_cpu(txbuf->wlength) + AT76C503_TX_HDRLEN);
@@ -1377,7 +1453,7 @@ int disassoc_req(struct at76c503 *dev, struct bss_info *bss)
 	tx_buffer->wlength = cpu_to_le16(DISASSOC_FRAME_SIZE -
 		AT76C503_TX_HDRLEN);
 	
-	dbg("%s: DisAssocReq bssid %s",
+	dbg(DBG_TX_MGMT, "%s: DisAssocReq bssid %s",
 	    dev->netdev->name, mac2str(mgmt->addr3));
 
 	/* either send immediately (if no data tx is pending
@@ -1434,12 +1510,12 @@ int auth_req(struct at76c503 *dev, struct bss_info *bss, int seq_nr, u8 *challen
 	/* init. at76c503 tx header */
 	tx_buffer->wlength = cpu_to_le16(buf_len - AT76C503_TX_HDRLEN);
 	
-	dbg("%s: AuthReq bssid %s alg %d seq_nr %d",
+	dbg(DBG_TX_MGMT, "%s: AuthReq bssid %s alg %d seq_nr %d",
 	    dev->netdev->name, mac2str(mgmt->addr3),
 	    req->algorithm, req->seq_nr);
 	if (seq_nr == 3) {
 		char obuf[18*3] __attribute__ ((unused));
-		dbg("%s: AuthReq challenge: %s ...",
+		dbg(DBG_TX_MGMT, "%s: AuthReq challenge: %s ...",
 		    dev->netdev->name,
 		    hex2str(obuf, req->challenge, sizeof(obuf)/3,' '));
 	}
@@ -1519,7 +1595,7 @@ int assoc_req(struct at76c503 *dev, struct bss_info *bss)
 		memcpy(ossid, tlv+2, len);
 		ossid[len] = '\0';
 		tlv += (1 + 1 + *(tlv+1)); /* points to IE of rates now */
-		dbg("%s: AssocReq bssid %s capa x%04x ssid %s rates %s",
+		dbg(DBG_TX_MGMT, "%s: AssocReq bssid %s capa x%04x ssid %s rates %s",
 		    dev->netdev->name, mac2str(mgmt->addr3),
 		    req->capability, ossid,
 		    hex2str(orates,tlv+2,min((sizeof(orates)-1)/2,(size_t)*(tlv+1)),
@@ -1608,7 +1684,7 @@ int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
 		memcpy(ossid, tlv+2, min(sizeof(ossid),(size_t)*(tlv+1)));
 		ossid[sizeof(ossid)-1] = '\0';
 		tlv += (1 + 1 + *(tlv+1)); /* points to IE of rates now */
-		dbg("%s: ReAssocReq curr %s new %s capa x%04x ssid %s rates %s",
+		dbg(DBG_TX_MGMT, "%s: ReAssocReq curr %s new %s capa x%04x ssid %s rates %s",
 		    dev->netdev->name,
 		    hex2str(ocurr, req->curr_ap, ETH_ALEN, ':'),
 		    mac2str(mgmt->addr3), req->capability, ossid,
@@ -1628,10 +1704,11 @@ static void defer_kevent (struct at76c503 *dev, int flag)
 {
 	set_bit (flag, &dev->kevent_flags);
 	if (!schedule_task (&dev->kevent))
-		err ("%s: kevent %d may have been dropped",
+		dbg(DBG_KEVENT, "%s: kevent %d may have been dropped",
 		     dev->netdev->name, flag);
 	else
-		dbg ("%s: kevent %d scheduled", dev->netdev->name, flag);
+		dbg(DBG_KEVENT, "%s: kevent %d scheduled",
+		    dev->netdev->name, flag);
 }
 
 static void
@@ -1645,7 +1722,7 @@ kevent(void *data)
 	   is done. So work will be done next time something
 	   else has to be done. This is ugly. TODO! (oku) */
 
-	dbg("%s: kevent flags=x%x", dev->netdev->name, dev->kevent_flags);
+	dbg(DBG_KEVENT, "%s: kevent flags=x%x", dev->netdev->name, dev->kevent_flags);
 
 	down(&dev->sem);
 
@@ -1675,22 +1752,19 @@ kevent(void *data)
 		//    usb_debug_data(__FUNCTION__, (unsigned char *)mac_mgmt, sizeof(struct mib_mac_mgmt));
 
 
-		dbg("ibss_change = 0x%2x", mac_mgmt->ibss_change);
+		dbg(DBG_PROGRESS, "ibss_change = 0x%2x", mac_mgmt->ibss_change);
 		memcpy(dev->bssid, mac_mgmt->current_bssid, ETH_ALEN);
-		info("using BSSID %s", mac2str(dev->bssid));
+		dbg(DBG_PROGRESS, "using BSSID %s", mac2str(dev->bssid));
     
 		memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
 		mib_buf.type = MIB_MAC_MGMT;
 		mib_buf.size = 1;
 		mib_buf.index = IBSS_CHANGE_OK_OFFSET;
-		ret = set_mib(dev->udev, &mib_buf);
+		ret = set_mib(dev, &mib_buf);
 		if(ret < 0){
 			err("%s: set_mib (ibss change ok) failed: %d", netdev->name, ret);
 			goto new_bss_clean;
 		}
-
-		wait_completion(dev, CMD_SET_MIB);
-
 		clear_bit(KEVENT_NEW_BSS, &dev->kevent_flags);
 	new_bss_clean:
 		kfree(mac_mgmt);
@@ -1699,7 +1773,6 @@ kevent(void *data)
 		info("%s: KEVENT_SET_PROMISC", dev->netdev->name);
 
 		set_promisc(dev, dev->promisc);
-		wait_completion(dev, CMD_SET_MIB);
 		clear_bit(KEVENT_SET_PROMISC, &dev->kevent_flags);
 	}
 
@@ -1737,7 +1810,7 @@ kevent(void *data)
 		mib_buf.type = MIB_MAC_MGMT;
 		mib_buf.size = 1;
 		mib_buf.index = IBSS_CHANGE_OK_OFFSET;
-		ret = set_mib(dev->udev, &mib_buf);
+		ret = set_mib(dev, &mib_buf);
 		if(ret < 0){
 			err("%s: set_mib (ibss change ok) failed: %d", dev->netdev->name, ret);
 			goto end_startibss;
@@ -1907,16 +1980,13 @@ end_scan:
 				if (li < 2) li = 2;
 				else if (li > 0xffff) li = 0xffff;
 
-				dbg("%s: pm_mode %d assoc id x%x listen int %d",
+				dbg(DBG_PM, "%s: pm_mode %d assoc id x%x listen int %d",
 				    dev->netdev->name, dev->pm_mode,
 				    dev->curr_bss->assoc_id, li);
 
 				set_associd(dev, dev->curr_bss->assoc_id);
-				wait_completion(dev, CMD_SET_MIB);
 				set_listen_interval(dev, (u16)li);
-				wait_completion(dev, CMD_SET_MIB);
 				set_pm_mode(dev, dev->pm_mode);
-				wait_completion(dev, CMD_SET_MIB);
 #if 0
 				dump_mib_mac(dev);
 				dump_mib_mac_mgmt(dev);
@@ -1927,7 +1997,7 @@ end_scan:
 		netif_carrier_on(dev->netdev);
 		netif_wake_queue(dev->netdev); /* _start_queue ??? */
 		NEW_STATE(dev,CONNECTED);
-		dbg("%s: connected to BSSID %s",
+		dbg(DBG_PROGRESS, "%s: connected to BSSID %s",
 		    dev->netdev->name, mac2str(dev->curr_bss->bssid));
 	}
 
@@ -1940,18 +2010,29 @@ static
 int essid_matched(struct at76c503 *dev, struct bss_info *ptr)
 {
 	/* common criteria for both modi */
-	return dev->essid_size == 0  /* ANY ssid */ ||
-		(dev->essid_size == ptr->ssid_len &&
-		 !memcmp(dev->essid, ptr->ssid, ptr->ssid_len));
+
+	int retval = (dev->essid_size == 0  /* ANY ssid */ ||
+		      (dev->essid_size == ptr->ssid_len &&
+		       !memcmp(dev->essid, ptr->ssid, ptr->ssid_len)));
+	if (!retval)
+		dbg(DBG_BSS_MATCH, "%s bss table entry %p: essid didn't match",
+		    dev->netdev->name, ptr);
+	return retval;
 }
 
 static inline
 int mode_matched(struct at76c503 *dev, struct bss_info *ptr)
 {
+	int retval;
+
 	if (dev->iw_mode == IW_MODE_ADHOC)
-		return ptr->capa & IEEE802_11_CAPA_IBSS;
+		retval =  ptr->capa & IEEE802_11_CAPA_IBSS;
 	else
-		return ptr->capa & IEEE802_11_CAPA_ESS;
+		retval =  ptr->capa & IEEE802_11_CAPA_ESS;
+	if (!retval)
+		dbg(DBG_BSS_MATCH, "%s bss table entry %p: mode didn't match",
+		    dev->netdev->name, ptr);
+	return retval;
 }
 
 static
@@ -1966,23 +2047,32 @@ int rates_matched(struct at76c503 *dev, struct bss_info *ptr)
 			   (see IEEE802.11, ch. 7.3.2.2) */
 			if (*rate != (0x80|hw_rates[0]) && *rate != (0x80|hw_rates[1]) &&
 			    *rate != (0x80|hw_rates[2]) && *rate != (0x80|hw_rates[3])) {
-				info("%s: bssid %s: basic rate %02x not supported",
-				     dev->netdev->name, mac2str(ptr->bssid),*rate);
+				dbg(DBG_BSS_MATCH,
+				    "%s: bss table entry %p: basic rate %02x not supported",
+				     dev->netdev->name, ptr, *rate);
 				return 0;
 			}
 		}
 	/* if we use short preamble, the bss must support it */
-	return (dev->preamble_type != PREAMBLE_TYPE_SHORT ||
-		ptr->capa & IEEE802_11_CAPA_SHORT_PREAMBLE);
+	if (dev->preamble_type == PREAMBLE_TYPE_SHORT &&
+	    !(ptr->capa & IEEE802_11_CAPA_SHORT_PREAMBLE)) {
+		dbg(DBG_BSS_MATCH, "%s: %p does not support short preamble",
+		    dev->netdev->name, ptr);
+		return 0;
+	} else
+		return 1;
 }
 
 static inline
 int wep_matched(struct at76c503 *dev, struct bss_info *ptr)
 {
 	if (!dev->wep_enabled && 
-	    ptr->capa & IEEE802_11_CAPA_PRIVACY)
+	    ptr->capa & IEEE802_11_CAPA_PRIVACY) {
 		/* we have disabled WEP, but the BSS signals privacy */
+		dbg(DBG_BSS_MATCH, "%s: bss table entry %p: requires encryption",
+		    dev->netdev->name, ptr);
 		return 0;
+	}
 	/* otherwise if the BSS does not signal privacy it may well
 	   accept encrypted packets from us ... */
 	return 1;
@@ -1997,26 +2087,28 @@ static void dump_bss_table(struct at76c503 *dev)
 	unsigned long flags;
 	struct list_head *lptr;
 
-	spin_lock_irqsave(&dev->bss_list_spinlock, flags);
+	if (debug & DBG_BSS_TABLE) {
+		spin_lock_irqsave(&dev->bss_list_spinlock, flags);
 
-	dbg("%s BSS table (curr=%p, new=%p):", dev->netdev->name,
-	    dev->curr_bss, dev->new_bss);
+		dbg_uc("%s BSS table (curr=%p, new=%p):", dev->netdev->name,
+		       dev->curr_bss, dev->new_bss);
 
-	list_for_each(lptr, &dev->bss_list) {
-		ptr = list_entry(lptr, struct bss_info, list);
-		dbg("0x%p: bssid %s channel %d ssid %s (%s)"
-		    " capa x%04x rates %s rssi %d link %d noise %d",
-		    ptr, mac2str(ptr->bssid),
-		    ptr->channel,
-		    ptr->ssid,
-		    hex2str(hexssid,ptr->ssid,ptr->ssid_len,'\0'),
-		    le16_to_cpu(ptr->capa),
-		    hex2str(hexrates, ptr->rates, 
-			    ptr->rates_len, ' '),
-		    ptr->rssi, ptr->link_qual, ptr->noise_level);
+		list_for_each(lptr, &dev->bss_list) {
+			ptr = list_entry(lptr, struct bss_info, list);
+			dbg_uc("0x%p: bssid %s channel %d ssid %s (%s)"
+			    " capa x%04x rates %s rssi %d link %d noise %d",
+			    ptr, mac2str(ptr->bssid),
+			    ptr->channel,
+			    ptr->ssid,
+			    hex2str(hexssid,ptr->ssid,ptr->ssid_len,'\0'),
+			    le16_to_cpu(ptr->capa),
+			    hex2str(hexrates, ptr->rates, 
+				    ptr->rates_len, ' '),
+			       ptr->rssi, ptr->link_qual, ptr->noise_level);
+		}
+
+		spin_unlock_irqrestore(&dev->bss_list_spinlock, flags);
 	}
-
-	spin_unlock_irqrestore(&dev->bss_list_spinlock, flags);
 }
 
 /* try to find a matching bss in dev->bss, starting at position start.
@@ -2030,8 +2122,6 @@ static struct bss_info *find_matching_bss(struct at76c503 *dev,
 					  struct bss_info *last)
 {
 	struct bss_info *ptr = NULL;
-	char hexssid[IW_ESSID_MAX_SIZE*2+1] __attribute__ ((unused));
-	char ossid[IW_ESSID_MAX_SIZE+1];
 	struct list_head *curr;
 
 	curr  = last != NULL ? last->list.next : dev->bss_list.next;
@@ -2049,20 +2139,8 @@ static struct bss_info *find_matching_bss(struct at76c503 *dev,
 		ptr = NULL;
 	/* otherwise ptr points to the struct bss_info we have chosen */
 
-	/* make dev->essid printable */
-	assert(dev->essid_size <= IW_ESSID_MAX_SIZE);
-	memcpy(ossid, dev->essid, dev->essid_size);
-	ossid[dev->essid_size] = '\0';
-
-	dbg("%s %s: try to match ssid %s (%s) mode %s wep %s preamble %s start after %p"
-	    " return %p",
-	    dev->netdev->name, __FUNCTION__, ossid, 
-	    hex2str(hexssid,dev->essid,dev->essid_size,'\0'),
-	    dev->iw_mode == IW_MODE_ADHOC ? "adhoc" : "infra",
-	    dev->wep_enabled ? "enabled" : "disabled", 
-	    dev->preamble_type == PREAMBLE_TYPE_SHORT ? "short" : "long",
-	    last, ptr);
-
+	dbg(DBG_BSS_TABLE, "%s %s: returned %p", dev->netdev->name,
+	    __FUNCTION__, ptr);
 	return ptr;
 } /* find_matching_bss */
 
@@ -2076,7 +2154,7 @@ static void rx_mgmt_assoc(struct at76c503 *dev,
 		(struct ieee802_11_assoc_resp *)mgmt->data;
 	char orates[2*8+1] __attribute__((unused));
 
-	dbg("%s: rx AssocResp bssid %s capa x%04x status x%04x "
+	dbg(DBG_RX_MGMT, "%s: rx AssocResp bssid %s capa x%04x status x%04x "
 	    "assoc_id x%04x rates %s",
 	    dev->netdev->name, mac2str(mgmt->addr3),
 	    le16_to_cpu(resp->capability), le16_to_cpu(resp->status),
@@ -2118,7 +2196,7 @@ static void rx_mgmt_reassoc(struct at76c503 *dev,
 	char orates[2*8+1] __attribute__((unused));
 	unsigned long flags;
 
-	dbg("%s: rx ReAssocResp bssid %s capa x%04x status x%04x "
+	dbg(DBG_RX_MGMT, "%s: rx ReAssocResp bssid %s capa x%04x status x%04x "
 	    "assoc_id x%04x rates %s",
 	    dev->netdev->name, mac2str(mgmt->addr3),
 	    le16_to_cpu(resp->capability), le16_to_cpu(resp->status),
@@ -2147,7 +2225,7 @@ static void rx_mgmt_reassoc(struct at76c503 *dev,
 			memcpy(dev->essid, bptr->ssid, bptr->ssid_len);
 			memcpy(dev->bssid, bptr->bssid, ETH_ALEN);
 			dev->channel = bptr->channel;
-			dbg("%s: reassociated to BSSID %s",
+			dbg(DBG_PROGRESS, "%s: reassociated to BSSID %s",
 			    dev->netdev->name, mac2str(dev->bssid));
 			defer_kevent(dev, KEVENT_ASSOC_DONE);
 		} else {
@@ -2168,7 +2246,7 @@ static void rx_mgmt_disassoc(struct at76c503 *dev,
 		(struct ieee802_11_disassoc_frame *)mgmt->data;
 	char obuf[ETH_ALEN*3] __attribute__ ((unused));
 
-	dbg("%s: rx DisAssoc bssid %s reason x%04x destination %s",
+	dbg(DBG_RX_MGMT, "%s: rx DisAssoc bssid %s reason x%04x destination %s",
 	    dev->netdev->name, mac2str(mgmt->addr3),
 	    le16_to_cpu(resp->reason),
 	    hex2str(obuf, mgmt->addr1, ETH_ALEN, ':'));
@@ -2225,7 +2303,7 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 	int alg = le16_to_cpu(resp->algorithm);
 	int status = le16_to_cpu(resp->status);
 
-	dbg("%s: rx AuthFrame bssid %s alg %d seq_nr %d status %d " 
+	dbg(DBG_RX_MGMT, "%s: rx AuthFrame bssid %s alg %d seq_nr %d status %d " 
 	    "destination %s",
 	    dev->netdev->name, mac2str(mgmt->addr3),
 	    alg, seq_nr, status,
@@ -2233,7 +2311,7 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 
 	if (alg == IEEE802_11_AUTH_ALG_SHARED_SECRET &&
 	    seq_nr == 2) {
-		dbg("%s: AuthFrame challenge %s ...",
+		dbg(DBG_RX_MGMT, "%s: AuthFrame challenge %s ...",
 		    dev->netdev->name,
 		    hex2str(obuf, resp->challenge, sizeof(obuf)/3, ' '));
 	}
@@ -2283,7 +2361,7 @@ static void rx_mgmt_deauth(struct at76c503 *dev,
 		(struct ieee802_11_deauth_frame *)mgmt->data;
 	char obuf[ETH_ALEN*3+1] __attribute__ ((unused));
 
-	dbg("%s: rx DeAuth bssid %s reason x%04x destination %s",
+	dbg(DBG_RX_MGMT, "%s: rx DeAuth bssid %s reason x%04x destination %s",
 	    dev->netdev->name, mac2str(mgmt->addr3),
 	    le16_to_cpu(resp->reason),
 	    hex2str(obuf, mgmt->addr1, ETH_ALEN, ':'));
@@ -2310,7 +2388,7 @@ static void rx_mgmt_deauth(struct at76c503 *dev,
 		/* ignore DeAuth to other STA or from other BSSID */
 	} else {
 		/* ignore DeAuth in states SCANNING */
-		info("%s: DeAuth in state %d ignored",
+		dbg(DBG_RX_MGMT, "%s: DeAuth in state %d ignored",
 		     dev->netdev->name, dev->istate);
 	}
 } /* rx_mgmt_deauth */
@@ -2360,7 +2438,7 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 	if (match == NULL) {
 		/* haven't found the bss in the list */
 		if ((match=kmalloc(sizeof(struct bss_info), GFP_ATOMIC)) == NULL) {
-			dbg("%s: cannot kmalloc new bss info (%d byte)",
+			dbg(DBG_BSS_TABLE, "%s: cannot kmalloc new bss info (%d byte)",
 			    dev->netdev->name, sizeof(struct bss_info));
 			goto rx_mgmt_beacon_end;
 		}
@@ -2445,13 +2523,14 @@ static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 		}
 	}
 
-#if 0
-	char obuf[128*2+1] __attribute__ ((unused));
-	dbg("%s rx mgmt subtype x%x %s", dev->netdev->name, subtype,
-	    hex2str(obuf, (u8 *)mgmt, 
-		    min((sizeof(obuf)-1)/2,
-			(size_t)le16_to_cpu(buf->wlength)), '\0'));
-#endif
+	if (debug & DBG_RX_MGMT_CONTENT) {
+		char obuf[128*2+1] __attribute__ ((unused));
+		dbg_uc("%s rx mgmt subtype x%x %s",
+		       dev->netdev->name, subtype,
+		       hex2str(obuf, (u8 *)mgmt, 
+			       min((sizeof(obuf)-1)/2,
+				   (size_t)le16_to_cpu(buf->wlength)), '\0'));
+	}
 
 	switch (subtype) {
 	case IEEE802_11_STYPE_BEACON:
@@ -2657,9 +2736,6 @@ static void ieee80211_fixup(struct sk_buff *skb, int iw_mode)
    or thrown away. The check for rx_copybreak is moved here.
    Every returned skb starts with the ieee802_11 header and contains
    _no_ FCS at the end */
-/* undefine to suppress debug output for debug > 2 */
-#define DBG_RX_FRAGMENTS
-
 static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 {	
 	struct sk_buff *skb = (struct sk_buff *)dev->rx_skb;
@@ -2689,10 +2765,9 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 	struct rx_data_buf *bptr, *optr;
 	unsigned long oldest = ~0UL;
 
-#ifdef DBG_RX_FRAGMENTS
-	if (debug > 2) {
+	if (debug & DBG_RX_FRAGS) {
 		char dbuf[2*32+1] __attribute__ ((unused));
-		dbg("%s: rx data frame_ctl %04x addr2 %s seq/frag %d/%d "
+		dbg_uc("%s: rx data frame_ctl %04x addr2 %s seq/frag %d/%d "
 		    "length %d data %d: %s ...",
 		    dev->netdev->name, i802_11_hdr->frame_ctl,
 		    mac2str(i802_11_hdr->addr2),
@@ -2700,11 +2775,10 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 		    hex2str(dbuf, data, sizeof(dbuf)/2, '\0'));
 
 		//just to understand skb's ???
-		dbg("%s: incoming skb: head %p data %p tail %p end %p len %d",
+		dbg_uc("%s: incoming skb: head %p data %p tail %p end %p len %d",
 		    dev->netdev->name, skb->head, skb->data, skb->tail,
 		    skb->end, skb->len);
 	}
-#endif
 
 	if (data_len <= 0) {
 		/* buffers contains no data */
@@ -2723,10 +2797,10 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 			/* Use a new skb for the next receive */
 			dev->rx_skb = NULL;
 		}
-#ifdef DBG_RX_FRAGMENTS
-		if (debug > 2)
-			dbg("%s: unfragmented", dev->netdev->name);
-#endif
+
+		if (debug & DBG_RX_FRAGS)
+			dbg_uc("%s: unfragmented", dev->netdev->name);
+
 		return skb;
 	}
 
@@ -2740,14 +2814,12 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 	/* remove FCS at end */
 	skb_trim(skb, length - 4);
 
-#ifdef DBG_RX_FRAGMENTS
-	if (debug > 2)
+	if (debug & DBG_RX_FRAGS)
 		//just to understand skb's ???
-		dbg("%s: trimmed skb: head %p data %p tail %p end %p len %d data %p data_len %d",
+		dbg_uc("%s: trimmed skb: head %p data %p tail %p "
+		       "end %p len %d data %p data_len %d",
 		    dev->netdev->name, skb->head, skb->data, skb->tail,
 		    skb->end, skb->len, data, data_len);
-#endif
-
 
 	/* look if we've got a chain for the sender address.
 	   afterwards optr points to first free or the oldest entry,
@@ -2775,11 +2847,11 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 	}
 	
 	if (i < NR_RX_DATA_BUF) {
-#ifdef DBG_RX_FRAGMENTS
-		if (debug > 2)
-			dbg("%s: %d. cacheentry (seq/frag=%d/%d) matched",
+
+		if (debug & DBG_RX_FRAGS)
+			dbg_uc("%s: %d. cacheentry (seq/frag=%d/%d) matched",
 			    dev->netdev->name, i, bptr->seqnr, bptr->fragnr);
-#endif
+
 		/* bptr points to an entry for the sender address */
 		if (bptr->seqnr == seqnr) {
 			int left;
@@ -2837,11 +2909,10 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 
 		if (fragnr != 0) {
 			/* this is not the begin of a fragment chain ... */
-#ifdef DBG_RX_FRAGMENTS
-			if (debug > 2)
-				dbg("%s: no chain for this non-first fragment (%d)",
+			if (debug & DBG_RX_FRAGS)
+				dbg_uc("%s: no chain for this non-first fragment (%d)",
 				    dev->netdev->name, fragnr);
-#endif
+
 			return NULL;
 		}
 		assert(optr != NULL);
@@ -2853,20 +2924,19 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 			skb = optr->skb;
 			optr->skb = dev->rx_skb;
 			dev->rx_skb = skb;
-#ifdef DBG_RX_FRAGMENTS
-			if (debug > 2)
-				dbg("%s: free old contents: sender %s seq/frag %d/%d",
+
+			if (debug & DBG_RX_FRAGS)
+				dbg_uc("%s: free old contents: sender %s seq/frag %d/%d",
 				    dev->netdev->name, mac2str(optr->sender),
 				    optr->seqnr, optr->fragnr); 
-#endif
+
 		} else {
 			/* take the skb from dev->rx_skb */
 			optr->skb = dev->rx_skb;
 			dev->rx_skb = NULL; /* let submit_rx_urb() allocate a new skb */
-#ifdef DBG_RX_FRAGMENTS
-			if (debug > 2)
-				dbg("%s: use a free entry", dev->netdev->name);
-#endif
+
+			if (debug & DBG_RX_FRAGS)
+				dbg_uc("%s: use a free entry", dev->netdev->name);
 		}
 		memcpy(optr->sender, i802_11_hdr->addr2, ETH_ALEN);
 		optr->seqnr = seqnr;
@@ -2887,13 +2957,13 @@ static void rx_data(struct at76c503 *dev)
 	struct ieee802_11_hdr *i802_11_hdr;
 	int length = le16_to_cpu(buf->wlength);
 
-	if (debug > 1) {
-		dbg("%s received data packet:", netdev->name);
+	if (debug & DBG_RX_DATA) {
+		dbg_uc("%s received data packet:", netdev->name);
 		dbg_dumpbuf(" rxhdr", skb->data, AT76C503_RX_HDRLEN);
-		if (debug > 3)
-			dbg_dumpbuf("packet", skb->data + AT76C503_RX_HDRLEN,
-				    length);
 	}
+	if (debug & DBG_RX_DATA_CONTENT)
+		dbg_dumpbuf("packet", skb->data + AT76C503_RX_HDRLEN,
+			    length);
 
 	if ((skb=check_for_rx_frags(dev)) == NULL)
 		return;
@@ -3006,24 +3076,22 @@ static void rx_tasklet(unsigned long param)
 	if(urb->status != 0){
 		if ((urb->status != -ENOENT) && 
 		    (urb->status != -ECONNRESET)) {
-			dbg("%s %s: - nonzero read bulk status received: %d",
+			dbg(DBG_URB,"%s %s: - nonzero read bulk status received: %d",
 			    __FUNCTION__, netdev->name, urb->status);
 			goto next_urb;
 		}
 		return;
 	}
 
-	//info("%s: rxrate %d\n",netdev->name,buf->rx_rate);
-
 	/* there is a new bssid around, accept it: */
 	if(buf->newbss && dev->iw_mode == IW_MODE_ADHOC){
-		dbg("%s: rx newbss", netdev->name);
+		dbg(DBG_PROGRESS, "%s: rx newbss", netdev->name);
 		defer_kevent(dev, KEVENT_NEW_BSS);
 	}
 
-	if (debug > 1) {
+	if (debug & DBG_RX_ATMEL_HDR) {
 		char obuf[2*48+1] __attribute__ ((unused));
-		dbg("%s: rx frame: rate %d rssi %d noise %d link %d %s",
+		dbg_uc("%s: rx frame: rate %d rssi %d noise %d link %d %s",
 		    dev->netdev->name,
 		    buf->rx_rate, buf->rssi, buf->noise_level,
 		    buf->link_quality,
@@ -3048,10 +3116,10 @@ static void rx_tasklet(unsigned long param)
 #endif
 		rx_mgmt(dev, buf);
 	}else if(frame_type == IEEE802_11_FTYPE_CTL)
-		dbg("%s: received ctrl frame: %2x", dev->netdev->name,
+		dbg(DBG_RX_CTRL, "%s: received ctrl frame: %2x", dev->netdev->name,
 		    i802_11_hdr->frame_ctl);
 	else
-		dbg("%s: it's a frame from mars: %2x", dev->netdev->name,
+		info("%s: it's a frame from mars: %2x", dev->netdev->name,
 		    i802_11_hdr->frame_ctl);
 
  next_urb:
@@ -3070,7 +3138,7 @@ static void at76c503_write_bulk_callback (struct urb *urb)
 	if(urb->status != 0){
 		if((urb->status != -ENOENT) && 
 		   (urb->status != -ECONNRESET)) {
-			dbg("%s - nonzero write bulk status received: %d",
+			dbg(DBG_URB, "%s - nonzero write bulk status received: %d",
 			    __FUNCTION__, urb->status);
 		}else
 			return; /* urb has been unlinked */
@@ -3125,7 +3193,7 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	/* we can get rid of memcpy, if we set netdev->hard_header_len
 	   to 8 + sizeof(struct ieee802_11_hdr), because then we have
 	   enough space */
-	//  dbg("skb->data - skb->head = %d", skb->data - skb->head);
+	//  dbg(DBG_TX, "skb->data - skb->head = %d", skb->data - skb->head);
 
 	/* 18 = sizeof(ieee802_11_hdr) - 2 * ETH_ALEN */
 	/* ssap and dsap stay in the data */
@@ -3167,14 +3235,14 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	submit_len = wlen + AT76C503_TX_HDRLEN + 
 		le16_to_cpu(tx_buffer->padding);
 
-	if (debug > 1) {
+	{
 		char hbuf[2*24+1], dbuf[2*16]  __attribute__((unused));
-
-		dbg("%s tx  wlen x%x pad x%x rate %d hdr %s data %s",
+		dbg(DBG_TX_DATA, "%s tx  wlen x%x pad x%x rate %d hdr %s",
 		    dev->netdev->name,
 		    le16_to_cpu(tx_buffer->wlength),
 		    le16_to_cpu(tx_buffer->padding), tx_buffer->tx_rate, 
-		    hex2str(hbuf, (u8 *)i802_11_hdr,sizeof(hbuf)/2,'\0'),
+		    hex2str(hbuf, (u8 *)i802_11_hdr,sizeof(hbuf)/2,'\0'));
+		dbg(DBG_TX_DATA_CONTENT, "%s data %s", dev->netdev->name,
 		    hex2str(dbuf, (u8 *)i802_11_hdr+24,sizeof(dbuf)/2,'\0'));
 	}
 
@@ -3221,6 +3289,27 @@ int startup_device(struct at76c503 *dev)
 {
 	struct at76c503_card_config *ccfg = &dev->card_config;
 	int ret;
+
+	if (debug & DBG_PARAMS) {
+		char hexssid[IW_ESSID_MAX_SIZE*2+1];
+		char ossid[IW_ESSID_MAX_SIZE+1];
+
+		/* make dev->essid printable */
+		assert(dev->essid_size <= IW_ESSID_MAX_SIZE);
+		memcpy(ossid, dev->essid, dev->essid_size);
+		ossid[dev->essid_size] = '\0';
+
+		dbg_uc("%s params: ssid %s (%s) mode %s wep %s key %d keylen %d "
+		       "preamble %s rts %d frag %d txrate %d excl %d pm_mode %d",
+		       dev->netdev->name, ossid, 
+		       hex2str(hexssid,dev->essid,dev->essid_size,'\0'),
+		       dev->iw_mode == IW_MODE_ADHOC ? "adhoc" : "infra",
+		       dev->wep_enabled ? "enabled" : "disabled",
+		       dev->wep_key_id, dev->wep_keys_len[dev->wep_key_id],
+		       dev->preamble_type == PREAMBLE_TYPE_SHORT ? "short" : "long",
+		       dev->rts_threshold, dev->frag_threshold, dev->txrate,
+		       dev->wep_excl_unencr, dev->pm_mode);
+	}
 
 	memset(ccfg, 0, sizeof(struct at76c503_card_config));
 	ccfg->exclude_unencrypted = dev->wep_excl_unencr;
@@ -3290,12 +3379,26 @@ int at76c503_open(struct net_device *netdev)
 	struct at76c503 *dev = (struct at76c503 *)(netdev->priv);
 	int ret = 0;
 
+	dbg(DBG_PROC_ENTRY, "at76c503_open entry");
+
 	if(down_interruptible(&dev->sem))
 	   return -EINTR;
 
 	ret = startup_device(dev);
 	if (ret < 0)
 		goto err;
+
+	/* if netdev->dev_addr != dev->mac_addr we must
+	   set the mac address in the device ! */
+	if (memcmp(netdev->dev_addr, dev->mac_addr, ETH_ALEN)) {
+		if (set_mac_address(dev,netdev->dev_addr) >= 0)
+			dbg(DBG_PROGRESS, "%s: set new MAC addr %s",
+			    netdev->name, mac2str(netdev->dev_addr));
+	}
+
+#if 0 //test only !!!
+	dump_mib_mac_addr(dev);
+#endif
 
 	dev->nr_submit_rx_tries = NR_SUBMIT_RX_TRIES; /* init counter */
 
@@ -3311,7 +3414,7 @@ int at76c503_open(struct net_device *netdev)
   	netif_stop_queue(dev->netdev); /* stop tx data packets */
    
 	dev->open_count++;
-	dbg("at76c503_open end");
+	dbg(DBG_PROC_ENTRY, "at76c503_open end");
  err:
 	up(&dev->sem);
 	return ret < 0 ? ret : 0;
@@ -3383,24 +3486,14 @@ void at76c503_set_multicast(struct net_device *netdev)
 	}
 }
 
+/* we only store the new mac address in netdev struct,
+   it got set when the netdev gets opened. */
 static
 int at76c503_set_mac_address(struct net_device *netdev, void *addr)
 {
-	struct at76c503 *dev = (struct at76c503 *)netdev->priv;
 	struct sockaddr *mac = addr;
-	int ret;
-
-	if (down_interruptible(&dev->sem))
-                return -EINTR;
-
-	ret = set_mac_address(dev, mac->sa_data);
-	if(ret >= 0){
-		memcpy(netdev->dev_addr, mac->sa_data, ETH_ALEN);
-	}
-
-	up(&dev->sem);
-
-	return ret;
+	memcpy(netdev->dev_addr, mac->sa_data, ETH_ALEN);
+	return 1;
 }
 
 #if IW_MAX_SPY > 0
@@ -3435,7 +3528,8 @@ static int ioctl_setspy(struct at76c503 *dev, struct iw_point *srq)
 	if (srq == NULL)
 		return -EFAULT;
 
-	dbg("%s: ioctl(SIOCSIWSPY, number %d)", dev->netdev->name, srq->length);
+	dbg(DBG_IOCTL, "%s: ioctl(SIOCSIWSPY, number %d)",
+	    dev->netdev->name, srq->length);
 
 	if (srq->length > IW_MAX_SPY)
 		return -E2BIG;
@@ -3452,9 +3546,12 @@ static int ioctl_setspy(struct at76c503 *dev, struct iw_point *srq)
 	}
 
 	/* Time to show what we have done... */
-	dbg("%s: New spy list:", dev->netdev->name);
-	for (i = 0; i < dev->iwspy_nr; i++) {
-		dbg("%s: %s", dev->netdev->name, mac2str(dev->iwspy_addr[i].sa_data));
+	if (debug & DBG_IOCTL) {
+		dbg_uc("%s: New spy list:", dev->netdev->name);
+		for (i = 0; i < dev->iwspy_nr; i++) {
+			dbg_uc("%s: %s", dev->netdev->name,
+			       mac2str(dev->iwspy_addr[i].sa_data));
+		}
 	}
 
 	return 0;
@@ -3466,7 +3563,7 @@ static int ioctl_getspy(struct at76c503 *dev, struct iw_point *srq)
 {
 	int i;
 
-	dbg("%s: ioctl(SIOCGIWSPY, number %d)", dev->netdev->name, 
+	dbg(DBG_IOCTL, "%s: ioctl(SIOCGIWSPY, number %d)", dev->netdev->name,
 	    dev->iwspy_nr); 
 
 	srq->length = dev->iwspy_nr;
@@ -3505,12 +3602,12 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 
 	switch (cmd) {
 	case SIOCGIWNAME:
-		dbg("%s: SIOCGIWNAME", netdev->name);
+		dbg(DBG_IOCTL, "%s: SIOCGIWNAME", netdev->name);
 		strcpy(wrq->u.name, "IEEE 802.11-DS");
 		break;
                 
 	case SIOCGIWAP:
-		dbg("%s: SIOCGIWAP", netdev->name);
+		dbg(DBG_IOCTL, "%s: SIOCGIWAP", netdev->name);
 		wrq->u.ap_addr.sa_family = ARPHRD_ETHER;
 
 		memcpy(wrq->u.ap_addr.sa_data, dev->bssid, ETH_ALEN);
@@ -3518,13 +3615,11 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		break;
 
 	case SIOCSIWRTS:
-		dbg("%s: SIOCSIWRTS", netdev->name);
 		{
 			int rthr = wrq->u.rts.value;
-#if 0 
-			printk(KERN_DEBUG "%s: ioctl SIOCSIWRTS, value %d, disabled %d\n",
-			       dev->name, wrq->u.rts.value, wrq->u.rts.disabled);
-#endif
+			dbg(DBG_IOCTL, "%s: SIOCSIWRTS: value %d disabled %d",
+			    netdev->name, wrq->u.rts.value, wrq->u.rts.disabled);
+
 			if(wrq->u.rts.disabled)
 				rthr = MAX_RTS_THRESHOLD;
 			if((rthr < 0) || (rthr > MAX_RTS_THRESHOLD)) {
@@ -3538,10 +3633,8 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 
 	// Get the current RTS threshold
 	case SIOCGIWRTS:
-		dbg("%s: SIOCGIWRTS", netdev->name);
-#if 0
-		printk(KERN_DEBUG "%s: ioctl SIOCGIWRTS\n", dev->name);
-#endif
+		dbg(DBG_IOCTL, "%s: SIOCGIWRTS", netdev->name);
+
 		wrq->u.rts.value = dev->rts_threshold;
 		wrq->u.rts.disabled = (wrq->u.rts.value == MAX_RTS_THRESHOLD);
 		wrq->u.rts.fixed = 1;
@@ -3550,13 +3643,11 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		// Set the desired fragmentation threshold
 
        case SIOCSIWFRAG:
-		dbg("%s: SIOCSIWFRAG", netdev->name);
 		{
 			int fthr = wrq->u.frag.value;
-#if 0
-			printk(KERN_DEBUG "%s: ioctl SIOCSIWFRAG, value %d, disabled %d\n", 
-			       dev->name, wrq->u.frag.value, wrq->u.frag.disabled);
-#endif
+			dbg(DBG_IOCTL, "%s: SIOCSIWFRAG, value %d, disabled %d",
+			    netdev->name, wrq->u.frag.value, wrq->u.frag.disabled);
+
 			if(wrq->u.frag.disabled)
 				fthr = MAX_FRAG_THRESHOLD;
 			if((fthr < MIN_FRAG_THRESHOLD) || (fthr > MAX_FRAG_THRESHOLD)){
@@ -3570,7 +3661,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 
        // Get the current fragmentation threshold
        case SIOCGIWFRAG:
-		dbg("%s: SIOCGIWFRAG", netdev->name);
+		dbg(DBG_IOCTL, "%s: SIOCGIWFRAG", netdev->name);
 
 		wrq->u.frag.value = dev->frag_threshold;
 		wrq->u.frag.disabled = (wrq->u.frag.value >= MAX_FRAG_THRESHOLD);
@@ -3578,14 +3669,13 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		break;
 
 	case SIOCGIWFREQ:
-		dbg("%s: SIOCGIWFREQ", netdev->name);
+		dbg(DBG_IOCTL, "%s: SIOCGIWFREQ", netdev->name);
 		wrq->u.freq.m = dev->channel;
 		wrq->u.freq.e = 0;
 		wrq->u.freq.i = 0;
 		break;
 
 	case SIOCSIWFREQ:
-		dbg("%s: SIOCGIWFREQ", netdev->name);
 		/* copied from orinoco.c */
 		{
 			struct iw_freq *frq = &wrq->u.freq;
@@ -3613,24 +3703,26 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 				ret = -EINVAL;
 			} else {
 				dev->channel = chan;
+				dbg(DBG_IOCTL, "%s: SIOCSIWFREQ ch %d",
+				    netdev->name, chan);
 				changed = 1;
 			}
 		}
 		break;
 
 	case SIOCGIWMODE:
-		dbg("%s: SIOCGIWMODE", netdev->name);
+		dbg(DBG_IOCTL, "%s: SIOCGIWMODE", netdev->name);
 		wrq->u.mode = dev->iw_mode;
 		break;
 
 	case SIOCSIWMODE:
-		dbg("%s: SIOCSIWMODE %d", netdev->name, wrq->u.mode);
+		dbg(DBG_IOCTL, "%s: SIOCSIWMODE %d", netdev->name, wrq->u.mode);
 		dev->iw_mode = wrq->u.mode;
 		changed = 1;
 		break;
 
 	case SIOCGIWESSID:
-		dbg("%s: SIOCGIWESSID", netdev->name);
+		dbg(DBG_IOCTL, "%s: SIOCGIWESSID", netdev->name);
 		{
 			char *essid = NULL;
 			struct iw_point *erq = &wrq->u.essid;
@@ -3666,9 +3758,8 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		break;
 
 	case SIOCSIWESSID:
-		dbg("%s: SIOCSIWESSID", netdev->name);
 		{
-			char essidbuf[IW_ESSID_MAX_SIZE];
+			char essidbuf[IW_ESSID_MAX_SIZE+1];
 			struct iw_point *erq = &wrq->u.essid;
 
 			memset(&essidbuf, 0, sizeof(essidbuf));
@@ -3688,6 +3779,8 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 				/* iwconfig gives len including 0 byte -
 				   3 hours debugging... grrrr (oku) */
 				dev->essid_size = erq->length - 1; 
+				dbg(DBG_IOCTL, "%s: SIOCSIWESSID %d %s", netdev->name,
+				    dev->essid_size, essidbuf);
 				memcpy(dev->essid, essidbuf, IW_ESSID_MAX_SIZE);
 			} else
 				dev->essid_size = 0; /* ANY ssid */
@@ -3705,7 +3798,8 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		break;
 
 	case SIOCSIWRATE:
-		dbg("%s: SIOCSIWRATE %d", netdev->name, wrq->u.bitrate.value);
+		dbg(DBG_IOCTL, "%s: SIOCSIWRATE %d", netdev->name,
+		    wrq->u.bitrate.value);
 		changed = 1;
 		switch (wrq->u.bitrate.value){
 		case -1: dev->txrate = 4; break; /* auto rate */ 
@@ -3720,17 +3814,13 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		break;
 
         case SIOCSIWENCODE:
-		dbg("%s: SIOCSIWENCODE", netdev->name);
-#if 1
-		printk(KERN_DEBUG "%s: ioctl SIOCSIWENCODE enc.flags %08x "
-		       "pointer %p len %d\n",
-		       dev->netdev->name, wrq->u.encoding.flags, 
+		dbg(DBG_IOCTL, "%s: SIOCSIWENCODE enc.flags %08x "
+		       "pointer %p len %d", netdev->name, wrq->u.encoding.flags, 
 		       wrq->u.encoding.pointer, wrq->u.encoding.length);
-		printk(KERN_DEBUG "%s: old wepstate: enabled %d key_id %d "
+		dbg(DBG_IOCTL, "%s: old wepstate: enabled %d key_id %d "
 		       "excl_unencr %d\n",
 		       dev->netdev->name, dev->wep_enabled, dev->wep_key_id,
 		       dev->wep_excl_unencr);
-#endif
 		changed = 1;
 		{
 			int index = (wrq->u.encoding.flags & IW_ENCODE_INDEX) - 1;
@@ -3754,10 +3844,6 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 					dev->wep_keys_len[index] =
 						len <= WEP_SMALL_KEY_LEN ?
 						WEP_SMALL_KEY_LEN : WEP_LARGE_KEY_LEN;
-#if 0
-					printk(KERN_DEBUG "%s: new key index %d, len %d: ",
-					       dev->netdev->name, index, dev->wep_keys_len[index]);
-#endif
 					dev->wep_enabled = 1;
 				}
 			}
@@ -3768,19 +3854,18 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 				dev->wep_excl_unencr = 1;
 			if (wrq->u.encoding.flags & IW_ENCODE_OPEN)
 				dev->wep_excl_unencr = 0;
-#if 1
-			printk(KERN_DEBUG "%s: new wepstate: enabled %d key_id %d key_len %d "
+
+			dbg(DBG_IOCTL, "%s: new wepstate: enabled %d key_id %d key_len %d "
 			       "excl_unencr %d\n",
 			       dev->netdev->name, dev->wep_enabled, dev->wep_key_id,
 			       dev->wep_keys_len[dev->wep_key_id],
 			       dev->wep_excl_unencr);
-#endif
 		}
 		break;
 
 		// Get the WEP keys and mode
 	case SIOCGIWENCODE:
-		dbg("%s: SIOCGIWENCODE", netdev->name);
+		dbg(DBG_IOCTL, "%s: SIOCGIWENCODE", netdev->name);
 		{
 			int index = (wrq->u.encoding.flags & IW_ENCODE_INDEX) - 1;
 			if ((index < 0) || (index >= NR_WEP_KEYS))
@@ -3815,7 +3900,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 #endif /* #if IW_MAX_SPY > 0 */
 
 	case SIOCSIWPOWER:
-		dbg("%s: SIOCSIWPOWER disabled %d flags x%x value x%x", netdev->name,
+		dbg(DBG_IOCTL, "%s: SIOCSIWPOWER disabled %d flags x%x value x%x", netdev->name,
 		    wrq->u.power.disabled, wrq->u.power.flags, wrq->u.power.value);
 		if (wrq->u.power.disabled)
 			dev->pm_mode = PM_ACTIVE;
@@ -3831,7 +3916,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		break;
 
 	case SIOCGIWPOWER:
-		dbg("%s: SIOCGIWPOWER", netdev->name);
+		dbg(DBG_IOCTL, "%s: SIOCGIWPOWER", netdev->name);
 		wrq->u.power.disabled = dev->pm_mode == PM_ACTIVE;
 		if ((wrq->u.power.flags & IW_POWER_TYPE) == IW_POWER_TIMEOUT) {
 			wrq->u.power.flags = IW_POWER_TIMEOUT;
@@ -3851,7 +3936,10 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 				  "set_preamble" }, /* 0 - long, 1 -short */
 
 				{ PRIV_IOCTL_SET_DEBUG, 
-				  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0,
+				  /* we must pass the new debug mask as a string,
+				     'cause iwpriv cannot parse hex numbers
+				     starting with 0x :-( */
+				  IW_PRIV_TYPE_CHAR | 10, 0,
 				  "set_debug"}, /* set debug value */
 
 				{ PRIV_IOCTL_SET_AUTH, 
@@ -3877,7 +3965,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	case PRIV_IOCTL_SET_SHORT_PREAMBLE:
 	{
 		int val = *((int *)wrq->u.name);
-		dbg("%s: PRIV_IOCTL_SET_SHORT_PREAMBLE, %d",
+		dbg(DBG_IOCTL, "%s: PRIV_IOCTL_SET_SHORT_PREAMBLE, %d",
 		    dev->netdev->name, val);
 		if (val < 0 || val > 2)
 			//allow value of 2 - in the win98 driver it stands
@@ -3892,23 +3980,40 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 
 	case PRIV_IOCTL_SET_DEBUG:
 	{
-		int val = *((int *)wrq->u.name);
-		dbg("%s: PRIV_IOCTL_SET_DEBUG, %d",
-		    dev->netdev->name, val);
+		char *ptr, nbuf[10+1];
+		struct iw_point *erq = &wrq->u.data;
+		u32 val;
+		
+		if (erq->length > 0) {
+			if (copy_from_user(nbuf, erq->pointer,
+					   min((int)sizeof(nbuf),(int)erq->length))) {
+				ret = -EFAULT;
+				goto set_debug_end;
+			}       
+			val = simple_strtol(nbuf, &ptr, 0);
+			if (ptr == nbuf)
+				val = DBG_DEFAULTS;
+			dbg_uc("%s: PRIV_IOCTL_SET_DEBUG input %d: %s -> x%x",
+			       dev->netdev->name, erq->length, nbuf, val);
+		} else
+			val = DBG_DEFAULTS;
+		dbg_uc("%s: PRIV_IOCTL_SET_DEBUG, old 0x%x  new 0x%x",
+		       dev->netdev->name, debug, val);
 		/* jal: some more output to pin down lockups */
-		dbg("%s: netif running %d queue_stopped %d carrier_ok %d",
+		dbg_uc("%s: netif running %d queue_stopped %d carrier_ok %d",
 		    dev->netdev->name, 
 		    netif_running(dev->netdev),
 		    netif_queue_stopped(dev->netdev),
 		    netif_carrier_ok(dev->netdev));
 		debug = val;
 	}
+        set_debug_end:
 	break;
 
 	case PRIV_IOCTL_SET_AUTH:
 	{
 		int val = *((int *)wrq->u.name);
-		dbg("%s: PRIV_IOCTL_SET_AUTH, %d (%s)",
+		dbg(DBG_IOCTL, "%s: PRIV_IOCTL_SET_AUTH, %d (%s)",
 		    dev->netdev->name, val,
 		    val == 0 ? "open" : val == 1 ? "shared secret" : 
 		    "<invalid>");
@@ -3928,7 +4033,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	case PRIV_IOCTL_SET_PS_MODE:
 	{
 		int val = *((int *)wrq->u.name);
-		dbg("%s: PRIV_IOCTL_SET_PS_MODE, %d (%s)",
+		dbg(DBG_IOCTL, "%s: PRIV_IOCTL_SET_PS_MODE, %d (%s)",
 		    dev->netdev->name, val,
 		    val == PM_ACTIVE ? "active" : val == PM_SAVE ? "save" : val == PM_SMART_SAVE ?
 		    "smart save" : "<invalid>");
@@ -3942,7 +4047,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	break;
 
 	default:
-		dbg("%s: ioctl not supported (0x%x)", netdev->name, cmd);
+		dbg(DBG_IOCTL, "%s: ioctl not supported (0x%x)", netdev->name, cmd);
 		ret = -EOPNOTSUPP;
 	}
 
@@ -3955,7 +4060,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 
 		assert(ret >= 0);
 
-		dbg("%s %s: restarting the device", dev->netdev->name,
+		dbg(DBG_IOCTL, "%s %s: restarting the device", dev->netdev->name,
 		    __FUNCTION__);
 
 		/* stop any pending tx bulk urb */
@@ -3995,7 +4100,7 @@ void at76c503_delete_device(struct at76c503 *dev)
 	if(dev){
 		int sem_taken;
 		if ((sem_taken=down_trylock(&rtnl_sem)) != 0)
-			dbg("%s: rtnl_sem already down'ed", __FUNCTION__);
+			info("%s: rtnl_sem already down'ed", __FUNCTION__);
 		unregister_netdevice(dev->netdev);
 		if (!sem_taken)
 			rtnl_unlock();
@@ -4170,7 +4275,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.23 2003/05/22 22:21:59 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.24 2003/05/29 10:35:09 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
@@ -4181,10 +4286,10 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		err("could not get MAC address");
 		goto error;
 	}
-	memcpy(netdev->dev_addr, dev->mac_addr, ETH_ALEN);
-	info("using MAC %s", mac2str(netdev->dev_addr));
 
-	set_mac_address(dev, netdev->dev_addr); /* may have been changed, write back original */
+	/* init. netdev->dev_addr */
+	memcpy(netdev->dev_addr, dev->mac_addr, ETH_ALEN);
+	info("device's MAC %s", mac2str(dev->mac_addr));
 
 	/* initializing */
 	dev->channel = DEF_CHANNEL;
@@ -4245,13 +4350,14 @@ struct at76c503 *at76c503_do_probe(struct module *mod, struct usb_device *udev, 
 				err("Downloading external firmware failed: %d", ret);
 				goto error;
 			} else
-				dbg("assuming external fw was already downloaded");
+				dbg(DBG_DEVSTART,
+				    "assuming external fw was already downloaded");
 		}
 	}
 
 	dev = at76c503_new_device(udev, board_type, netdev_name);
 	if (!dev) {
-		dbg("at76c503_new_device returned NULL");
+	        err("at76c503_new_device returned NULL");
 		goto error;
 	}
 
@@ -4286,7 +4392,7 @@ int at76c503_usbdfu_post(struct usb_device *udev)
 {
 	int result;
 
-	dbg("Sending remap command...");
+	dbg(DBG_DEVSTART, "Sending remap command...");
 	result = at76c503_remap(udev);
 	if (result < 0) {
 		err("Remap command failed (%d)", result);
