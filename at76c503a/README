@@ -13,14 +13,6 @@ Known devices with this chip are:
 - Linksys WUSB11 v2.6
 - Netgear MA101B
 
-It is early in development. Currently, it has some limitations:
-
-- to change the essid or channel, the network has to be restarted
-  (with ifconfig)
-
-If you are looking for a more complete driver, look at
-http://atmelwlandriver.sourceforge.net.
-
 Reqirements:
 ------------
 
@@ -48,7 +40,7 @@ modprobe -v at76c503-rfmd
 or
 insmod usbdfu.o; insmod at76c503.o; insmod at76c503-rfmd.o
 
-You can give the network device another name than wlan by giving
+You can give the network device another name than wlanX by giving
 the module the netdev_name parameter. Eg.
 insmod at76c503-rfmd.o netdev_name=eth%d
 would give the first device the name eth0, the second eth1 etc...
@@ -66,24 +58,17 @@ channel number (1..14) <essid> with your network id (a string), <ip>
 with an IP address)
 
 iwconfig <iface> channel <ch> mode ad-hoc essid <essid>
-ifonfig <iface> <ip> up
 
 Example:
 iwconfig wlan2 mode ad-hoc channel 10 essid okuwlan
-ifconfig wlan2 192.168.3.1 up
 
 Test it by pinging another host with a wlan adaptor.
-
-To change a parameter with iwconfig, do:
-ifconfig <iface> down
-iwconfig ...
-ifconfig <iface> up
 
 Note that the firmware survives reboots of the computer, but not
 unplugging the device.
 
 If you get problems:
-Look with dmesg, if there are error messages
+Look with dmesg, if there are error messages.
 
 Private Parameters
 ------------------
@@ -107,3 +92,4 @@ Thanks to:
 - lots of other authors of usb and wlan drivers, where I stole code from
 
 Oliver Kurth <oku@masqmail.cx>, Mon,  6 Jan 2003 22:39:47 +0100
+

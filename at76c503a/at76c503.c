@@ -666,18 +666,21 @@ int set_mib(struct usb_device *udev, struct set_mib_buffer *buf)
 	return -ENOMEM;
 }
 
+/* return < 0 on error, == 0 if no command sent, == 1 if cmd sent */
 static
 int set_radio(struct at76c503 *dev, int on_off)
 {
-	int ret = 0;
+	int ret;
 
 	if(dev->radio_on != on_off){
 		ret = set_card_command(dev->udev, CMD_RADIO, NULL, 0);
 		if(ret < 0){
 			err("%s: set_card_command(CMD_RADIO) failed: %d", dev->netdev->name, ret);
-		}
+		} else
+			ret = 1;
 		dev->radio_on = on_off;
-	}
+	} else
+		ret = 0;
 	return ret;
 }
 
@@ -2636,6 +2639,7 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	return ret;
 }
 
+
 static
 void at76c503_tx_timeout(struct net_device *netdev)
 {
@@ -2650,6 +2654,71 @@ void at76c503_tx_timeout(struct net_device *netdev)
 }
 
 static
+int startup_device(struct at76c503 *dev)
+{
+	struct at76c503_card_config *ccfg = &dev->card_config;
+	int ret;
+
+	memset(ccfg, 0, sizeof(struct at76c503_card_config));
+	ccfg->exclude_unencrypted = dev->wep_excl_unencr;
+	ccfg->promiscuous_mode = 0;
+	ccfg->promiscuous_mode = 1;
+	ccfg->short_retry_limit = 8;
+
+	if (dev->wep_enabled &&
+	    dev->wep_keys_len[dev->wep_key_id] > WEP_SMALL_KEY_LEN)
+		ccfg->encryption_type = 2;
+	else
+		ccfg->encryption_type = 1;
+
+
+	ccfg->rts_threshold = dev->rts_threshold;
+	ccfg->fragmentation_threshold = dev->frag_threshold;
+
+	memcpy(ccfg->basic_rate_set, hw_rates, 4);
+	/* jal: really needed, we do a set_mib for autorate later ??? */
+	ccfg->auto_rate_fallback = (dev->txrate == 4 ? 1 : 0);
+	ccfg->channel = dev->channel;
+	ccfg->privacy_invoked = dev->wep_enabled;
+	memcpy(ccfg->current_ssid, dev->essid, IW_ESSID_MAX_SIZE);
+	ccfg->ssid_len = dev->essid_size;
+
+	ccfg->wep_default_key_id = dev->wep_key_id;
+	memcpy(ccfg->wep_default_key_value, dev->wep_keys, 4 * WEP_KEY_SIZE);
+
+	ccfg->short_preamble = dev->preamble_type;
+	ccfg->beacon_period = 100;
+
+	ret = set_card_command(dev->udev, CMD_STARTUP, (unsigned char *)&dev->card_config,
+			       sizeof(struct at76c503_card_config));
+	if(ret < 0){
+		err("%s: set_card_command failed: %d", dev->netdev->name, ret);
+		return ret;
+	}
+
+	wait_completion(dev, CMD_STARTUP);
+
+	/* remove BSSID from previous run */
+	memset(dev->bssid, 0, ETH_ALEN);
+  
+	if (set_radio(dev, 1) == 1)
+		wait_completion(dev, CMD_RADIO);
+
+	if ((ret=set_preamble(dev, dev->preamble_type)) < 0)
+		return ret;
+	if ((ret=set_frag(dev, dev->frag_threshold)) < 0)
+		return ret;
+
+	if ((ret=set_rts(dev, dev->rts_threshold)) < 0)
+		return ret;
+	
+	if ((ret=set_autorate_fallback(dev, dev->txrate == 4 ? 1 : 0)) < 0)
+		return ret;
+
+	return 0;
+}
+
+static
 int at76c503_open(struct net_device *netdev)
 {
 	struct at76c503 *dev = (struct at76c503 *)(netdev->priv);
@@ -2658,59 +2727,9 @@ int at76c503_open(struct net_device *netdev)
 	if(down_interruptible(&dev->sem))
 	   return -EINTR;
 
-	/* remove BSSID from previous run */
-	memset(dev->bssid, 0, ETH_ALEN);
-
-	{
-		struct at76c503_card_config *ccfg = &dev->card_config;
-
-		memset(ccfg, 0, sizeof(struct at76c503_card_config));
-		ccfg->exclude_unencrypted = dev->wep_excl_unencr;
-		ccfg->promiscuous_mode = 0;
-		ccfg->promiscuous_mode = 1;
-		ccfg->short_retry_limit = 8;
-
-		if (dev->wep_enabled &&
-		    dev->wep_keys_len[dev->wep_key_id] > WEP_SMALL_KEY_LEN)
-			ccfg->encryption_type = 2;
-		else
-			ccfg->encryption_type = 1;
-
-
-                ccfg->rts_threshold = dev->rts_threshold;
-                ccfg->fragmentation_threshold = dev->frag_threshold;
-
-		memcpy(ccfg->basic_rate_set, hw_rates, 4);
-		/* jal: really needed, we do a set_mib for autorate later ??? */
-		ccfg->auto_rate_fallback = (dev->txrate == 4 ? 1 : 0);
-		ccfg->channel = dev->channel;
-		ccfg->privacy_invoked = dev->wep_enabled;
-		memcpy(ccfg->current_ssid, dev->essid, IW_ESSID_MAX_SIZE);
-		ccfg->ssid_len = dev->essid_size;
-
-                ccfg->wep_default_key_id = dev->wep_key_id;
-                memcpy(ccfg->wep_default_key_value, dev->wep_keys, 4 * WEP_KEY_SIZE);
-
-		ccfg->short_preamble = dev->preamble_type;
-		ccfg->beacon_period = 100;
-	}
-
-	ret = set_card_command(dev->udev, CMD_STARTUP, (unsigned char *)&dev->card_config,
-			       sizeof(struct at76c503_card_config));
-	if(ret < 0){
-		err("%s: set_card_command failed: %d", netdev->name, ret);
+	ret = startup_device(dev);
+	if (ret < 0)
 		goto err;
-	}
-
-	wait_completion(dev, CMD_STARTUP);
-
-	set_radio(dev, 1);
-	wait_completion(dev, CMD_RADIO);
-
-	set_preamble(dev, dev->preamble_type);
-	set_frag(dev, dev->frag_threshold);
-	set_rts(dev, dev->rts_threshold);
-	set_autorate_fallback(dev, dev->txrate == 4 ? 1 : 0);
 
 	ret = submit_rx_urb(dev);
 	if(ret < 0){
@@ -2723,6 +2742,7 @@ int at76c503_open(struct net_device *netdev)
   	netif_carrier_off(dev->netdev); /* disable running netdev watchdog */
   	netif_stop_queue(dev->netdev); /* stop tx data packets */
    
+	dev->open_count++;
 	dbg("at76c503_open end");
  err:
 	up(&dev->sem);
@@ -2753,6 +2773,9 @@ int at76c503_stop(struct net_device *netdev)
 		dev->next_mgmt_bulk = NULL;
 	}
 	spin_unlock_irqrestore(&dev->mgmt_spinlock,flags);
+
+	assert(dev->open_count > 0);
+	dev->open_count--;
 
 	up(&dev->sem);
 
@@ -2901,7 +2924,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	struct at76c503 *dev = netdev->priv;
 	struct iwreq *wrq = (struct iwreq *)rq;
 	int ret = 0;
-	//  int changed = 0;
+	int changed = 0; /* set to 1 if we must re-start the device */
   
 	if (! netif_device_present(netdev))
 		return -ENODEV;
@@ -2935,9 +2958,10 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 				rthr = MAX_RTS_THRESHOLD;
 			if((rthr < 0) || (rthr > MAX_RTS_THRESHOLD)) {
 				ret = -EINVAL;
-				goto error;
+			} else {
+				dev->rts_threshold = rthr;
+				changed = 1;
 			}
-			dev->rts_threshold = rthr;
 		}
 		break;
 
@@ -2966,9 +2990,9 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 				fthr = MAX_FRAG_THRESHOLD;
 			if((fthr < MIN_FRAG_THRESHOLD) || (fthr > MAX_FRAG_THRESHOLD)){
 				ret = -EINVAL;
-				goto error;
 			}else{
 				dev->frag_threshold = fthr & ~0x1; // get an even value
+				changed = 1;
 			}
 		}
 		break;
@@ -2996,15 +3020,6 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 			struct iw_freq *frq = &wrq->u.freq;
 			int chan = -1;
 
-			/* We can only use this in Ad-Hoc demo mode to set the operating
-			 * frequency, or in IBSS mode to set the frequency where the IBSS
-			 * will be created - Jean II */
-			/* dunno if this also applies for this device (oku) */
-			if(dev->iw_mode != IW_MODE_ADHOC){
-				ret = -EOPNOTSUPP;
-				goto error;
-			}
-
 			if((frq->e == 0) && (frq->m <= 1000)){
 				/* Setting by channel number */
 				chan = frq->m;
@@ -3025,10 +3040,10 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 			   supported by the device (oku) */
 			if ((chan < 1) || (chan > NUM_CHANNELS)){
 				ret = -EINVAL;
-				goto error;
+			} else {
+				dev->channel = chan;
+				changed = 1;
 			}
-
-			dev->channel = chan;
 		}
 		break;
 
@@ -3040,6 +3055,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	case SIOCSIWMODE:
 		dbg("%s: SIOCSIWMODE %d", netdev->name, wrq->u.mode);
 		dev->iw_mode = wrq->u.mode;
+		changed = 1;
 		break;
 
 	case SIOCGIWESSID:
@@ -3071,7 +3087,6 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 				if(copy_to_user(erq->pointer, essid, 
 						erq->length)){
 					ret = -EFAULT;
-					goto error;
 				}
 			}
 
@@ -3089,12 +3104,12 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 			if (erq->flags) {
 				if (erq->length > IW_ESSID_MAX_SIZE){
 					ret = -E2BIG;
-					goto error;
+					goto csiwessid_error;
 				}
 	
 				if (copy_from_user(essidbuf, erq->pointer, erq->length)){
 					ret = -EFAULT;
-					goto error;
+					goto csiwessid_error;
 				}
 	
 				assert(erq->length > 0);
@@ -3104,7 +3119,9 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 				memcpy(dev->essid, essidbuf, IW_ESSID_MAX_SIZE);
 			} else
 				dev->essid_size = 0; /* ANY ssid */
+			changed = 1;
 		}
+	csiwessid_error:
 		break;
 
 	case SIOCGIWRATE:
@@ -3117,6 +3134,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 
 	case SIOCSIWRATE:
 		dbg("%s: SIOCSIWRATE %d", netdev->name, wrq->u.bitrate.value);
+		changed = 1;
 		switch (wrq->u.bitrate.value){
 		case -1: dev->txrate = 4; break; /* auto rate */ 
 		case 1000000: dev->txrate = 0; break;
@@ -3125,6 +3143,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		case 11000000: dev->txrate = 3; break;
 		default:
 			ret = -EINVAL;
+			changed = 0;
 		}
 		break;
 
@@ -3140,6 +3159,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		       dev->netdev->name, dev->wep_enabled, dev->wep_key_id,
 		       dev->wep_excl_unencr);
 #endif
+		changed = 1;
 		{
 			int index = (wrq->u.encoding.flags & IW_ENCODE_INDEX) - 1;
                         /* take the old default key if index is invalid */
@@ -3156,6 +3176,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 				if(copy_from_user(dev->wep_keys[index], 
 						   wrq->u.encoding.pointer, len)) {
 					dev->wep_keys_len[index] = 0;
+					changed = 0;
 					ret = -EFAULT;
 				}else{
 					dev->wep_keys_len[index] =
@@ -3211,6 +3232,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 #if IW_MAX_SPY > 0
 		// Set the spy list
 	case SIOCSIWSPY:
+		/* never needs a device restart */
 		ret = ioctl_setspy(dev, &wrq->u.data);
 		break;
 
@@ -3254,6 +3276,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 			ret = -EINVAL;
 		else {
 			dev->preamble_type = val;
+			changed = 1;
 		}
 	}
 	break;
@@ -3278,6 +3301,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 			ret = -EINVAL;
 		else {
 			dev->auth_mode = val;
+			changed = 1;
 		}
 	}
 	break;
@@ -3287,7 +3311,37 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		ret = -EOPNOTSUPP;
 	}
 
- error:
+#if 1
+	/* we only startup the device if it was already opened before. */
+	if ((changed) && (dev->open_count > 0)) {
+
+		unsigned long flags;
+
+		assert(ret >= 0);
+
+		dbg("%s %s: restarting the device", dev->netdev->name,
+		    __FUNCTION__);
+
+		/* stop any pending tx bulk urb */
+
+		/* stop pending management stuff */
+		del_timer_sync(&dev->mgmt_timer);
+
+		spin_lock_irqsave(&dev->mgmt_spinlock,flags);
+		if (dev->next_mgmt_bulk) {
+			kfree(dev->next_mgmt_bulk);
+			dev->next_mgmt_bulk = NULL;
+		}
+		spin_unlock_irqrestore(&dev->mgmt_spinlock,flags);
+
+		ret = startup_device(dev);
+
+		NEW_STATE(dev,SCANNING);
+		defer_kevent(dev,KEVENT_SCAN);
+		netif_carrier_off(dev->netdev);
+		netif_stop_queue(dev->netdev);
+	}
+#endif
 	up(&dev->sem);
 	return ret;
 }
@@ -3399,6 +3453,8 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 
 	init_MUTEX (&dev->sem);
 	INIT_TQUEUE (&dev->kevent, kevent, dev);
+
+	dev->open_count = 0;
 
 	init_timer(&dev->mgmt_timer);
 	dev->mgmt_timer.data = (unsigned long)dev;
