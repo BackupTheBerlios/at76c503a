@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.9 2003/07/11 20:53:32 jal2 Exp $
+#$Id: Makefile,v 1.10 2003/07/20 09:47:10 jal2 Exp $
 
 VERSION = 0.11beta3
 
@@ -22,7 +22,7 @@ CPPFLAGS = -D__KERNEL__ \
 	-DDRIVER_VERSION=\"v$(VERSION)\" \
 	-I$(KERNEL_HEADERS)
 CFLAGS = -O2 -Wall -Wstrict-prototypes -pipe -fno-strict-aliasing \
-         -fno-common -Wno-sign-compare -Wno-unused-variable
+         -fno-common -Wno-sign-compare -Wno-unused
 
 MODVER = $(shell if cat $(KERNEL_HEADERS)/linux/autoconf.h 2>/dev/null | \
 grep -q '^[[:space:]]*\#define[[:space:]]*CONFIG_MODVERSIONS[[:space:]]*1'; \
