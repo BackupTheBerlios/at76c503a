@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.49 2004/04/09 20:47:01 jal2 Exp $
+/* $Id: at76c503.c,v 1.50 2004/04/09 20:56:50 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -4616,7 +4616,7 @@ int at76c503_iw_handler_get_range(struct net_device *netdev,
 	range->retry_flags = IW_RETRY_LIMIT;
 	range->r_time_flags = 0;
 	range->min_retry = 1;
-	range->max_retry = 65535;
+	range->max_retry = 255;
 	
 	
 	range->num_channels = NUM_CHANNELS;
@@ -5657,7 +5657,6 @@ static const iw_handler	at76c503_handlers[] =
 	(iw_handler) NULL,				// SIOCSIWTXPOW
 	(iw_handler) at76c503_iw_handler_get_txpow,	// SIOCGIWTXPOW
 	(iw_handler) at76c503_iw_handler_set_retry,	// SIOCSIWRETRY
-	(iw_handler) NULL,				// SIOCSIWRETRY
 	(iw_handler) at76c503_iw_handler_get_retry,	// SIOCGIWRETRY
 	(iw_handler) at76c503_iw_handler_set_encode,	// SIOCSIWENCODE
 	(iw_handler) at76c503_iw_handler_get_encode,	// SIOCGIWENCODE
@@ -6383,7 +6382,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.49 2004/04/09 20:47:01 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.50 2004/04/09 20:56:50 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
