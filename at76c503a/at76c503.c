@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.30 2003/06/26 20:16:34 jal2 Exp $
+/* $Id: at76c503.c,v 1.31 2003/06/26 20:28:29 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -1773,7 +1773,8 @@ kevent(void *data)
 	   is done. So work will be done next time something
 	   else has to be done. This is ugly. TODO! (oku) */
 
-	dbg(DBG_KEVENT, "%s: kevent flags=x%x", dev->netdev->name, dev->kevent_flags);
+	dbg(DBG_KEVENT, "%s: kevent entry flags=x%x", dev->netdev->name,
+	    dev->kevent_flags);
 
 	down(&dev->sem);
 
@@ -2056,6 +2057,9 @@ end_scan:
 	}
 
 	up(&dev->sem);
+
+	dbg(DBG_KEVENT, "%s: kevent exit flags=x%x", dev->netdev->name,
+	    dev->kevent_flags);
 
 	return;
 }
@@ -3501,7 +3505,8 @@ int at76c503_stop(struct net_device *netdev)
 	struct at76c503 *dev = (struct at76c503 *)(netdev->priv);
 	unsigned long flags;
 
-	down(&dev->sem);
+	if (down_interruptible(&dev->sem))
+		return -EINTR;
 
 	netif_stop_queue(netdev);
 
@@ -4504,7 +4509,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.30 2003/06/26 20:16:34 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.31 2003/06/26 20:28:29 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
