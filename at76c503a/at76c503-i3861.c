@@ -148,8 +148,7 @@ static struct usbdfu_info module_usbdfu = {
 	id_table:		dev_table,
 	fw_buf:			fw_internal,
 	fw_buf_len:		sizeof(fw_internal),
-	post_download_hook:	at76c503_usbdfu_post,
-	reset_delay:            2*HZ
+	post_download_hook:	at76c503_usbdfu_post
 };
 
 /* Module and USB entry points */
@@ -191,6 +190,9 @@ static int __init mod_init(void)
 		usbdfu_deregister(&module_usbdfu);
 		return -1;
 	}
+
+	/* HZ became a variable with 2.4.23-preX */
+	module_usbdfu.reset_delay=2*HZ;
 
 	return 0;
 }
