@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.18 2003/05/14 00:46:44 jal2 Exp $
+/* $Id: at76c503.c,v 1.19 2003/05/14 20:58:49 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -1985,7 +1985,7 @@ static void dump_bss_table(struct at76c503 *dev)
 static struct bss_info *find_matching_bss(struct at76c503 *dev,
 					  struct bss_info *last)
 {
-	struct bss_info *ptr;
+	struct bss_info *ptr = NULL;
 	char hexssid[IW_ESSID_MAX_SIZE*2+1] __attribute__ ((unused));
 	char ossid[IW_ESSID_MAX_SIZE+1];
 	struct list_head *curr;
@@ -3901,7 +3901,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.18 2003/05/14 00:46:44 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.19 2003/05/14 20:58:49 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
