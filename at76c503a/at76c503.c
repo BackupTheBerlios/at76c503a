@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.68 2004/08/29 11:41:18 jal2 Exp $
+/* $Id: at76c503.c,v 1.69 2004/09/05 14:07:09 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -3025,6 +3025,12 @@ end_join:
 				err("Downloading external firmware failed: %d", ret);
 				goto end_external_fw;
 			}
+			if (dev->board_type == BOARDTYPE_505A_RFMD_2958) {
+				info("200 ms delay for board type 7");
+				/* jal: can I do this in kevent ??? */
+				set_current_state(TASK_INTERRUPTIBLE);
+				schedule_timeout(HZ/5+1);
+			}
 		}
 		NEW_STATE(dev,INIT);
 		init_new_device(dev);
@@ -3037,7 +3043,8 @@ end_external_fw:
 		dbg(DBG_DEVSTART, "downloading internal firmware");
 
 		ret=usbdfu_download(dev->udev, dev->intfw,
-				    dev->intfw_size);
+				    dev->intfw_size,
+				    dev->board_type == BOARDTYPE_505A_RFMD_2958 ? 2000: 0);
 
 		if (ret < 0) {
 			err("downloading internal fw failed with %d",ret);
@@ -3046,10 +3053,12 @@ end_external_fw:
  
 		dbg(DBG_DEVSTART, "sending REMAP");
 
-		if ((ret=at76c503_remap(dev->udev)) < 0) {
-			err("sending REMAP failed with %d",ret);
-			goto end_internal_fw;
-		}
+		/* no REMAP for 505A (see SF driver) */
+		if (dev->board_type != BOARDTYPE_505A_RFMD_2958)
+			if ((ret=at76c503_remap(dev->udev)) < 0) {
+				err("sending REMAP failed with %d",ret);
+				goto end_internal_fw;
+			}
 
 		dbg(DBG_DEVSTART, "sleeping for 2 seconds");
 		NEW_STATE(dev,EXTFW_DOWNLOAD);
@@ -7307,7 +7316,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.68 2004/08/29 11:41:18 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.69 2004/09/05 14:07:09 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,

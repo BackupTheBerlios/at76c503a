@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.27 2004/08/29 11:41:18 jal2 Exp $
+/* $Id: at76c503.h,v 1.28 2004/09/05 14:07:09 jal2 Exp $
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth
  *           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -48,7 +48,7 @@
 #endif
  
 /* current driver version */
-#define DRIVER_VERSION "v0.12beta18" VERSION_APPEND
+#define DRIVER_VERSION "v0.12beta19" VERSION_APPEND
 
 /* Workqueue / task queue backwards compatibility stuff */
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,5,41)

@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76_usbdfu.c,v 1.1 2004/08/18 22:01:45 jal2 Exp $ */
+/* $Id: at76_usbdfu.c,v 1.2 2004/09/05 14:07:09 jal2 Exp $ */
 /*
  * USB Device Firmware Upgrade (DFU) handler
  *
@@ -217,7 +217,11 @@ struct dfu_ctx *dfu_alloc_ctx(struct usb_device *udev)
 	return ctx;
 }
 
-int usbdfu_download(struct usb_device *udev, u8 *dfu_buffer, u32 dfu_len)
+/* == PROC usbdfu_download ==
+   if manifest_sync_timeout > 0 use this timeout (in msec) instead of the
+   one reported by the device in state MANIFEST_SYNC */
+int usbdfu_download(struct usb_device *udev, u8 *dfu_buffer, u32 dfu_len, 
+		    int manifest_sync_timeout)
 {
 	struct dfu_ctx *ctx;
 	struct dfu_status *dfu_stat_buf;
@@ -228,6 +232,9 @@ int usbdfu_download(struct usb_device *udev, u8 *dfu_buffer, u32 dfu_len)
 	u32 dfu_timeout = 0;
 	int dfu_block_bytes = 0, dfu_bytes_left = dfu_len, dfu_buffer_offset = 0;
 	int dfu_block_cnt = 0;
+
+	dbg("%s( %p, %u, %d)", __FUNCTION__, dfu_buffer, 
+	    dfu_len, manifest_sync_timeout);
 
 	if (dfu_len == 0) {
 		err("FW Buffer length invalid!");
@@ -310,6 +317,11 @@ int usbdfu_download(struct usb_device *udev, u8 *dfu_buffer, u32 dfu_len)
 				dfu_state = dfu_stat_buf->bState;
 				dfu_timeout = __get_timeout(dfu_stat_buf);
 				need_dfu_state = 0;
+
+				/* override the timeout from the status response,
+				   needed for AT76C505A */
+				if (manifest_sync_timeout > 0)
+					dfu_timeout = manifest_sync_timeout;
 
 				if (dfu_timeout >= 0){
 					dbg("DFU: Waiting for manifest phase");

@@ -28,6 +28,7 @@
 
 #include <linux/usb.h>
 
-int usbdfu_download(struct usb_device *udev, u8 *fw_buf, u32 fw_len);
+int usbdfu_download(struct usb_device *udev, u8 *fw_buf, u32 fw_len,
+		    int manifest_sync_timeout);
 
 #endif /* _USBDFU_H */
