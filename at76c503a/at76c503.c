@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.73 2005/03/08 00:07:55 jal2 Exp $
+/* $Id: at76c503.c,v 1.74 2005/03/08 01:33:14 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -183,6 +183,11 @@ static inline struct urb *alloc_urb(int iso_pk, int mem_flags) {
 static inline void usb_set_intfdata(struct usb_interface *intf, void *data) {}
 
 #endif //#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
+
+/* Backwards compatibility for usb_kill_urb() */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 10)
+#  define usb_kill_urb usb_unlink_urb
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 9)
 # define eth_hdr(s) (s)->mac.ethernet
@@ -5007,7 +5012,7 @@ int at76c503_stop(struct net_device *netdev)
 		/* we unlink the read urb, because the _open()
 		   submits it again. _delete_device() takes care of the
 		   read_urb otherwise. */
-		usb_unlink_urb(dev->read_urb);
+		usb_kill_urb(dev->read_urb);
 	}
 
 	del_timer_sync(&dev->mgmt_timer);
@@ -7165,15 +7170,15 @@ void at76c503_delete_device(struct at76c503 *dev)
 	kfree(dev->ctrl_buffer);
 
 	if(dev->write_urb != NULL) {
-		usb_unlink_urb(dev->write_urb);
+		usb_kill_urb(dev->write_urb);
 		usb_free_urb(dev->write_urb);
 	}
 	if(dev->read_urb != NULL) {
-		usb_unlink_urb(dev->read_urb);
+		usb_kill_urb(dev->read_urb);
 		usb_free_urb(dev->read_urb);
 	}
 	if(dev->ctrl_buffer != NULL) {
-		usb_unlink_urb(dev->ctrl_urb);
+		usb_kill_urb(dev->ctrl_urb);
 		usb_free_urb(dev->ctrl_urb);
 	}
 
@@ -7404,7 +7409,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.73 2005/03/08 00:07:55 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.74 2005/03/08 01:33:14 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
