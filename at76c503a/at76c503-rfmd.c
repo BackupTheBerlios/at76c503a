@@ -53,6 +53,7 @@
 
 #define VENDOR_ID_ATMEL               0x03eb
 #define PRODUCT_ID_ATMEL_503R         0x7605 /* Generic AT76C503/RFMD device */
+#define PRODUCT_ID_W_BUDDIE_WN210     0x4102 /* AirVast W-Buddie WN210 */
 
 #define VENDOR_ID_BELKIN              0x0d5c
 #define PRODUCT_ID_BELKIN_F5D6050     0xa002 /* Belkin F5D6050 / SMC 2662W v2 */
@@ -68,7 +69,10 @@
 #define PRODUCT_ID_NETGEAR_MA101B     0x4102 /* Netgear MA 101 Rev. B */
 
 #define VENDOR_ID_ACTIONTEC           0x1668
-#define PRODUCT_ID_ACTIONTEC_802UAT1  0x7605 /* Actiontec 802UAT1 */
+#define PRODUCT_ID_ACTIONTEC_802UAT1  0x7605 /* Actiontec 802UAT1, HWU01150-01UK */
+
+#define VENDOR_ID_DICK_SMITH_ELECTR   0x1371 /* Dick Smith Electronics */
+#define PRODUCT_ID_DSE_XH1153         0x5743 /* XH1153 802.11b USB adapter */
 
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_503R        ) },
@@ -78,6 +82,8 @@ static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_LINKSYS,  PRODUCT_ID_NE_NWU11B         ) },
 	{ USB_DEVICE(VENDOR_ID_NETGEAR,  PRODUCT_ID_NETGEAR_MA101B    ) },
 	{ USB_DEVICE(VENDOR_ID_ACTIONTEC,PRODUCT_ID_ACTIONTEC_802UAT1 ) },
+	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_W_BUDDIE_WN210    ) },
+	{ USB_DEVICE(VENDOR_ID_DICK_SMITH_ELECTR, PRODUCT_ID_DSE_XH1153) },
 	{ }
 };
 
