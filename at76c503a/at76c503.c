@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.25 2003/06/01 19:42:28 jal2 Exp $
+/* $Id: at76c503.c,v 1.26 2003/06/03 22:44:14 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -3756,8 +3756,13 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 
 	case SIOCSIWMODE:
 		dbg(DBG_IOCTL, "%s: SIOCSIWMODE %d", netdev->name, wrq->u.mode);
-		dev->iw_mode = wrq->u.mode;
-		changed = 1;
+		if ((wrq->u.mode != IW_MODE_ADHOC) &&
+		    (wrq->u.mode != IW_MODE_INFRA))
+			ret = -EINVAL;
+		else {
+			dev->iw_mode = wrq->u.mode;
+			changed = 1;
+		}
 		break;
 
 	case SIOCGIWESSID:
@@ -4364,7 +4369,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.25 2003/06/01 19:42:28 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.26 2003/06/03 22:44:14 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
