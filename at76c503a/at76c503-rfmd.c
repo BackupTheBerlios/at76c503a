@@ -77,6 +77,10 @@
 #define VENDOR_ID_BENQ                0x4a5 /* BenQ (Acer) */
 #define PRODUCT_ID_BENQ_AWL_400       0x9001 /* BenQ AWL-400 USB stick */
 
+#define VENDOR_ID_3COM                0x506
+#define PRODUCT_ID_3COM_3CRSHEW696    0xa01 /* 3COM 3CRSHEW696 */
+
+
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_503R        ) },
 	{ USB_DEVICE(VENDOR_ID_BELKIN,   PRODUCT_ID_BELKIN_F5D6050    ) },
@@ -88,6 +92,7 @@ static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_W_BUDDIE_WN210    ) },
 	{ USB_DEVICE(VENDOR_ID_DICK_SMITH_ELECTR, PRODUCT_ID_DSE_XH1153) },
 	{ USB_DEVICE(VENDOR_ID_BENQ,     PRODUCT_ID_BENQ_AWL_400) },
+	{ USB_DEVICE(VENDOR_ID_3COM, PRODUCT_ID_3COM_3CRSHEW696) },
 	{ }
 };
 
