@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.27 2004/03/26 21:53:25 jal2 Exp $
+#$Id: Makefile,v 1.28 2004/03/28 22:12:30 jal2 Exp $
 
 VERSION = 0.12beta9
 
@@ -14,6 +14,9 @@ FW_DL=
 # if no firmware header files are available
 ifeq ($(wildcard fw-pkg*.h),)
 FW_DL += -DCONFIG_AT76C503_FIRMWARE_DOWNLOAD
+DVERSION = $(VERSION)-fwdl
+else
+DVERSION = $(VERSION)
 endif
 
 MODULES = at76c503.o usbdfu.o at76c503-i3861.o at76c503-rfmd.o at76c503-rfmd-acc.o \
@@ -57,7 +60,7 @@ modules:
 	mkdir -p .tmp_versions
 	-cp $(KERNEL_SRC)/.tmp_versions/*.mod $(MODVERDIR)
 	$(MAKE) -C $(KERNEL_SRC) SUBDIRS=$(SRCDIR) MODVERDIR=$(MODVERDIR) \
-		EXTRA_CFLAGS="-g -DDRIVER_VERSION=\\\"v$(VERSION)\\\" $(FW_DL)" modules
+		EXTRA_CFLAGS="-g -DDRIVER_VERSION=\\\"v$(DVERSION)\\\" $(FW_DL)" modules
 
 install: all
 	mkdir -p $(MODULE_DIR)
@@ -72,7 +75,7 @@ else
 
 CPPFLAGS = -D__KERNEL__ \
 	-DMODULE -DEXPORT_SYMTAB \
-	-DDRIVER_VERSION=\"v$(VERSION)\" \
+	-DDRIVER_VERSION=\"v$(DVERSION)\" \
 	-I$(KERNEL_HEADERS)
 CFLAGS = -O2 -Wall -Wstrict-prototypes -pipe -fno-strict-aliasing \
 	 $(FW_DL) \
@@ -133,6 +136,6 @@ dist:
 	(cd scripts ; cp -aR $(SCRIPTS) ../$(DISTNAME)/scripts)
 	tar zcvf $(DISTNAME).tar.gz $(DISTNAME)
 	cd $(DISTNAME) ; rm $(FW_HDRS) ; cd ..
-	tar zcvf $(DISTNAME)_no_fw.tar.gz $(DISTNAME)
-	rm -rf $(DISTNAME)
-
+	mv $(DISTNAME) $(DISTNAME)-fwdl
+	tar zcvf $(DISTNAME)-fwdl.tar.gz $(DISTNAME)-fwdl
+	rm -rf $(DISTNAME)-fwdl
