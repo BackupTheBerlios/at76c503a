@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.36 2003/12/25 22:40:26 jal2 Exp $
+/* $Id: at76c503.c,v 1.37 2003/12/26 00:16:33 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -3558,14 +3558,14 @@ static void rx_tasklet(unsigned long param)
 	netdev = (struct net_device *)dev->netdev;
 
 	if (dev->flags & AT76C503A_UNPLUG) {
-		dbg_uc("flag UNPLUG set");
+		dbg(DBG_DEVSTART, "flag UNPLUG set");
 		if (urb)
-			dbg_uc("urb status %d",urb->status);
+			dbg(DBG_DEVSTART, "urb status %d", urb->status);
 		return;
 	}
 
 
-	if(!urb || !dev->rx_skb || !netdev || !dev->rx_skb->data) return; // paranoid
+	if(!urb || !dev->rx_skb || !netdev || !dev->rx_skb->data) return;
 
 	buf = (struct at76c503_rx_buffer *)dev->rx_skb->data;
 
@@ -3626,7 +3626,6 @@ static void rx_tasklet(unsigned long param)
 		     frame_ctl);
 	} /* switch (frame_ctl & IEEE802_11_FCTL_FTYPE) */
 
- next_urb:
 	submit_rx_urb(dev);
  no_more_urb:
 	return;
@@ -4795,7 +4794,7 @@ void at76c503_delete_device(struct at76c503 *dev)
 		return;
 
 
-	dbg_uc("%s: ENTER",__FUNCTION__);
+	dbg(DBG_PROC_ENTRY, "%s: ENTER",__FUNCTION__);
 	if ((sem_taken=down_trylock(&rtnl_sem)) != 0)
 		info("%s: rtnl_sem already down'ed", __FUNCTION__);
 
@@ -4831,7 +4830,7 @@ void at76c503_delete_device(struct at76c503 *dev)
 		usb_free_urb(dev->ctrl_urb);
 	}
 
-	dbg_uc("%s: unlinked urbs",__FUNCTION__);
+	dbg(DBG_PROC_ENTRY,"%s: unlinked urbs",__FUNCTION__);
 
 	if(dev->rx_skb != NULL)
 		kfree_skb(dev->rx_skb);
@@ -4844,9 +4843,9 @@ void at76c503_delete_device(struct at76c503 *dev)
 			dev_kfree_skb(dev->rx_data[i].skb);
 			dev->rx_data[i].skb = NULL;
 		}
-	dbg_uc("%s: before freeing dev/netdev", __FUNCTION__);
+	dbg(DBG_PROC_ENTRY, "%s: before freeing dev/netdev", __FUNCTION__);
 	kfree (dev->netdev); /* dev is in net_dev */ 
-	dbg_uc("%s: EXIT", __FUNCTION__);
+	dbg(DBG_PROC_ENTRY, "%s: EXIT", __FUNCTION__);
 }
 
 static int at76c503_alloc_urbs(struct at76c503 *dev)
@@ -4857,16 +4856,18 @@ static int at76c503_alloc_urbs(struct at76c503 *dev)
 	struct usb_device *udev = dev->udev;
 	int i, buffer_size;
 
-	dbg_uc("%s: ENTER, interface->altsetting[0].desc.bNumEndpoints %d ",
-	       __FUNCTION__, NUM_EP(interface));
+	dbg(DBG_PROC_ENTRY, "%s: ENTER", __FUNCTION__);
+
+	dbg(DBG_URB, "%s: NumEndpoints %d ", __FUNCTION__, NUM_EP(interface));
 
 	for(i = 0; i < NUM_EP(interface); i++) {
 		endpoint = &EP(interface,i);
 
-		dbg_uc("%s: %d. endpoint: addr x%x attr x%x", __FUNCTION__,
-		       i,
-		       endpoint->bEndpointAddress,
-		       endpoint->bmAttributes);
+		dbg(DBG_URB, "%s: %d. endpoint: addr x%x attr x%x",
+		    __FUNCTION__,
+		    i,
+		    endpoint->bEndpointAddress,
+		    endpoint->bmAttributes);
 
 		if ((endpoint->bEndpointAddress & 0x80) &&
 		    ((endpoint->bmAttributes & 3) == 0x02)) {
@@ -4915,6 +4916,8 @@ static int at76c503_alloc_urbs(struct at76c503 *dev)
 		err("couldn't allocate ctrl_buffer");
 		return -1;
 	}
+
+	dbg(DBG_PROC_ENTRY, "%s: EXIT", __FUNCTION__);
 
 	return 0;
 }
@@ -5035,7 +5038,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.36 2003/12/25 22:40:26 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.37 2003/12/26 00:16:33 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
