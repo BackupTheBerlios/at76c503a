@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-rfmd.c,v 1.23 2004/01/19 19:43:20 jal2 Exp $
+ * $Id: at76c503-rfmd.c,v 1.24 2004/04/14 21:06:21 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using RFMD radio chips
@@ -117,6 +117,15 @@ struct firmware {
 #define VENDOR_ID_BLITZ                 0x07b8  
 #define PRODUCT_ID_BLITZ_NETWAVE_BWU613 0xb000 /* iBlitzz, BWU613 (not *B or *SB !) */
 
+#define VENDOR_ID_GIGABYTE              0x1044  
+#define PRODUCT_ID_GIGABYTE_GN_WLBM101  0x8003 /* Gigabyte GN-WLBM101 */
+
+#define VENDOR_ID_PLANEX                0x2019
+#define PRODUCT_ID_PLANEX_GW_US11S      0x3220 /* Planex GW-US11S */
+
+#define VENDOR_ID_COMPAQ                0x049f
+#define PRODUCT_ID_IPAQ_INT_WLAN        0x0032 /* internal wlan adapter in h5[4,5]xx series iPAQs */
+
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_503R        ) },
 	{ USB_DEVICE(VENDOR_ID_DYNALINK, PRODUCT_ID_DYNALINK_WLL013_R ) },
@@ -133,6 +142,9 @@ static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_SIEMENS,  PRODUCT_ID_SIEMENS_SANTIS_WLL013) },
 	{ USB_DEVICE(VENDOR_ID_BELKIN_2, PRODUCT_ID_BELKIN_F5D6050_V2 ) },
         { USB_DEVICE(VENDOR_ID_BLITZ,    PRODUCT_ID_BLITZ_NETWAVE_BWU613 ) },
+        { USB_DEVICE(VENDOR_ID_GIGABYTE, PRODUCT_ID_GIGABYTE_GN_WLBM101 ) },
+        { USB_DEVICE(VENDOR_ID_PLANEX,   PRODUCT_ID_PLANEX_GW_US11S ) },
+        { USB_DEVICE(VENDOR_ID_COMPAQ,   PRODUCT_ID_IPAQ_INT_WLAN) },
 	{ }
 };
 
