@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.31 2003/06/26 20:28:29 jal2 Exp $
+/* $Id: at76c503.c,v 1.32 2003/07/11 20:53:32 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -2813,9 +2813,9 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 	u16 seqnr = sctl>>4;
 	u16 frame_ctl = le16_to_cpu(i802_11_hdr->frame_ctl);
 
-	/* length including the IEEE802.11 header and the trailing FCS,
+	/* length including the IEEE802.11 header, excl. the trailing FCS,
 	   excl. the struct at76c503_rx_buffer */
-	int length = le16_to_cpu(buf->wlength);
+	int length = le16_to_cpu(buf->wlength) - dev->rx_data_fcs_len;
 	
 	/* where does the data payload start in skb->data ? 
 	 This depends on if addr4 is present or not. */
@@ -2824,8 +2824,8 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 		      (IEEE802_11_FCTL_TODS|IEEE802_11_FCTL_FROMDS) ?
 		    (u8 *)i802_11_hdr + sizeof(struct ieee802_11_hdr) :
 		    (u8 *)&i802_11_hdr->addr4);
-	/* length of payload, excl. the trailing FCS (-4 for this) */
-	int data_len = length - (data - (u8 *)i802_11_hdr) - 4;
+	/* length of payload, excl. the trailing FCS */
+	int data_len = length - (data - (u8 *)i802_11_hdr);
 
 	int i;
 	struct rx_data_buf *bptr, *optr;
@@ -2853,11 +2853,11 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 	if (fragnr == 0 && !(frame_ctl & IEEE802_11_FCTL_MOREFRAGS)) {
 		/* unfragmented packet received */
 		if (length < rx_copybreak && (skb = dev_alloc_skb(length)) != NULL) {
-			memcpy(skb_put(skb, length-4),
-			       dev->rx_skb->data + AT76C503_RX_HDRLEN, length-4);
+			memcpy(skb_put(skb, length),
+			       dev->rx_skb->data + AT76C503_RX_HDRLEN, length);
 		} else {
 			skb_pull(skb, AT76C503_RX_HDRLEN);
-			skb_trim(skb, length-4);
+			skb_trim(skb, length);
 			/* Use a new skb for the next receive */
 			dev->rx_skb = NULL;
 		}
@@ -2871,11 +2871,10 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 	/* we need the IEEE802.11 header (for the addresses) if this packet
 	   is the first of a chain */
 
-	/* +4 for the FCS */
-	assert(length  > AT76C503_RX_HDRLEN + 4);
+	assert(length  > AT76C503_RX_HDRLEN);
 	skb_pull(skb, AT76C503_RX_HDRLEN);
 	/* remove FCS at end */
-	skb_trim(skb, length - 4);
+	skb_trim(skb, length);
 
 	dbg(DBG_RX_FRAGS_SKB, "%s: trimmed skb: head %p data %p tail %p "
 	    "end %p len %d data %p data_len %d",
@@ -4509,10 +4508,17 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.31 2003/06/26 20:28:29 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
-	info("firmware version %d.%d.%d #%d",
+	/* fw 0.84 doesn't send FCS with rx data */
+	if (dev->fw_version.major == 0 && dev->fw_version.minor <= 84)
+		dev->rx_data_fcs_len = 0;
+	else
+		dev->rx_data_fcs_len = 4;
+
+	info("$Id: at76c503.c,v 1.32 2003/07/11 20:53:32 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
-	     dev->fw_version.patch, dev->fw_version.build);
+	     dev->fw_version.patch, dev->fw_version.build,
+	     dev->rx_data_fcs_len);
 
 	/* MAC address */
 	ret = get_hw_config(dev);

@@ -1,6 +1,7 @@
-$Id: CHANGELOG,v 1.2 2003/07/07 22:02:13 jal2 Exp $
+$Id: CHANGELOG,v 1.3 2003/07/11 20:53:32 jal2 Exp $
 
-
+- added switch to cope with Intersil firmware 0.84.0 which does
+  not send FCS in rx data
 - new module at76c503-rfmd-acc.o for SMC2664W, which got RMFD radio,
   but need a special firmware (Accton OEM products).
 - added regulatory domains MKK1 and Israel

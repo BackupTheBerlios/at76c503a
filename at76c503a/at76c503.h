@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.14 2003/06/17 21:37:25 jal2 Exp $
+/* $Id: at76c503.h,v 1.15 2003/07/11 20:53:32 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -559,6 +559,8 @@ struct at76c503 {
 	struct at76c503_card_config card_config;
 	struct mib_fw_version fw_version;
 
+	int rx_data_fcs_len; /* length of the trailing FCS 
+				(0 for fw <= 0.84.x, 4 otherwise) */
 	/* store rx fragments until complete */
 	struct rx_data_buf rx_data[NR_RX_DATA_BUF];
 };
