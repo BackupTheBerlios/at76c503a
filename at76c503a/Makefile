@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.12 2003/10/29 21:34:44 jal2 Exp $
+#$Id: Makefile,v 1.13 2003/10/29 22:00:02 jal2 Exp $
 
 VERSION = 0.11beta5
 
@@ -10,12 +10,14 @@ KERNEL_SRC = /lib/modules/$(KERNEL_VERSION)/build
 KERNEL_HEADERS = $(KERNEL_SRC)/include
 
 MODULES = at76c503.o usbdfu.o at76c503-rfmd.o at76c503-rfmd-acc.o \
-          at76c505-rfmd.o at76c503-i3861.o at76c503-i3863.o
+          at76c505-rfmd.o at76c503-i3861.o at76c503-i3863.o at76c505-rfmd2958.o
 
 SRCS = at76c503.c usbdfu.c at76c503-rfmd.c at76c505-rfmd.c at76c503-rfmd-acc.c \
-       at76c503-i3861.c at76c503-i3863.c
+       at76c503-i3861.c at76c503-i3863.c at76c505-rfmd2958.c
 HDRS = at76c503.h ieee802_11.h usbdfu.h fw-rfmd-0.90.2-140.h \
-       fw-rfmd-1.101.0-84.h fw-rfmd-acc-1.101.0-84.h fw-r505.h fw-i3861.h fw-i3863.h
+       fw-rfmd-1.101.0-84.h fw-rfmd-acc-1.101.0-84.h fw-r505.h \
+	fw-505rfmd2958-1.101.0-86.h \
+	fw-i3861.h fw-i3863.h
 MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNEL_VERSION)/kernel/drivers/usb/
 CPPFLAGS = -D__KERNEL__ \
 	-DMODULE -DEXPORT_SYMTAB \

@@ -1,10 +1,11 @@
 /* -*- linux-c -*- */
 /*
- * at76c505-rfmd.c:
+ * at76c505-rfmd2958.c:
  *
  * Driver for at76c505-based devices based on the Atmel "Fast-Vnet" reference
  * design using RFMD radio chips
- *
+ * This file is used for the AT76C505 with RFMD 2958 radio.
+ * 
  * Copyright (c) 2002 - 2003 Oliver Kurth <oku@masqmail.cx>
  *
  *	This program is free software; you can redistribute it and/or
@@ -40,29 +41,32 @@
 
 /* Include firmware data definition */
 
-#include "fw-r505.h"
+#include "fw-505rfmd2958-1.101.0-86.h"
 
 /* Version Information */
 
-#define DRIVER_NAME "at76c505-rfmd"
+#define DRIVER_NAME "at76c505-rfmd2958"
 #define DRIVER_AUTHOR \
 "Oliver Kurth <oku@masqmail.cx>, Joerg Albert <joerg.albert@gmx.de>, Alex <alex@foogod.com>"
-#define DRIVER_DESC "Atmel at76c505 (RFMD) Wireless LAN Driver"
+#define DRIVER_DESC "Atmel at76c505 (RFMD 2958) Wireless LAN Driver"
 
 /* USB Device IDs supported by this driver */
 
 #define VENDOR_ID_ATMEL               0x03eb
-#define PRODUCT_ID_ATMEL_505R         0x7606 /* Generic AT76C505/RFMD device */
-
+#define PRODUCT_ID_ATMEL_505R2958     0x7613 /* Generic AT76C505/RFMD device */
+#define VENDOR_ID_CNET                0x1371
+#define PRODUCT_ID_FL_WL240U          0x0014 /* Fiberline WL-240U with the
+                                                 CNet vendor id */
 static struct usb_device_id dev_table[] = {
-	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_505R       ) },
+	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_505R2958   ) },
+	{ USB_DEVICE(VENDOR_ID_CNET,    PRODUCT_ID_FL_WL240U         ) },
 	{ }
 };
 
 /* firmware / config variables */
 
-static unsigned char fw_internal[] = FW_505RFMD_INTERNAL;
-static unsigned char fw_external[] = FW_505RFMD_EXTERNAL;
+static unsigned char fw_internal[] = FW_505RFMD2958_INTERNAL;
+static unsigned char fw_external[] = FW_505RFMD2958_EXTERNAL;
 
 static int board_type = BOARDTYPE_R505;
 
