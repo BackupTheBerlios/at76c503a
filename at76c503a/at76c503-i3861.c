@@ -78,6 +78,10 @@ Wireless USB Adapter SMC2662W (v1) */
 #define VENDOR_ID_BENQ                0x4a5 /* BenQ (Acer) */
 #define PRODUCT_ID_BENQ_AWL_300       0x9000 /* AWL-300 */
 
+/* this adapter contains flash */
+#define VENDOR_ID_ADDTRON             0x05dd  /* Addtron */
+#define PRODUCT_ID_ADDTRON_AWU120     0xff31 /* AWU-120 */
+
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_503I        ) },
 	{ USB_DEVICE(VENDOR_ID_LINKSYS,  PRODUCT_ID_LINKSYS_WUSB11_V21) },
@@ -88,6 +92,7 @@ static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_DYNALINK, PRODUCT_ID_DYNALINK_WLL013_I ) },
 	{ USB_DEVICE(VENDOR_ID_SMC,      PRODUCT_ID_SMC2662W_V1       ) },
 	{ USB_DEVICE(VENDOR_ID_BENQ,     PRODUCT_ID_BENQ_AWL_300      ) },
+	{ USB_DEVICE(VENDOR_ID_ADDTRON,  PRODUCT_ID_ADDTRON_AWU120    ) },
 	{ }
 };
 
