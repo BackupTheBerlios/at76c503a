@@ -746,8 +746,9 @@ static void * usbdfu_probe(struct usb_device *udev, unsigned int ifnum, const st
 		goto error;
 	}
 
+	init_timer(&dev->timer);
+
 	if(info->reset_delay){
-		init_timer(&dev->timer);
 		dev->timer.data = (long) dev;
 		dev->timer.function = kevent_timer;
 		
@@ -787,6 +788,8 @@ static void usbdfu_disconnect(struct usb_device *udev, void *ptr)
 		dbg("usbdfu_disconnect: waiting for kevent to complete (%d pending)...", kevent_pending);
 		schedule();
 	}
+
+	del_timer_sync(&dev->timer);
 
 	usbdfu_delete(dev);
 
