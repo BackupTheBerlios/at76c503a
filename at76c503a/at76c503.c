@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.27 2003/06/16 19:49:16 jal2 Exp $
+/* $Id: at76c503.c,v 1.28 2003/06/16 20:20:43 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -571,6 +571,32 @@ static int get_hw_config(struct at76c503 *dev)
 	}
 	return ret;
 }
+
+/* == PROC getRegDomain == */
+struct reg_domain const *getRegDomain(u16 code)
+{
+  static struct reg_domain const fd_tab[] = {
+    {0x10, "FCC", 0x7ff},
+    {0x20, "IC", 0x7ff},
+    {0x30, "ETSI", 0x1fff},
+    {0x31, "Spain", 0x600},
+    {0x32, "France", 0x1e00},
+    {0x40, "MKK", 0x2000},
+  };
+  static int const tab_len = sizeof(fd_tab) / sizeof(struct reg_domain);
+
+  /* use this if an unknown code comes in */
+  static struct reg_domain const unknown = 
+  {0, "<unknown>", 0xffffffff};
+  
+  int i;
+
+  for(i=0; i < tab_len; i++)
+    if (code == fd_tab[i].code)
+      break;
+  
+  return (i >= tab_len) ? &unknown : &fd_tab[i];
+} /* getFreqDomain */
 
 static inline
 int get_mib(struct usb_device *udev,
@@ -3742,11 +3768,18 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 						chan = i+1;
 			}
       
-			/* TODO: we should also check if the channel is
-			   supported by the device (oku) */
-			if ((chan < 1) || (chan > NUM_CHANNELS)){
-				ret = -EINVAL;
-			} else {
+			if (chan < 1 || !dev->domain )
+				/* non-positive channels are invalid
+				   we need a domain info to set the channel */
+				ret =  -EINVAL;
+			else 
+				if (!(dev->domain->channel_map & (1 << (chan-1)))) {
+					info("%s: channel %d not allowed for domain %s",
+					     dev->netdev->name, chan, dev->domain->name);
+					ret = -EINVAL;
+				}
+
+			if (ret == 0) {
 				dev->channel = chan;
 				dbg(DBG_IOCTL, "%s: SIOCSIWFREQ ch %d",
 				    netdev->name, chan);
@@ -4376,7 +4409,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.27 2003/06/16 19:49:16 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.28 2003/06/16 20:20:43 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
@@ -4388,9 +4421,12 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
+        dev->domain = getRegDomain(dev->regulatory_domain);
 	/* init. netdev->dev_addr */
 	memcpy(netdev->dev_addr, dev->mac_addr, ETH_ALEN);
-	info("device's MAC %s", mac2str(dev->mac_addr));
+	info("device's MAC %s, regulatory domain %s (id %d)",
+	     mac2str(dev->mac_addr), dev->domain->name,
+	     dev->regulatory_domain);
 
 	/* initializing */
 	dev->channel = DEF_CHANNEL;

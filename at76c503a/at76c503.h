@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.12 2003/06/01 19:42:28 jal2 Exp $
+/* $Id: at76c503.h,v 1.13 2003/06/16 20:20:44 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -376,6 +376,13 @@ enum infra_state {
 	STARTIBSS
 };
 
+/* a description of a regulatory domain and the allowed channels */
+struct reg_domain {
+  u16 code;
+  char const *name;
+  u32 channel_map; /* if bit N is set, channel (N+1) is allowed */
+};
+
 /* how long do we keep a (I)BSS in the bss_list in jiffies 
    this should be long enough for the user to retrieve the table
    (by iwlist ?) after the device started, because all entries from
@@ -523,6 +530,8 @@ struct at76c503 {
 	u32 pm_period_beacon; /* power manag. period (in beacon intervals
 				 of the curr_bss) */
 	int board_type; /* 0 = Intersil, 1 = RFMD, 2 = R505 */
+
+	struct reg_domain const *domain; /* the description of the regulatory domain */
 
 	/* iwspy support */
 #if IW_MAX_SPY > 0
