@@ -53,9 +53,12 @@
 
 #define VENDOR_ID_ATMEL               0x03eb
 #define PRODUCT_ID_ATMEL_505R         0x7606 /* Generic AT76C505/RFMD device */
-
+#define VENDOR_ID_CNET                0x1371
+#define PRODUCT_ID_FL_WL240U          0x0014 /* Fiberline WL-240U with the
+                                                 CNet vendor id */
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_505R       ) },
+	{ USB_DEVICE(VENDOR_ID_CNET,    PRODUCT_ID_FL_WL240U         ) },
 	{ }
 };
 
