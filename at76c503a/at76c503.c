@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.66 2004/08/18 22:01:45 jal2 Exp $
+/* $Id: at76c503.c,v 1.67 2004/08/26 20:41:45 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -4381,6 +4381,10 @@ struct iw_statistics *at76c503_get_wireless_stats(struct net_device *netdev)
 {
 	struct at76c503 *dev = (struct at76c503 *)netdev->priv;
 
+	dbg(DBG_IOCTL, "RETURN qual %d level %d noise %d updated %d",
+	    dev->wstats.qual.qual, dev->wstats.qual.level,
+	    dev->wstats.qual.noise, dev->wstats.qual.updated);
+ 
 	return &dev->wstats;
 }
 
@@ -4739,7 +4743,7 @@ int at76c503_iw_handler_get_range(struct net_device *netdev,
 	range->max_qual.qual = 
 		((dev->board_type == BOARDTYPE_503_INTERSIL_3861) ||
 		 (dev->board_type == BOARDTYPE_503_INTERSIL_3863)) ? 100 : 0;
-	range->max_qual.level = 100;
+	range->max_qual.level = 255;
 	range->max_qual.noise = 0;
 	
 	range->avg_qual.qual = 
@@ -6587,7 +6591,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.66 2004/08/18 22:01:45 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.67 2004/08/26 20:41:45 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,

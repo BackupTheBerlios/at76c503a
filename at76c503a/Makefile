@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.39 2004/08/18 22:01:45 jal2 Exp $
+#$Id: Makefile,v 1.40 2004/08/26 20:41:45 jal2 Exp $
 #
 # Copyright (c) 2002 - 2003 Oliver Kurth
 #           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -166,4 +166,4 @@ kernel_patch:
 	 DRV_SRC="$(SRCS)" DRV_HDR="$(HDRS)" ./kernel_patch.sh $(KERNEL_SRC)
 
 rmmod:
-	rmmod $(MODULES:%.o=%)	
+	-rmmod $(MODULES:%.o=%)	
