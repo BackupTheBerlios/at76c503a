@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.58 2004/06/13 22:23:59 jal2 Exp $
+/* $Id: at76c503.c,v 1.59 2004/06/14 00:05:04 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -456,7 +456,7 @@ static void dump_bss_table(struct at76c503 *dev, int force_output);
 static int submit_rx_urb(struct at76c503 *dev);
 static int startup_device(struct at76c503 *dev);
 
-static int update_usb_intf_descr(struct usb_device *dev);
+static int update_usb_intf_descr(struct at76c503 *dev);
 
 /* disassemble the firmware image */
 static int at76c503_get_fw_info(u8 *fw_data, int fw_size,
@@ -641,15 +641,15 @@ static int analyze_usb_config(u8 *cfgd, int cfgd_len,
 /* the short configuration descriptor before reset */
 //#define AT76C503A_USB_SHORT_CONFDESCR_LEN 0x19
 
-static int update_usb_intf_descr(struct usb_device *dev)
+static int update_usb_intf_descr(struct at76c503 *dev)
 {
 	int intf0; /* begin of intf descriptor in configuration */ 
 	int ep0, ep1; /* begin of endpoint descriptors */
 
+	struct usb_device *udev = dev->udev;
 	struct usb_config_descriptor *cfg_desc;
 	int result = 0, size;
 	u8 *buffer;
-	char obuf[2*AT76C503A_USB_CONFDESCR_LEN+1] __attribute__ ((unused));
 	struct usb_host_interface *ifp;
 	int i;
 
@@ -662,7 +662,7 @@ static int update_usb_intf_descr(struct usb_device *dev)
 		return -ENOMEM;
 	}
 
-	result = usb_get_descriptor(dev, USB_DT_CONFIG, 0,
+	result = usb_get_descriptor(udev, USB_DT_CONFIG, 0,
 				    cfg_desc, AT76C503A_USB_CONFDESCR_LEN);
 	if (result < AT76C503A_USB_CONFDESCR_LEN) {
 		if (result < 0)
@@ -687,15 +687,17 @@ static int update_usb_intf_descr(struct usb_device *dev)
 	}
 
 	if ((result=analyze_usb_config(buffer, size, &intf0, &ep0, &ep1))) {
+
 		err("analyze_usb_config returned %d for config desc %s",
 		    result,
-		    hex2str(obuf, (u8 *)cfg_desc, size, '\0'));
+		    hex2str(dev->obuf, (u8 *)cfg_desc, 
+			    min((int)(sizeof(dev->obuf)-1)/2,size), '\0'));
 		result=-EINVAL;
 		goto err;
 	}
 
 	/* we got the correct config descriptor - update the interface's endpoints */
-	ifp = &dev->actconfig->interface[0]->altsetting[0];
+	ifp = &udev->actconfig->interface[0]->altsetting[0];
 
 	if (ifp->endpoint)
 		kfree(ifp->endpoint);
@@ -720,17 +722,17 @@ static int update_usb_intf_descr(struct usb_device *dev)
 		struct usb_endpoint_descriptor	*d = &ifp->endpoint[i].desc;		
 		int b = d->bEndpointAddress & USB_ENDPOINT_NUMBER_MASK;
 		if (usb_endpoint_out(d->bEndpointAddress)) {
-			if (d->wMaxPacketSize > dev->epmaxpacketout[b])
-				dev->epmaxpacketout[b] = d->wMaxPacketSize;
+			if (d->wMaxPacketSize > udev->epmaxpacketout[b])
+				udev->epmaxpacketout[b] = d->wMaxPacketSize;
 		} else {
-			if (d->wMaxPacketSize > dev->epmaxpacketin[b])
-				dev->epmaxpacketin[b] = d->wMaxPacketSize;
+			if (d->wMaxPacketSize > udev->epmaxpacketin[b])
+				udev->epmaxpacketin[b] = d->wMaxPacketSize;
 		}
 	}
 			     
 	dbg(DBG_DEVSTART, "%s: ifp %p num_altsetting %d "
 	    "endpoint addr x%x, x%x", __FUNCTION__,
-	    ifp, dev->actconfig->interface[0]->num_altsetting,
+	    ifp, udev->actconfig->interface[0]->num_altsetting,
 	    ifp->endpoint[0].desc.bEndpointAddress,
 	    ifp->endpoint[1].desc.bEndpointAddress);
 	result = 0;
@@ -758,15 +760,15 @@ err:
 /* the short configuration descriptor before reset */
 //#define AT76C503A_USB_SHORT_CONFDESCR_LEN 0x19
 
-int update_usb_intf_descr(struct usb_device *dev)
+int update_usb_intf_descr(struct at76c503 *dev)
 {
 	int intf0; /* begin of intf descriptor in configuration */ 
 	int ep0, ep1; /* begin of endpoint descriptors */
 
+	struct usb_device *udev = dev->udev;
 	struct usb_config_descriptor *cfg_desc;
 	int result = 0, size;
 	u8 *buffer;
-	char obuf[2*AT76C503A_USB_CONFDESCR_LEN+1] __attribute__ ((unused));
 	struct usb_interface_descriptor *ifp;
 	int i;
 
@@ -779,7 +781,7 @@ int update_usb_intf_descr(struct usb_device *dev)
 		return -ENOMEM;
 	}
 
-	result = usb_get_descriptor(dev, USB_DT_CONFIG, 0,
+	result = usb_get_descriptor(udev, USB_DT_CONFIG, 0,
 				    cfg_desc, AT76C503A_USB_CONFDESCR_LEN);
 	if (result < AT76C503A_USB_CONFDESCR_LEN) {
 		if (result < 0)
@@ -806,13 +808,14 @@ int update_usb_intf_descr(struct usb_device *dev)
 	if ((result=analyze_usb_config(buffer, size, &intf0, &ep0, &ep1))) {
 		err("analyze_usb_config returned %d for config desc %s",
 		    result,
-		    hex2str(obuf, (u8 *)cfg_desc, size, '\0'));
+		    hex2str(dev->obuf, (u8 *)cfg_desc, 
+			    min((int)(sizeof(dev->obuf)-1)/2, size), '\0'));
 		result=-EINVAL;
 		goto err;
 	}
 
 	/* we got the correct config descriptor - update the interface's endpoints */
-	ifp = &dev->actconfig->interface[0].altsetting[0];
+	ifp = &udev->actconfig->interface[0].altsetting[0];
 
 	if (ifp->endpoint)
 		kfree(ifp->endpoint);
@@ -840,17 +843,17 @@ int update_usb_intf_descr(struct usb_device *dev)
 		struct usb_endpoint_descriptor	*d = &ifp->endpoint[i];		
 		int b = d->bEndpointAddress & USB_ENDPOINT_NUMBER_MASK;
 		if (usb_endpoint_out(d->bEndpointAddress)) {
-			if (d->wMaxPacketSize > dev->epmaxpacketout[b])
-				dev->epmaxpacketout[b] = d->wMaxPacketSize;
+			if (d->wMaxPacketSize > udev->epmaxpacketout[b])
+				udev->epmaxpacketout[b] = d->wMaxPacketSize;
 		} else {
-			if (d->wMaxPacketSize > dev->epmaxpacketin[b])
-				dev->epmaxpacketin[b] = d->wMaxPacketSize;
+			if (d->wMaxPacketSize > udev->epmaxpacketin[b])
+				udev->epmaxpacketin[b] = d->wMaxPacketSize;
 		}
 	}
 			     
 	dbg(DBG_DEVSTART, "%s: ifp %p num_altsetting %d "
 	    "endpoint addr x%x, x%x", __FUNCTION__,
-	    ifp, dev->actconfig->interface[0].num_altsetting,
+	    ifp, udev->actconfig->interface[0].num_altsetting,
 	    ifp->endpoint[0].bEndpointAddress,
 	    ifp->endpoint[1].bEndpointAddress);
 	result = 0;
@@ -1200,16 +1203,15 @@ static int set_pm_mode(struct at76c503 *dev, u8 mode) __attribute__ ((unused));
 static int set_pm_mode(struct at76c503 *dev, u8 mode)
 {
 	int ret = 0;
-	struct set_mib_buffer mib_buf;
 
-	memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
-	mib_buf.type = MIB_MAC_MGMT;
-	mib_buf.size = 1;
-	mib_buf.index = POWER_MGMT_MODE_OFFSET;
+	memset(&dev->mib_buf, 0, sizeof(struct set_mib_buffer));
+	dev->mib_buf.type = MIB_MAC_MGMT;
+	dev->mib_buf.size = 1;
+	dev->mib_buf.index = POWER_MGMT_MODE_OFFSET;
 
-	mib_buf.data[0] = mode;
+	dev->mib_buf.data[0] = mode;
 
-	ret = set_mib(dev, &mib_buf);
+	ret = set_mib(dev, &dev->mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (pm_mode) failed: %d", dev->netdev->name, ret);
 	}
@@ -1222,17 +1224,16 @@ static int set_associd(struct at76c503 *dev, u16 id) __attribute__ ((unused));
 static int set_associd(struct at76c503 *dev, u16 id)
 {
 	int ret = 0;
-	struct set_mib_buffer mib_buf;
 
-	memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
-	mib_buf.type = MIB_MAC_MGMT;
-	mib_buf.size = 2;
-	mib_buf.index = STATION_ID_OFFSET;
+	memset(&dev->mib_buf, 0, sizeof(struct set_mib_buffer));
+	dev->mib_buf.type = MIB_MAC_MGMT;
+	dev->mib_buf.size = 2;
+	dev->mib_buf.index = STATION_ID_OFFSET;
 
-	mib_buf.data[0] = id & 0xff;
-	mib_buf.data[1] = id >> 8;
+	dev->mib_buf.data[0] = id & 0xff;
+	dev->mib_buf.data[1] = id >> 8;
 
-	ret = set_mib(dev, &mib_buf);
+	ret = set_mib(dev, &dev->mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (associd) failed: %d", dev->netdev->name, ret);
 	}
@@ -1246,17 +1247,16 @@ static int set_listen_interval(struct at76c503 *dev, u16 interval) __attribute__
 static int set_listen_interval(struct at76c503 *dev, u16 interval)
 {
 	int ret = 0;
-	struct set_mib_buffer mib_buf;
 
-	memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
-	mib_buf.type = MIB_MAC;
-	mib_buf.size = 2;
-	mib_buf.index = STATION_ID_OFFSET;
+	memset(&dev->mib_buf, 0, sizeof(struct set_mib_buffer));
+	dev->mib_buf.type = MIB_MAC;
+	dev->mib_buf.size = 2;
+	dev->mib_buf.index = STATION_ID_OFFSET;
 
-	mib_buf.data[0] = interval & 0xff;
-	mib_buf.data[1] = interval >> 8;
+	dev->mib_buf.data[0] = interval & 0xff;
+	dev->mib_buf.data[1] = interval >> 8;
 
-	ret = set_mib(dev, &mib_buf);
+	ret = set_mib(dev, &dev->mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (listen_interval) failed: %d",
 		    dev->netdev->name, ret);
@@ -1268,14 +1268,13 @@ static
 int set_preamble(struct at76c503 *dev, u8 type)
 {
 	int ret = 0;
-	struct set_mib_buffer mib_buf;
 
-	memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
-	mib_buf.type = MIB_LOCAL;
-	mib_buf.size = 1;
-	mib_buf.index = PREAMBLE_TYPE_OFFSET;
-	mib_buf.data[0] = type;
-	ret = set_mib(dev, &mib_buf);
+	memset(&dev->mib_buf, 0, sizeof(struct set_mib_buffer));
+	dev->mib_buf.type = MIB_LOCAL;
+	dev->mib_buf.size = 1;
+	dev->mib_buf.index = PREAMBLE_TYPE_OFFSET;
+	dev->mib_buf.data[0] = type;
+	ret = set_mib(dev, &dev->mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (preamble) failed: %d", dev->netdev->name, ret);
 	}
@@ -1286,14 +1285,13 @@ static
 int set_frag(struct at76c503 *dev, u16 size)
 {
 	int ret = 0;
-	struct set_mib_buffer mib_buf;
 
-	memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
-	mib_buf.type = MIB_MAC;
-	mib_buf.size = 2;
-	mib_buf.index = FRAGMENTATION_OFFSET;
-	*(u16*)mib_buf.data = cpu_to_le16(size);
-	ret = set_mib(dev, &mib_buf);
+	memset(&dev->mib_buf, 0, sizeof(struct set_mib_buffer));
+	dev->mib_buf.type = MIB_MAC;
+	dev->mib_buf.size = 2;
+	dev->mib_buf.index = FRAGMENTATION_OFFSET;
+	*(u16*)dev->mib_buf.data = cpu_to_le16(size);
+	ret = set_mib(dev, &dev->mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (frag threshold) failed: %d", dev->netdev->name, ret);
 	}
@@ -1304,14 +1302,13 @@ static
 int set_rts(struct at76c503 *dev, u16 size)
 {
 	int ret = 0;
-	struct set_mib_buffer mib_buf;
 
-	memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
-	mib_buf.type = MIB_MAC;
-	mib_buf.size = 2;
-	mib_buf.index = RTS_OFFSET;
-	*(u16*)mib_buf.data = cpu_to_le16(size);
-	ret = set_mib(dev, &mib_buf);
+	memset(&dev->mib_buf, 0, sizeof(struct set_mib_buffer));
+	dev->mib_buf.type = MIB_MAC;
+	dev->mib_buf.size = 2;
+	dev->mib_buf.index = RTS_OFFSET;
+	*(u16*)dev->mib_buf.data = cpu_to_le16(size);
+	ret = set_mib(dev, &dev->mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (rts) failed: %d", dev->netdev->name, ret);
 	}
@@ -1322,14 +1319,13 @@ static
 int set_autorate_fallback(struct at76c503 *dev, int onoff)
 {
 	int ret = 0;
-	struct set_mib_buffer mib_buf;
 
-	memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
-	mib_buf.type = MIB_LOCAL;
-	mib_buf.size = 1;
-	mib_buf.index = TX_AUTORATE_FALLBACK_OFFSET;
-	mib_buf.data[0] = onoff;
-	ret = set_mib(dev, &mib_buf);
+	memset(&dev->mib_buf, 0, sizeof(struct set_mib_buffer));
+	dev->mib_buf.type = MIB_LOCAL;
+	dev->mib_buf.size = 1;
+	dev->mib_buf.index = TX_AUTORATE_FALLBACK_OFFSET;
+	dev->mib_buf.data[0] = onoff;
+	ret = set_mib(dev, &dev->mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (autorate fallback) failed: %d", dev->netdev->name, ret);
 	}
@@ -1338,15 +1334,14 @@ int set_autorate_fallback(struct at76c503 *dev, int onoff)
 
 static int set_mac_address(struct at76c503 *dev, void *addr)
 {
-        struct set_mib_buffer mib_buf;
         int ret = 0;
 
-        memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
-        mib_buf.type = MIB_MAC_ADD;
-        mib_buf.size = ETH_ALEN;
-        mib_buf.index = offsetof(struct mib_mac_addr, mac_addr);
-        memcpy(mib_buf.data, addr, ETH_ALEN);
-        ret = set_mib(dev, &mib_buf);
+        memset(&dev->mib_buf, 0, sizeof(struct set_mib_buffer));
+        dev->mib_buf.type = MIB_MAC_ADD;
+        dev->mib_buf.size = ETH_ALEN;
+        dev->mib_buf.index = offsetof(struct mib_mac_addr, mac_addr);
+        memcpy(dev->mib_buf.data, addr, ETH_ALEN);
+        ret = set_mib(dev, &dev->mib_buf);
         if(ret < 0){
                 err("%s: set_mib (MAC_ADDR, mac_addr) failed: %d",
                     dev->netdev->name, ret);
@@ -1359,15 +1354,14 @@ static int set_mac_address(struct at76c503 *dev, void *addr)
    May still be useful for multicast eventually. */
 static int set_group_address(struct at76c503 *dev, u8 *addr, int n)
 {
-        struct set_mib_buffer mib_buf;
         int ret = 0;
 
-        memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
-        mib_buf.type = MIB_MAC_ADD;
-        mib_buf.size = ETH_ALEN;
-        mib_buf.index = offsetof(struct mib_mac_addr, group_addr) + n*ETH_ALEN;
-        memcpy(mib_buf.data, addr, ETH_ALEN);
-        ret = set_mib(dev, &mib_buf);
+        memset(&dev->mib_buf, 0, sizeof(struct set_mib_buffer));
+        dev->mib_buf.type = MIB_MAC_ADD;
+        dev->mib_buf.size = ETH_ALEN;
+        dev->mib_buf.index = offsetof(struct mib_mac_addr, group_addr) + n*ETH_ALEN;
+        memcpy(dev->mib_buf.data, addr, ETH_ALEN);
+        ret = set_mib(dev, &dev->mib_buf);
         if(ret < 0){
                 err("%s: set_mib (MIB_MAC_ADD, group_addr) failed: %d",
                     dev->netdev->name, ret);
@@ -1375,12 +1369,12 @@ static int set_group_address(struct at76c503 *dev, u8 *addr, int n)
 
 #if 1
 	/* I do not know anything about the group_addr_status field... (oku)*/
-        memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
-        mib_buf.type = MIB_MAC_ADD;
-        mib_buf.size = 1;
-        mib_buf.index = offsetof(struct mib_mac_addr, group_addr_status) + n;
-        mib_buf.data[0] = 1;
-        ret = set_mib(dev, &mib_buf);
+        memset(&dev->mib_buf, 0, sizeof(struct set_mib_buffer));
+        dev->mib_buf.type = MIB_MAC_ADD;
+        dev->mib_buf.size = 1;
+        dev->mib_buf.index = offsetof(struct mib_mac_addr, group_addr_status) + n;
+        dev->mib_buf.data[0] = 1;
+        ret = set_mib(dev, &dev->mib_buf);
         if(ret < 0){
                 err("%s: set_mib (MIB_MAC_ADD, group_addr_status) failed: %d",
                     dev->netdev->name, ret);
@@ -1394,14 +1388,13 @@ static
 int set_promisc(struct at76c503 *dev, int onoff)
 {
 	int ret = 0;
-	struct set_mib_buffer mib_buf;
 
-	memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
-	mib_buf.type = MIB_LOCAL;
-	mib_buf.size = 1;
-	mib_buf.index = offsetof(struct mib_local, promiscuous_mode);
-	mib_buf.data[0] = onoff ? 1 : 0;
-	ret = set_mib(dev, &mib_buf);
+	memset(&dev->mib_buf, 0, sizeof(struct set_mib_buffer));
+	dev->mib_buf.type = MIB_LOCAL;
+	dev->mib_buf.size = 1;
+	dev->mib_buf.index = offsetof(struct mib_local, promiscuous_mode);
+	dev->mib_buf.data[0] = onoff ? 1 : 0;
+	ret = set_mib(dev, &dev->mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (promiscous_mode) failed: %d", dev->netdev->name, ret);
 	}
@@ -1414,7 +1407,6 @@ static int dump_mib_mac_addr(struct at76c503 *dev)
 	int ret = 0;
 	struct mib_mac_addr *mac_addr =
 		kmalloc(sizeof(struct mib_mac_addr), GFP_KERNEL);
-	char abuf[2*(4*ETH_ALEN)+1] __attribute__ ((unused));
 
 	if(!mac_addr){
 		ret = -ENOMEM;
@@ -1430,7 +1422,8 @@ static int dump_mib_mac_addr(struct at76c503 *dev)
 
 	dbg_uc("%s: MIB MAC_ADDR: mac_addr %s group_addr %s status %d %d %d %d", 
 	       dev->netdev->name, mac2str(mac_addr->mac_addr),
-	       hex2str(abuf, (u8 *)mac_addr->group_addr, (sizeof(abuf)-1)/2,'\0'),
+	       hex2str(dev->obuf, (u8 *)mac_addr->group_addr, 
+		       min((int)(sizeof(dev->obuf)-1)/2, 4*ETH_ALEN), '\0'),
 	       mac_addr->group_addr_status[0], mac_addr->group_addr_status[1],
 	       mac_addr->group_addr_status[2], mac_addr->group_addr_status[3]);
 
@@ -1446,7 +1439,6 @@ static int dump_mib_mac_wep(struct at76c503 *dev)
 	int ret = 0;
 	struct mib_mac_wep *mac_wep =
 		kmalloc(sizeof(struct mib_mac_wep), GFP_KERNEL);
-	char kbuf[2*WEP_KEY_SIZE+1] __attribute__ ((unused));
 
 	if(!mac_wep){
 		ret = -ENOMEM;
@@ -1468,9 +1460,11 @@ static int dump_mib_mac_wep(struct at76c503 *dev)
 	    le32_to_cpu(mac_wep->wep_excluded_count),
 	    mac_wep->encryption_level, mac_wep->wep_default_key_id,
 	    mac_wep->wep_default_key_id < 4 ?
-	    hex2str(kbuf, mac_wep->wep_default_keyvalue[mac_wep->wep_default_key_id],
-		    mac_wep->encryption_level == 2 ? 13 : 5, '\0') :
-	    "<invalid key id>");
+	    hex2str(dev->obuf,
+		    mac_wep->wep_default_keyvalue[mac_wep->wep_default_key_id],
+		    min((int)(sizeof(dev->obuf)-1)/2,
+			mac_wep->encryption_level == 2 ? 13 : 5), '\0') :
+	       "<invalid key id>");
 
  err:
 	kfree(mac_wep);
@@ -1822,7 +1816,6 @@ static
 int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf)
 {
 	unsigned long flags;
-	char obuf[3*64+1] __attribute__ ((unused));
 	int ret = 0;
 	int urb_status;
 	void *oldbuf = NULL;
@@ -1845,7 +1838,8 @@ int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf)
 		   implement a queue or silently modify the old msg */
 		err("%s: %s removed pending mgmt buffer %s",
 		    dev->netdev->name, __FUNCTION__,
-		    hex2str(obuf, (u8 *)dev->next_mgmt_bulk, 64,' '));
+		    hex2str(dev->obuf, (u8 *)dev->next_mgmt_bulk,
+			    min((int)(sizeof(dev->obuf))/3, 64),' '));
 		kfree(dev->next_mgmt_bulk);
 	}
 
@@ -1864,8 +1858,8 @@ int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf)
 		dbg(DBG_TX_MGMT, "%s: tx mgmt: wlen %d tx_rate %d pad %d %s",
 		    dev->netdev->name, le16_to_cpu(txbuf->wlength),
 		    txbuf->tx_rate, le16_to_cpu(txbuf->padding),
-		    hex2str(obuf,txbuf->packet,
-			    min((sizeof(obuf)-1)/2,
+		    hex2str(dev->obuf, txbuf->packet,
+			    min((sizeof(dev->obuf)-1)/2,
 				(size_t)le16_to_cpu(txbuf->wlength)),'\0'));
 
 		/* txbuf was not consumed above -> send mgmt msg immediately */
@@ -1982,10 +1976,10 @@ int auth_req(struct at76c503 *dev, struct bss_info *bss, int seq_nr, u8 *challen
 	    dev->netdev->name, mac2str(mgmt->addr3),
 	    le16_to_cpu(req->algorithm), le16_to_cpu(req->seq_nr));
 	if (seq_nr == 3) {
-		char obuf[18*3] __attribute__ ((unused));
 		dbg(DBG_TX_MGMT, "%s: AuthReq challenge: %s ...",
 		    dev->netdev->name,
-		    hex2str(obuf, req->challenge, sizeof(obuf)/3,' '));
+		    hex2str(dev->obuf, req->challenge, 
+			    min((int)sizeof(dev->obuf)/3, 18),' '));
 	}
 
 	/* either send immediately (if no data tx is pending
@@ -2050,18 +2044,17 @@ int assoc_req(struct at76c503 *dev, struct bss_info *bss)
 	
 	{
 		/* output buffer for ssid and rates */
-		char ossid[IW_ESSID_MAX_SIZE+1] __attribute__ ((unused));
 		char orates[4*2+1] __attribute__ ((unused));
 		int len;
 
 		tlv = req->data;
-		len = min(sizeof(ossid)-1,(size_t)*(tlv+1));
-		memcpy(ossid, tlv+2, len);
-		ossid[len] = '\0';
+		len = min(IW_ESSID_MAX_SIZE, (int)*(tlv+1));
+		memcpy(dev->obuf, tlv+2, len);
+		dev->obuf[len] = '\0';
 		tlv += (1 + 1 + *(tlv+1)); /* points to IE of rates now */
 		dbg(DBG_TX_MGMT, "%s: AssocReq bssid %s capa x%04x ssid %s rates %s",
 		    dev->netdev->name, mac2str(mgmt->addr3),
-		    le16_to_cpu(req->capability), ossid,
+		    le16_to_cpu(req->capability), dev->obuf,
 		    hex2str(orates,tlv+2,min((sizeof(orates)-1)/2,(size_t)*(tlv+1)),
 			    '\0'));
 	}
@@ -2136,18 +2129,17 @@ int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
 	tx_buffer->wlength = cpu_to_le16(tlv-(u8 *)mgmt);
 	
 	{
-		/* output buffer for ssid and rates */
-		char ossid[IW_ESSID_MAX_SIZE+1] __attribute__ ((unused));
+		/* output buffer for rates and bssid */
 		char orates[4*2+1] __attribute__ ((unused));
 		char ocurr[6*3+1] __attribute__ ((unused));
 		tlv = req->data;
-		memcpy(ossid, tlv+2, min(sizeof(ossid),(size_t)*(tlv+1)));
-		ossid[sizeof(ossid)-1] = '\0';
+		memcpy(dev->obuf, tlv+2, min(sizeof(dev->obuf),(size_t)*(tlv+1)));
+		dev->obuf[IW_ESSID_MAX_SIZE] = '\0';
 		tlv += (1 + 1 + *(tlv+1)); /* points to IE of rates now */
 		dbg(DBG_TX_MGMT, "%s: ReAssocReq curr %s new %s capa x%04x ssid %s rates %s",
 		    dev->netdev->name,
 		    hex2str(ocurr, req->curr_ap, ETH_ALEN, ':'),
-		    mac2str(mgmt->addr3), le16_to_cpu(req->capability), ossid,
+		    mac2str(mgmt->addr3), le16_to_cpu(req->capability), dev->obuf,
 		    hex2str(orates,tlv+2,min((sizeof(orates)-1)/2,(size_t)*(tlv+1)),
 			    '\0'));
 	}
@@ -2301,7 +2293,6 @@ kevent(void *data)
 	if(test_bit(KEVENT_NEW_BSS, &dev->kevent_flags)){
 		struct net_device *netdev = dev->netdev;
 		struct mib_mac_mgmt *mac_mgmt = kmalloc(sizeof(struct mib_mac_mgmt), GFP_KERNEL);
-		struct set_mib_buffer mib_buf;
 
 		ret = get_mib(dev->udev, MIB_MAC_MGMT, (u8*)mac_mgmt,
 			      sizeof(struct mib_mac_mgmt));
@@ -2316,11 +2307,11 @@ kevent(void *data)
     
 		iwevent_bss_connect(dev->netdev, dev->bssid);
 
-		memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
-		mib_buf.type = MIB_MAC_MGMT;
-		mib_buf.size = 1;
-		mib_buf.index = IBSS_CHANGE_OK_OFFSET;
-		ret = set_mib(dev, &mib_buf);
+		memset(&dev->mib_buf, 0, sizeof(struct set_mib_buffer));
+		dev->mib_buf.type = MIB_MAC_MGMT;
+		dev->mib_buf.size = 1;
+		dev->mib_buf.index = IBSS_CHANGE_OK_OFFSET;
+		ret = set_mib(dev, &dev->mib_buf);
 		if(ret < 0){
 			err("%s: set_mib (ibss change ok) failed: %d", netdev->name, ret);
 			goto new_bss_clean;
@@ -2343,7 +2334,6 @@ kevent(void *data)
 
 	/* check this _before_ KEVENT_JOIN, 'cause _JOIN sets _STARTIBSS bit */
 	if (test_bit(KEVENT_STARTIBSS, &dev->kevent_flags)) {
-		struct set_mib_buffer mib_buf;
 		clear_bit(KEVENT_STARTIBSS, &dev->kevent_flags);
 		assert(dev->istate == STARTIBSS);
 		ret = start_ibss(dev);
@@ -2366,11 +2356,11 @@ kevent(void *data)
 		if(ret < 0) goto end_startibss;
 
 		/* not sure what this is good for ??? */
-		memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
-		mib_buf.type = MIB_MAC_MGMT;
-		mib_buf.size = 1;
-		mib_buf.index = IBSS_CHANGE_OK_OFFSET;
-		ret = set_mib(dev, &mib_buf);
+		memset(&dev->mib_buf, 0, sizeof(struct set_mib_buffer));
+		dev->mib_buf.type = MIB_MAC_MGMT;
+		dev->mib_buf.size = 1;
+		dev->mib_buf.index = IBSS_CHANGE_OK_OFFSET;
+		ret = set_mib(dev, &dev->mib_buf);
 		if(ret < 0){
 			err("%s: set_mib (ibss change ok) failed: %d", dev->netdev->name, ret);
 			goto end_startibss;
@@ -2551,7 +2541,7 @@ end_scan:
 		   the interface descr. are changed.
 		   This procedure reads the configuration and does a limited parsing of
 		   the interface and endpoint descriptors */
-		update_usb_intf_descr(dev->udev);
+		update_usb_intf_descr(dev);
 
 		op_mode = get_op_mode(dev->udev);
 		dbg(DBG_DEVSTART, "opmode %d", op_mode);
@@ -2701,8 +2691,6 @@ static void dump_bss_table(struct at76c503 *dev, int force_output)
 {
 	struct bss_info *ptr;
 	/* hex dump output buffer for debug */
-	char hexssid[IW_ESSID_MAX_SIZE*2+1] __attribute__ ((unused));
-	char hexrates[BSS_LIST_MAX_RATE_LEN*3+1] __attribute__ ((unused));
 	unsigned long flags;
 	struct list_head *lptr;
 
@@ -2719,10 +2707,13 @@ static void dump_bss_table(struct at76c503 *dev, int force_output)
 			    ptr, mac2str(ptr->bssid),
 			    ptr->channel,
 			    ptr->ssid,
-			    hex2str(hexssid,ptr->ssid,ptr->ssid_len,'\0'),
+			    hex2str(dev->obuf, ptr->ssid,
+				    min((sizeof(dev->obuf)-1)/2,
+					(size_t)ptr->ssid_len),'\0'),
 			    le16_to_cpu(ptr->capa),
-			    hex2str(hexrates, ptr->rates, 
-				    ptr->rates_len, ' '),
+			    hex2str(dev->obuf_s, ptr->rates, 
+				    min(sizeof(dev->obuf_s)/3,
+					(size_t)ptr->rates_len), ' '),
 			       ptr->rssi, ptr->link_qual, ptr->noise_level);
 		}
 
@@ -2772,15 +2763,14 @@ static void rx_mgmt_assoc(struct at76c503 *dev,
 	struct ieee802_11_mgmt *mgmt = (struct ieee802_11_mgmt *)buf->packet;
 	struct ieee802_11_assoc_resp *resp = 
 		(struct ieee802_11_assoc_resp *)mgmt->data;
-	char orates[2*8+1] __attribute__((unused));
 	u16 assoc_id = le16_to_cpu(resp->assoc_id);
 	u16 status = le16_to_cpu(resp->status);
 	u16 capa = le16_to_cpu(resp->capability); 
 	dbg(DBG_RX_MGMT, "%s: rx AssocResp bssid %s capa x%04x status x%04x "
 	    "assoc_id x%04x rates %s",
 	    dev->netdev->name, mac2str(mgmt->addr3), capa, status, assoc_id,
-	    hex2str(orates, resp->data+2,
-		    min((size_t)*(resp->data+1),(sizeof(orates)-1)/2), '\0'));
+	    hex2str(dev->obuf, resp->data+2,
+		    min((size_t)*(resp->data+1),(sizeof(dev->obuf)-1)/2), '\0'));
 
 	if (dev->istate == ASSOCIATING) {
 
@@ -2813,7 +2803,6 @@ static void rx_mgmt_reassoc(struct at76c503 *dev,
 	struct ieee802_11_mgmt *mgmt = (struct ieee802_11_mgmt *)buf->packet;
 	struct ieee802_11_assoc_resp *resp = 
 		(struct ieee802_11_assoc_resp *)mgmt->data;
-	char orates[2*8+1] __attribute__((unused));
 	unsigned long flags;
 	u16 capa = le16_to_cpu(resp->capability);
 	u16 status = le16_to_cpu(resp->status);
@@ -2822,8 +2811,8 @@ static void rx_mgmt_reassoc(struct at76c503 *dev,
 	dbg(DBG_RX_MGMT, "%s: rx ReAssocResp bssid %s capa x%04x status x%04x "
 	    "assoc_id x%04x rates %s",
 	    dev->netdev->name, mac2str(mgmt->addr3), capa, status, assoc_id,
-	    hex2str(orates, resp->data+2,
-		    min((size_t)*(resp->data+1),(sizeof(orates)-1)/2), '\0'));
+	    hex2str(dev->obuf, resp->data+2,
+		    min((size_t)*(resp->data+1),(sizeof(dev->obuf)-1)/2), '\0'));
 
 	if (dev->istate == REASSOCIATING) {
 
@@ -2867,12 +2856,12 @@ static void rx_mgmt_disassoc(struct at76c503 *dev,
 	struct ieee802_11_mgmt *mgmt = (struct ieee802_11_mgmt *)buf->packet;
 	struct ieee802_11_disassoc_frame *resp = 
 		(struct ieee802_11_disassoc_frame *)mgmt->data;
-	char obuf[ETH_ALEN*3] __attribute__ ((unused));
 
 	dbg(DBG_RX_MGMT, "%s: rx DisAssoc bssid %s reason x%04x destination %s",
 	    dev->netdev->name, mac2str(mgmt->addr3),
 	    le16_to_cpu(resp->reason),
-	    hex2str(obuf, mgmt->addr1, ETH_ALEN, ':'));
+	    hex2str(dev->obuf, mgmt->addr1, 
+		    min((int)sizeof(dev->obuf)/3, ETH_ALEN), ':'));
 
 	if (dev->istate == SCANNING || dev->istate == INIT)
 		return;
@@ -2922,7 +2911,6 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 	struct ieee802_11_mgmt *mgmt = (struct ieee802_11_mgmt *)buf->packet;
 	struct ieee802_11_auth_frame *resp = 
 		(struct ieee802_11_auth_frame *)mgmt->data;
-	char obuf[18*3] __attribute__ ((unused));
 	int seq_nr = le16_to_cpu(resp->seq_nr);
 	int alg = le16_to_cpu(resp->algorithm);
 	int status = le16_to_cpu(resp->status);
@@ -2931,13 +2919,15 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 	    "destination %s",
 	    dev->netdev->name, mac2str(mgmt->addr3),
 	    alg, seq_nr, status,
-	    hex2str(obuf, mgmt->addr1, ETH_ALEN, ':'));
+	    hex2str(dev->obuf, mgmt->addr1,
+		    min((int)sizeof(dev->obuf)/3, ETH_ALEN), ':'));
 
 	if (alg == IEEE802_11_AUTH_ALG_SHARED_SECRET &&
 	    seq_nr == 2) {
 		dbg(DBG_RX_MGMT, "%s: AuthFrame challenge %s ...",
 		    dev->netdev->name,
-		    hex2str(obuf, resp->challenge, sizeof(obuf)/3, ' '));
+		    hex2str(dev->obuf, resp->challenge,
+			    min((int)sizeof(dev->obuf)/3,18), ' '));
 	}
 
 	if (dev->istate != AUTHENTICATING) {
@@ -2989,13 +2979,13 @@ static void rx_mgmt_deauth(struct at76c503 *dev,
 	struct ieee802_11_mgmt *mgmt = (struct ieee802_11_mgmt *)buf->packet;
 	struct ieee802_11_deauth_frame *resp = 
 		(struct ieee802_11_deauth_frame *)mgmt->data;
-	char obuf[ETH_ALEN*3+1] __attribute__ ((unused));
 
 	dbg(DBG_RX_MGMT|DBG_PROGRESS,
 	    "%s: rx DeAuth bssid %s reason x%04x destination %s",
 	    dev->netdev->name, mac2str(mgmt->addr3),
 	    le16_to_cpu(resp->reason),
-	    hex2str(obuf, mgmt->addr1, ETH_ALEN, ':'));
+	    hex2str(dev->obuf, mgmt->addr1,
+		    min((int)sizeof(dev->obuf)/3,ETH_ALEN), ':'));
 
 	if (dev->istate == DISASSOCIATING ||
 	    dev->istate == AUTHENTICATING ||
@@ -3161,8 +3151,6 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 		
 		case IE_ID_SUPPORTED_RATES:
 			if (!have_rates) {
-				char obuf[2*64+1] __attribute__ ((unused));
-
 				match->rates_len = 
 					min((int)sizeof(match->rates), 
 						(int)element->length);
@@ -3172,8 +3160,8 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 				dbg(DBG_RX_BEACON, 
 				    "%s: SUPPORTED RATES %s", 
 				    dev->netdev->name,
-				    hex2str(obuf, &(element->data_head),
-					    min((sizeof(obuf)-1)/2,
+				    hex2str(dev->obuf, &(element->data_head),
+					    min((sizeof(dev->obuf)-1)/2,
 						(size_t)element->length), '\0'));
 			}
 			break;
@@ -3192,12 +3180,10 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 		case IE_ID_IBSS_PARAM_SET:
 		default:
 		{
-			char obuf[2*255+1] __attribute__ ((unused));
-
 			dbg(DBG_RX_BEACON, "%s: beacon IE id %d len %d %s",
 			    dev->netdev->name, element->type, element->length,
-			    hex2str(obuf,&(element->data_head),
-				    min((sizeof(obuf)-1)/2,
+			    hex2str(dev->obuf,&(element->data_head),
+				    min((sizeof(dev->obuf)-1)/2,
 					(size_t)element->length),'\0'));
 			break;
 		}
@@ -3260,11 +3246,10 @@ static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 	}
 
 	if (debug & DBG_RX_MGMT_CONTENT) {
-		char obuf[128*2+1] __attribute__ ((unused));
 		dbg_uc("%s rx mgmt subtype x%x %s",
 		       dev->netdev->name, subtype,
-		       hex2str(obuf, (u8 *)mgmt, 
-			       min((sizeof(obuf)-1)/2,
+		       hex2str(dev->obuf, (u8 *)mgmt, 
+			       min((sizeof(dev->obuf)-1)/2,
 				   (size_t)le16_to_cpu(buf->wlength)), '\0'));
 	}
 
@@ -3381,9 +3366,9 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 
 #if 0
 	{
-		char dbuf[3*64];
 		dbg_uc("%s: ENTRY skb len %d data %s", __FUNCTION__,
-		       skb->len, hex2str(dbuf, skb->data, sizeof(dbuf)/3, ' '));
+		       skb->len, hex2str(dev->obuf, skb->data,
+					 min((int)sizeof(dev->obuf)/3,64), ' '));
 	}
 #endif
 
@@ -3451,12 +3436,13 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 
 #if 0
 	{
-		char dbuf[3*64], da[3*ETH_ALEN], sa[3*ETH_ALEN];
+		char da[3*ETH_ALEN], sa[3*ETH_ALEN];
 		dbg_uc("%s: EXIT skb da %s sa %s proto x%04x len %d data %s", __FUNCTION__,
 		       hex2str(da, skb->mac.ethernet->h_dest, ETH_ALEN, ':'),
 		       hex2str(sa, skb->mac.ethernet->h_source, ETH_ALEN, ':'),
 		       ntohs(skb->protocol), skb->len,
-		       hex2str(dbuf, skb->data, sizeof(dbuf)/3, ' '));
+		       hex2str(dev->obuf, skb->data, 
+			       min((int)sizeof(dev->obuf)/3,64), ' '));
 	}
 #endif
 
@@ -3551,14 +3537,14 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 	int i;
 	struct rx_data_buf *bptr, *optr;
 	unsigned long oldest = ~0UL;
-	char dbuf[2*32+1] __attribute__ ((unused));
 
 	dbg(DBG_RX_FRAGS, "%s: rx data frame_ctl %04x addr2 %s seq/frag %d/%d "
 	    "length %d data %d: %s ...",
 	    dev->netdev->name, frame_ctl,
 	    mac2str(i802_11_hdr->addr2),
 	    seqnr, fragnr, length, data_len,
-	    hex2str(dbuf, data, sizeof(dbuf)/2, '\0'));
+	    hex2str(dev->obuf, data,
+		    min((int)(sizeof(dev->obuf)-1)/2,32), '\0'));
 
 	dbg(DBG_RX_FRAGS_SKB, "%s: incoming skb: head %p data %p "
 	    "tail %p end %p len %d",
@@ -3907,12 +3893,12 @@ static void rx_tasklet(unsigned long param)
 	}
 
 	if (debug & DBG_RX_ATMEL_HDR) {
-		char obuf[2*48+1] __attribute__ ((unused));
 		dbg_uc("%s: rx frame: rate %d rssi %d noise %d link %d %s",
 		    dev->netdev->name,
 		    buf->rx_rate, buf->rssi, buf->noise_level,
 		    buf->link_quality,
-		    hex2str(obuf,(u8 *)i802_11_hdr,sizeof(obuf)/2,'\0'));
+		    hex2str(dev->obuf,(u8 *)i802_11_hdr,
+			    min((int)(sizeof(dev->obuf)-1)/2,48),'\0'));
 	}
 
 	switch (frame_ctl & IEEE802_11_FCTL_FTYPE) {
@@ -4078,17 +4064,19 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 		le16_to_cpu(tx_buffer->padding);
 
 	{
-		char dbuf[2*48+1] __attribute__((unused));
 		dbg(DBG_TX_DATA_CONTENT, "%s skb->data %s", dev->netdev->name,
-		    hex2str(dbuf, skb->data, min(sizeof(dbuf)/2,(size_t)32),'\0'));
+		    hex2str(dev->obuf, skb->data, 
+			    min((int)(sizeof(dev->obuf)-1)/2,32),'\0'));
 		dbg(DBG_TX_DATA, "%s tx  wlen x%x pad x%x rate %d hdr %s",
 		    dev->netdev->name,
 		    le16_to_cpu(tx_buffer->wlength),
 		    le16_to_cpu(tx_buffer->padding), tx_buffer->tx_rate, 
-		    hex2str(dbuf, (u8 *)i802_11_hdr, 
-			    min(sizeof(dbuf)/2, sizeof(struct ieee802_11_hdr)),'\0'));
+		    hex2str(dev->obuf, (u8 *)i802_11_hdr, 
+			    min((sizeof(dev->obuf)-1)/2, 
+				sizeof(struct ieee802_11_hdr)),'\0'));
 		dbg(DBG_TX_DATA_CONTENT, "%s payload %s", dev->netdev->name,
-		    hex2str(dbuf, payload, sizeof(dbuf)/2,'\0'));
+		    hex2str(dev->obuf, payload, 
+			    min((int)(sizeof(dev->obuf)-1)/2,48),'\0'));
 	}
 
 	/* send stuff */
@@ -4136,7 +4124,6 @@ int startup_device(struct at76c503 *dev)
 	int ret;
 
 	if (debug & DBG_PARAMS) {
-		char hexssid[IW_ESSID_MAX_SIZE*2+1];
 		char ossid[IW_ESSID_MAX_SIZE+1];
 
 		/* make dev->essid printable */
@@ -4146,7 +4133,9 @@ int startup_device(struct at76c503 *dev)
 
 		dbg_uc("%s param: ssid %s (%s) mode %s ch %d wep %s key %d keylen %d",
 		       dev->netdev->name, ossid, 
-		       hex2str(hexssid,dev->essid,dev->essid_size,'\0'),
+		       hex2str(dev->obuf, dev->essid,
+			       min((int)(sizeof(dev->obuf)-1)/2,
+				   IW_ESSID_MAX_SIZE), '\0'),
 		       dev->iw_mode == IW_MODE_ADHOC ? "adhoc" : "infra",
 		       dev->channel,
 		       dev->wep_enabled ? "enabled" : "disabled",
@@ -4414,43 +4403,52 @@ static int ethtool_ioctl(struct at76c503 *dev, void *useraddr)
 
 #if 0
 	{
-		char obuf[32*2+1];
 		dbg_uc("%s: %s: ethcmd=x%x buf: %s",
 		       dev->netdev->name, __FUNCTION__, ethcmd,
-		       hex2str(obuf,useraddr,sizeof(obuf)/2,'\0'));
+		       hex2str(dev->obuf,useraddr,
+			       min((int)(sizeof(dev->obuf)-1)/2,32), '\0'));
 	}
 #endif	
 
 	switch (ethcmd) {
 	case ETHTOOL_GDRVINFO:
 	{
-		struct ethtool_drvinfo info = { ETHTOOL_GDRVINFO };
-		strncpy(info.driver, "at76c503", 
-			sizeof(info.driver)-1);
+		struct ethtool_drvinfo *info = 
+			kmalloc(sizeof(struct ethtool_drvinfo), GFP_KERNEL);
+		if (!info)
+			return -ENOMEM;
+
+		info->cmd = ETHTOOL_GDRVINFO;
+		strncpy(info->driver, "at76c503", 
+			sizeof(info->driver)-1);
 		
-		strncpy(info.version, DRIVER_VERSION, sizeof(info.version));
-		info.version[sizeof(info.version)-1] = '\0';
+		strncpy(info->version, DRIVER_VERSION, sizeof(info->version));
+		info->version[sizeof(info->version)-1] = '\0';
 
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 4, 7))
-		snprintf(info.bus_info, sizeof(info.bus_info)-1,
+		snprintf(info->bus_info, sizeof(info->bus_info)-1,
 			 "usb%d:%d", dev->udev->bus->busnum,
 			 dev->udev->devnum);
 
-		snprintf(info.fw_version, sizeof(info.fw_version)-1,
+		snprintf(info->fw_version, sizeof(info->fw_version)-1,
 			 "%d.%d.%d-%d",
 			 dev->fw_version.major, dev->fw_version.minor,
 			 dev->fw_version.patch, dev->fw_version.build);
 #else
                 /* Take the risk of a buffer overflow: no snprintf... */
-		sprintf(info.bus_info, "usb%d:%d", dev->udev->bus->busnum,
+		sprintf(info->bus_info, "usb%d:%d", dev->udev->bus->busnum,
                         dev->udev->devnum);
 
-		sprintf(info.fw_version, "%d.%d.%d-%d",
+		sprintf(info->fw_version, "%d.%d.%d-%d",
                         dev->fw_version.major, dev->fw_version.minor,
                         dev->fw_version.patch, dev->fw_version.build);
 #endif
-		if (copy_to_user (useraddr, &info, sizeof (info)))
+		if (copy_to_user (useraddr, info, sizeof (*info))) {
+			kfree(info);
 			return -EFAULT;
+		}
+
+		kfree(info);
 		return 0;
 	}
 	break;
@@ -5032,33 +5030,36 @@ int at76c503_iw_handler_get_scan(struct net_device *netdev,
 	unsigned long flags;
 	struct list_head *lptr, *nptr;
 	struct bss_info *curr_bss;
-	struct iw_event iwe;
+	struct iw_event *iwe = kmalloc(sizeof(struct iw_event), GFP_KERNEL);
 	char *curr_val, *curr_pos = extra;
 	int i;
 
 	dbg(DBG_IOCTL, "%s: SIOCGIWSCAN", netdev->name);
-	
+
+	if (!iwe)
+		return -ENOMEM;
+
 	spin_lock_irqsave(&(dev->bss_list_spinlock), flags);
 	
 	list_for_each_safe(lptr, nptr, &(dev->bss_list)) {
 		curr_bss = list_entry(lptr, struct bss_info, list);
 		
-		iwe.cmd = SIOCGIWAP;
-		iwe.u.ap_addr.sa_family = ARPHRD_ETHER;
-		memcpy(iwe.u.ap_addr.sa_data, curr_bss->bssid, 6);
+		iwe->cmd = SIOCGIWAP;
+		iwe->u.ap_addr.sa_family = ARPHRD_ETHER;
+		memcpy(iwe->u.ap_addr.sa_data, curr_bss->bssid, 6);
 		curr_pos = iwe_stream_add_event(curr_pos, 
-			extra + IW_SCAN_MAX_DATA, &iwe, IW_EV_ADDR_LEN);
+			extra + IW_SCAN_MAX_DATA, iwe, IW_EV_ADDR_LEN);
 		
-		iwe.u.data.length = curr_bss->ssid_len;
-		iwe.cmd = SIOCGIWESSID;
+		iwe->u.data.length = curr_bss->ssid_len;
+		iwe->cmd = SIOCGIWESSID;
 		// 1: SSID on , 0: SSID off/any
-		iwe.u.data.flags = (dev->essid_size > 0) ? 1 : 0;
+		iwe->u.data.flags = (dev->essid_size > 0) ? 1 : 0;
 		
 		curr_pos = iwe_stream_add_point(curr_pos, 
-			extra + IW_SCAN_MAX_DATA, &iwe, curr_bss->ssid);
+			extra + IW_SCAN_MAX_DATA, iwe, curr_bss->ssid);
 		
-		iwe.cmd = SIOCGIWMODE;
-		iwe.u.mode = (curr_bss->capa & IEEE802_11_CAPA_IBSS) ? 
+		iwe->cmd = SIOCGIWMODE;
+		iwe->u.mode = (curr_bss->capa & IEEE802_11_CAPA_IBSS) ? 
 			IW_MODE_ADHOC :
 			(curr_bss->capa & IEEE802_11_CAPA_ESS) ? 
 			IW_MODE_MASTER :
@@ -5066,49 +5067,49 @@ int at76c503_iw_handler_get_scan(struct net_device *netdev,
 			// IW_MODE_AUTO = 0 which I thought is 
 			// the most logical value to return in this case
 		curr_pos = iwe_stream_add_event(curr_pos, 
-			extra + IW_SCAN_MAX_DATA, &iwe, IW_EV_UINT_LEN);
+			extra + IW_SCAN_MAX_DATA, iwe, IW_EV_UINT_LEN);
 		
-		iwe.cmd = SIOCGIWFREQ;
-		iwe.u.freq.m = curr_bss->channel;
-		iwe.u.freq.e = 0;
+		iwe->cmd = SIOCGIWFREQ;
+		iwe->u.freq.m = curr_bss->channel;
+		iwe->u.freq.e = 0;
 		curr_pos = iwe_stream_add_event(curr_pos, 
-			extra + IW_SCAN_MAX_DATA, &iwe, IW_EV_FREQ_LEN);
+			extra + IW_SCAN_MAX_DATA, iwe, IW_EV_FREQ_LEN);
 		
-		iwe.cmd = SIOCGIWENCODE;
+		iwe->cmd = SIOCGIWENCODE;
 		if (curr_bss->capa & IEEE802_11_CAPA_PRIVACY) {
-			iwe.u.data.flags = IW_ENCODE_ENABLED | IW_ENCODE_NOKEY;
+			iwe->u.data.flags = IW_ENCODE_ENABLED | IW_ENCODE_NOKEY;
 		} else {
-			iwe.u.data.flags = IW_ENCODE_DISABLED;
+			iwe->u.data.flags = IW_ENCODE_DISABLED;
 		}
-		iwe.u.data.length = 0;
+		iwe->u.data.length = 0;
 		curr_pos = iwe_stream_add_point(curr_pos, 
-			extra + IW_SCAN_MAX_DATA, &iwe, NULL);
+			extra + IW_SCAN_MAX_DATA, iwe, NULL);
 
 		/* Add quality statistics */
-		iwe.cmd = IWEVQUAL;
-		iwe.u.qual.level = curr_bss->rssi; /* do some calibration here ? */
-		iwe.u.qual.noise = 0;
-		iwe.u.qual.qual = curr_bss->link_qual; /* good old Intersil radios report this, too */
+		iwe->cmd = IWEVQUAL;
+		iwe->u.qual.level = curr_bss->rssi; /* do some calibration here ? */
+		iwe->u.qual.noise = 0;
+		iwe->u.qual.qual = curr_bss->link_qual; /* good old Intersil radios report this, too */
 		/* Add new value to event */
 		curr_pos = iwe_stream_add_event(curr_pos, 
-			extra + IW_SCAN_MAX_DATA, &iwe, IW_EV_QUAL_LEN);
+			extra + IW_SCAN_MAX_DATA, iwe, IW_EV_QUAL_LEN);
 
 		/* Rate : stuffing multiple values in a single event require a bit
 		 * more of magic - Jean II */
 		curr_val = curr_pos + IW_EV_LCP_LEN;
 
-		iwe.cmd = SIOCGIWRATE;
+		iwe->cmd = SIOCGIWRATE;
 		/* Those two flags are ignored... */
-		iwe.u.bitrate.fixed = iwe.u.bitrate.disabled = 0;
+		iwe->u.bitrate.fixed = iwe->u.bitrate.disabled = 0;
 		/* Max 8 values */
 		for(i=0; i < curr_bss->rates_len; i++) {
 			/* Bit rate given in 500 kb/s units (+ 0x80) */
-			iwe.u.bitrate.value = 
+			iwe->u.bitrate.value = 
 				((curr_bss->rates[i] & 0x7f) * 500000);
 			/* Add new value to event */
 			curr_val = iwe_stream_add_value(curr_pos, curr_val, 
 							extra + IW_SCAN_MAX_DATA,
-							&iwe, IW_EV_PARAM_LEN);
+							iwe, IW_EV_PARAM_LEN);
 		}
 
 		/* Check if we added any event */
@@ -5125,6 +5126,7 @@ int at76c503_iw_handler_get_scan(struct net_device *netdev,
 	data->length = (curr_pos - extra);
 	data->flags = 0;
 	
+	kfree(iwe);
 	return 0;
 }
 #endif // #if WIRELESS_EXT > 13
@@ -6529,7 +6531,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.58 2004/06/13 22:23:59 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.59 2004/06/14 00:05:04 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,

@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.22 2004/04/14 22:15:44 jal2 Exp $
+/* $Id: at76c503.h,v 1.23 2004/06/14 00:05:04 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -611,7 +611,9 @@ struct at76c503 {
 		      that the device was unplugged 
 		      AT76C503A_NETDEV_REGISTERED signals that register_netdevice
 		      xwas successfully called */
-	
+	char obuf[2*256+1]; /* global debug output buffer to reduce stack usage */
+	char obuf_s[3*32]; /* small global debug output buffer to reduce stack usage */
+	struct set_mib_buffer mib_buf; /* global buffer for set_mib calls */
 };
 
 #define AT76C503A_UNPLUG 1
