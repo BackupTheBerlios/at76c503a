@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.71 2004/10/14 01:21:21 jal2 Exp $
+/* $Id: at76c503.c,v 1.72 2004/10/19 20:45:25 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -177,6 +177,13 @@ static inline struct urb *alloc_urb(int iso_pk, int mem_flags) {
 static inline void usb_set_intfdata(struct usb_interface *intf, void *data) {}
 
 #endif //#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 9)
+# define eth_hdr(s) (s)->mac.ethernet
+# define set_eth_hdr(s,p) (s)->mac.ethernet=(p)
+#else
+# define set_eth_hdr(s,p) (s)->mac.raw=(p)
+#endif
 
 /* wireless extension level this source currently supports */
 #define WIRELESS_EXT_SUPPORTED	16
@@ -3855,7 +3862,7 @@ SNAP (802.3 with 802.2 and SNAP headers)
 static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 {
 	struct ieee802_11_hdr *i802_11_hdr;
-	struct ethhdr *eth_hdr;
+	struct ethhdr *eth_hdr_p;
 	u8 *src_addr;
 	u8 *dest_addr;
 	unsigned short proto = 0;
@@ -3878,9 +3885,9 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 	       				    : i802_11_hdr->addr3;
 	dest_addr = i802_11_hdr->addr1;
 
-	eth_hdr = (struct ethhdr *)skb->data;
-	if (!memcmp(eth_hdr->h_source, src_addr, ETH_ALEN) &&
-	    !memcmp(eth_hdr->h_dest, dest_addr, ETH_ALEN)) {
+	eth_hdr_p = (struct ethhdr *)skb->data;
+	if (!memcmp(eth_hdr_p->h_source, src_addr, ETH_ALEN) &&
+	    !memcmp(eth_hdr_p->h_dest, dest_addr, ETH_ALEN)) {
 		/* An ethernet frame is encapsulated within the data portion.
 		 * Just use its header instead. */
 		skb_pull(skb, sizeof(struct ethhdr));
@@ -3911,19 +3918,19 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 #endif /* IEEE_STANDARD */
 	}
 
-	eth_hdr = (struct ethhdr *)(skb->data-sizeof(struct ethhdr));
-	skb->mac.ethernet = eth_hdr;
+	eth_hdr_p = (struct ethhdr *)(skb->data-sizeof(struct ethhdr));
+	set_eth_hdr(skb, eth_hdr_p);
 	if (build_ethhdr) {
-		/* This needs to be done in this order (eth_hdr->h_dest may
+		/* This needs to be done in this order (eth_hdr_p->h_dest may
 		 * overlap src_addr) */
-		memcpy(eth_hdr->h_source, src_addr, ETH_ALEN);
-		memcpy(eth_hdr->h_dest, dest_addr, ETH_ALEN);
+		memcpy(eth_hdr_p->h_source, src_addr, ETH_ALEN);
+		memcpy(eth_hdr_p->h_dest, dest_addr, ETH_ALEN);
 		/* make an 802.3 header (proto = length) */
-		eth_hdr->h_proto = proto;
+		eth_hdr_p->h_proto = proto;
 	}
 
-	if (ntohs(eth_hdr->h_proto) > 1518) {
-		skb->protocol = eth_hdr->h_proto;
+	if (ntohs(eth_hdr_p->h_proto) > 1518) {
+		skb->protocol = eth_hdr_p->h_proto;
 	} else if (*(unsigned short *)skb->data == 0xFFFF) {
 		/* Magic hack for Novell IPX-in-802.3 packets */
 		skb->protocol = htons(ETH_P_802_3);
@@ -3937,8 +3944,8 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 	{
 		char da[3*ETH_ALEN], sa[3*ETH_ALEN];
 		dbg_uc("%s: EXIT skb da %s sa %s proto x%04x len %d data %s", __FUNCTION__,
-		       hex2str(da, skb->mac.ethernet->h_dest, ETH_ALEN, ':'),
-		       hex2str(sa, skb->mac.ethernet->h_source, ETH_ALEN, ':'),
+		       hex2str(da, eth_hdr(skb)->h_dest, ETH_ALEN, ':'),
+		       hex2str(sa, eth_hdr(skb)->h_source, ETH_ALEN, ':'),
 		       ntohs(skb->protocol), skb->len,
 		       hex2str(dev->obuf, skb->data, 
 			       min((int)sizeof(dev->obuf)/3,64), ' '));
@@ -3953,7 +3960,7 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 static void ieee80211_fixup(struct sk_buff *skb, int iw_mode)
 {
 	struct ieee802_11_hdr *i802_11_hdr;
-	struct ethhdr *eth_hdr;
+	struct ethhdr *eth_hdr_p;
 	u8 *src_addr;
 	u8 *dest_addr;
 	unsigned short proto = 0;
@@ -3968,13 +3975,13 @@ static void ieee80211_fixup(struct sk_buff *skb, int iw_mode)
 
 	skb->mac.raw = (unsigned char *)i802_11_hdr;
 
-	eth_hdr = (struct ethhdr *)skb->data;
-	if (!memcmp(eth_hdr->h_source, src_addr, ETH_ALEN) &&
-	    !memcmp(eth_hdr->h_dest, dest_addr, ETH_ALEN)) {
+	eth_hdr_p = (struct ethhdr *)skb->data;
+	if (!memcmp(eth_hdr_p->h_source, src_addr, ETH_ALEN) &&
+	    !memcmp(eth_hdr_p->h_dest, dest_addr, ETH_ALEN)) {
 		/* There's an ethernet header encapsulated within the data
 		 * portion, count it as part of the hardware header */
 		skb_pull(skb, sizeof(struct ethhdr));
-		proto = eth_hdr->h_proto;
+		proto = eth_hdr_p->h_proto;
 	} else if (!memcmp(skb->data, snapsig, sizeof(snapsig))) {
 		/* SNAP frame - collapse it */
 		/* RFC1042/802.1h encapsulated packet.  Treat the SNAP header
@@ -7332,7 +7339,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.71 2004/10/14 01:21:21 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.72 2004/10/19 20:45:25 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
