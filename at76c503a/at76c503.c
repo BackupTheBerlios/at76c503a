@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.52 2004/04/14 22:15:44 jal2 Exp $
+/* $Id: at76c503.c,v 1.53 2004/04/16 19:06:02 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -4944,7 +4944,7 @@ int at76c503_iw_handler_get_scan(struct net_device *netdev,
 		iwe.u.mode = (curr_bss->capa & IEEE802_11_CAPA_IBSS) ? 
 			IW_MODE_ADHOC :
 			(curr_bss->capa & IEEE802_11_CAPA_ESS) ? 
-			IW_MODE_INFRA :
+			IW_MODE_MASTER :
 			IW_MODE_AUTO;
 			// IW_MODE_AUTO = 0 which I thought is 
 			// the most logical value to return in this case
@@ -6417,7 +6417,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.52 2004/04/14 22:15:44 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.53 2004/04/16 19:06:02 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
