@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-i3861.c,v 1.18 2004/01/19 19:43:20 jal2 Exp $
+ * $Id: at76c503-i3861.c,v 1.19 2004/03/07 22:09:41 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using Intersil 3861 radio chips
@@ -106,6 +106,8 @@ Wireless USB Adapter SMC2662W (v1) */
 #define VENDOR_ID_ARESCOM		0xd8e
 #define PRODUCT_ID_WL_210		0x7110 /* Arescom WL-210, 
 						  FCC id 07J-GL2411USB */
+#define VENDOR_ID_IO_DATA		0x04bb
+#define PRODUCT_ID_IO_DATA_WN_B11_USB   0x0919 /* IO-DATA WN-B11/USB */
 
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_503I        ) },
@@ -121,6 +123,7 @@ static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_INTEL,    PRODUCT_ID_INTEL_AP310       ) },
 	{ USB_DEVICE(VENDOR_ID_CONCEPTRONIC,PRODUCT_ID_CONCEPTRONIC_C11U) },
 	{ USB_DEVICE(VENDOR_ID_ARESCOM, PRODUCT_ID_WL_210) },
+	{ USB_DEVICE(VENDOR_ID_IO_DATA, PRODUCT_ID_IO_DATA_WN_B11_USB) },
 	{ }
 };
 
