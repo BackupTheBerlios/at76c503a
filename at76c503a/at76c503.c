@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.21 2003/05/19 21:49:30 jal2 Exp $
+/* $Id: at76c503.c,v 1.22 2003/05/19 22:30:53 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -3349,8 +3349,7 @@ int at76c503_stop(struct net_device *netdev)
 	}
 	spin_unlock_irqrestore(&dev->mgmt_spinlock,flags);
 
-	/* stop bss_list timer and free the bss_list */
-	del_timer_sync(&dev->bss_list_timer);
+	/* free the bss_list */
 	free_bss_list(dev);
 
 	assert(dev->open_count > 0);
@@ -4025,6 +4024,7 @@ void at76c503_delete_device(struct at76c503 *dev)
 		if(dev->ctrl_buffer != NULL)
 			usb_free_urb(dev->ctrl_urb);
 
+		del_timer_sync(&dev->bss_list_timer);
 		free_bss_list(dev);
 
 		for(i=0; i < NR_RX_DATA_BUF; i++)
@@ -4176,7 +4176,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.21 2003/05/19 21:49:30 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.22 2003/05/19 22:30:53 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
