@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.35 2003/07/30 06:31:51 jal2 Exp $
+/* $Id: at76c503.c,v 1.36 2003/12/25 22:40:26 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -99,6 +99,62 @@
 
 #include "at76c503.h"
 #include "ieee802_11.h"
+#include "usbdfu.h"
+
+/* try to make it compile for both 2.4.x and 2.6.x kernels */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
+
+/* number of endpoints of an interface */
+#define NUM_EP(intf) (intf)->altsetting[0].desc.bNumEndpoints
+#define EP(intf,nr) (intf)->altsetting[0].endpoint[(nr)].desc
+#define GET_DEV(udev) usb_get_dev((udev))
+#define PUT_DEV(udev) usb_put_dev((udev))
+#define SET_NETDEV_OWNER(ndev,owner) /* not needed anymore ??? */
+
+static inline int submit_urb(struct urb *urb, int mem_flags) {
+	return usb_submit_urb(urb, mem_flags);
+}
+static inline struct urb *alloc_urb(int iso_pk, int mem_flags) {
+	return usb_alloc_urb(iso_pk, mem_flags);
+}
+
+#else
+
+/* 2.4.x kernels */
+
+#define NUM_EP(intf) (intf)->altsetting[0].bNumEndpoints
+#define EP(intf,nr) (intf)->altsetting[0].endpoint[(nr)]
+
+#define GET_DEV(udev) usb_inc_dev_use((udev))
+#define PUT_DEV(udev) usb_dec_dev_use((udev))
+
+#define SET_NETDEV_DEV(x,y)
+#define SET_NETDEV_OWNER(ndev,owner) ndev->owner = owner
+
+static inline int submit_urb(struct urb *urb, int mem_flags) {
+	return usb_submit_urb(urb);
+}
+static inline struct urb *alloc_urb(int iso_pk, int mem_flags) {
+	return usb_alloc_urb(iso_pk);
+}
+
+static inline void usb_set_intfdata(struct usb_interface *intf, void *data) {}
+
+#endif //#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
+
+
+#ifndef USB_ST_URB_PENDING
+#define USB_ST_URB_PENDING	(-EINPROGRESS)
+#define USB_ST_STALL		(-EPIPE)
+#endif
+
+#ifndef USB_ASYNC_UNLINK
+#define USB_ASYNC_UNLINK	URB_ASYNC_UNLINK
+#endif
+
+#ifndef FILL_BULK_URB
+#define FILL_BULK_URB(a,b,c,d,e,f,g) usb_fill_bulk_urb(a,b,c,d,e,f,g)
+#endif
 
 /* debug bits */
 #define DBG_PROGRESS        0x000001 /* progress of scan-join-(auth-assoc)-connected */
@@ -127,7 +183,7 @@
 #define DBG_BSS_TABLE_RM    0x800000 /* inform on removal of old bss table entries */
 
 #ifdef CONFIG_USB_DEBUG
-#define DBG_DEFAULTS (DBG_PROGRESS | DBG_PARAMS | DBG_BSS_TABLE)
+#define DBG_DEFAULTS (DBG_PROGRESS | DBG_PARAMS | DBG_BSS_TABLE | DBG_DEVSTART)
 #else
 #define DBG_DEFAULTS 0
 #endif
@@ -361,6 +417,9 @@ struct ieee802_11_deauth_frame {
 #define KEVENT_ASSOC_DONE  10 /* execute the power save settings:
 			     listen interval, pm mode, assoc id */
 
+#define KEVENT_EXTERNAL_FW 11
+#define KEVENT_INTERNAL_FW 12
+
 static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 
 static u8 snapsig[] = {0xaa, 0xaa, 0x03};
@@ -389,6 +448,17 @@ static int reassoc_req(struct at76c503 *dev, struct bss_info *curr,
 static void dump_bss_table(struct at76c503 *dev, int force_output);
 static int submit_rx_urb(struct at76c503 *dev);
 static int startup_device(struct at76c503 *dev);
+
+int update_usb_intf_descr(struct usb_device *dev);
+
+/* disassemble the firmware image */
+static int at76c503_get_fw_info(u8 *fw_data, int fw_size,
+				u32 *board, u32 *version, char **str,
+				u8 **ext_fw, u32 *ext_fw_size,
+				u8 **int_fw, u32 *int_fw_size);
+
+/* second step of initialisation (after fw download) */
+static int init_new_device(struct at76c503 *dev);
 
 /* hexdump len many bytes from buf into obuf, separated by delim,
    add a trailing \0 into obuf */
@@ -437,22 +507,249 @@ static inline char *mac2str(u8 *mac)
 	return str;
 }
 
-static inline void usb_debug_data (const char *function, const unsigned char *data, int size)
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
+/* == PROC update_usb_intf_descr ==
+   currently (2.6.0-test2) usb_reset_device() does not recognize that
+   the interface descr. are changed.
+   This procedure reads the configuration and does a limited parsing of
+   the interface and endpoint descriptors.
+   This is IMHO needed until usb_reset_device() is changed inside the
+   kernel's USB subsystem.
+   Copied from usb/core/config.c:usb_get_configuration()
+
+   THIS IS VERY UGLY CODE - DO NOT COPY IT ! */
+
+#define AT76C503A_USB_CONFDESCR_LEN 0x20
+/* the short configuration descriptor before reset */
+//#define AT76C503A_USB_SHORT_CONFDESCR_LEN 0x19
+
+int update_usb_intf_descr(struct usb_device *dev)
 {
+	/* the expected config descr. (two endpoints (bulk in/out) in one interface) */
+	static const u8 expected_cfg_descr[] = 
+		{0x09, 0x02, 0x20, 0x00, 0x01, 0x01, 0x00, 0x80,
+		 0xFA, 0x09, 0x04, 0x00, 0x00, 0x02, 0xFF, 0x00,
+		 0xFF, 0x00, 0x07, 0x05, 0x85, 0x02, 0x40, 0x00,
+		 0x00, 0x07, 0x05, 0x02, 0x02, 0x40, 0x00, 0x00};
+	static const u8 intf0 = 9; /* begin of intf desc in above field */ 
+	static const u8 ep0 = 18, ep1 = 25; /* offsets of endpoint descriptors in the above array */
+
+	struct usb_config_descriptor *cfg_desc;
+	int result = 0, size;
+	u8 *buffer;
+	char obuf[2*AT76C503A_USB_CONFDESCR_LEN+1] __attribute__ ((unused));
+	struct usb_host_interface *ifp;
 	int i;
 
-	if (!debug)
-		return;
-	
-	printk (KERN_DEBUG __FILE__": %s - length = %d, data = ", 
-		function, size);
-	for (i = 0; i < size; ++i) {
-		if((i % 8) == 0)
-			printk ("\n");
-		printk ("%.2x ", data[i]);
+	dbg(DBG_DEVSTART, "%s: ENTER", __FUNCTION__);
+
+	cfg_desc = (struct usb_config_descriptor *)
+		kmalloc(AT76C503A_USB_CONFDESCR_LEN, GFP_KERNEL);
+	if (!cfg_desc) {
+		err("cannot kmalloc config desc");
+		return -ENOMEM;
 	}
-	printk ("\n");
-}
+
+	result = usb_get_descriptor(dev, USB_DT_CONFIG, 0,
+				    cfg_desc, AT76C503A_USB_CONFDESCR_LEN);
+	if (result < AT76C503A_USB_CONFDESCR_LEN) {
+		if (result < 0)
+			err("unable to get descriptor");
+		else {
+			err("config descriptor too short (expected >= %i, got %i)",
+			    AT76C503A_USB_CONFDESCR_LEN, result);
+			result = -EINVAL;
+		}
+		goto err;
+	}
+
+	/* now check the config descriptor */
+	le16_to_cpus(&cfg_desc->wTotalLength);
+	size = cfg_desc->wTotalLength;
+	buffer = (u8 *)cfg_desc;
+	
+	if (cfg_desc->bNumInterfaces > 1) {
+		err("found %d interfaces", cfg_desc->bNumInterfaces);
+		result = - EINVAL;
+		goto err;
+	}
+
+	if (memcmp(buffer,expected_cfg_descr, sizeof(expected_cfg_descr))) {
+		err("got unexp. config desc %s",
+		    hex2str(obuf, (u8 *)cfg_desc, size, '\0'));
+		result = - EINVAL;
+		goto err;
+	}
+
+	/* we got the correct config descriptor - update the interface's endpoints */
+	ifp = &dev->actconfig->interface[0]->altsetting[0];
+
+	if (ifp->endpoint)
+		kfree(ifp->endpoint);
+
+	memcpy(&ifp->desc, expected_cfg_descr+intf0, USB_DT_INTERFACE_SIZE);
+
+	if (!(ifp->endpoint = kmalloc(2 * sizeof(struct usb_host_endpoint), GFP_KERNEL))) {
+		result = -ENOMEM;
+		goto err;
+	}
+	memset(ifp->endpoint, 0, 2 * sizeof(struct usb_host_endpoint));
+	memcpy(&ifp->endpoint[0].desc, expected_cfg_descr+ep0, USB_DT_ENDPOINT_SIZE);
+	le16_to_cpus(&ifp->endpoint[0].desc.wMaxPacketSize);
+	memcpy(&ifp->endpoint[1].desc, expected_cfg_descr+ep1, USB_DT_ENDPOINT_SIZE);
+	le16_to_cpus(&ifp->endpoint[1].desc.wMaxPacketSize);
+
+	/* we must set the max packet for the new ep (see usb_set_maxpacket() ) */
+
+#define usb_endpoint_out(ep_dir)	(!((ep_dir) & USB_DIR_IN))
+	for(i=0; i < ifp->desc.bNumEndpoints; i++) {
+		struct usb_endpoint_descriptor	*d = &ifp->endpoint[i].desc;		
+		int b = d->bEndpointAddress & USB_ENDPOINT_NUMBER_MASK;
+		if (usb_endpoint_out(d->bEndpointAddress)) {
+			if (d->wMaxPacketSize > dev->epmaxpacketout[b])
+				dev->epmaxpacketout[b] = d->wMaxPacketSize;
+		} else {
+			if (d->wMaxPacketSize > dev->epmaxpacketin[b])
+				dev->epmaxpacketin[b] = d->wMaxPacketSize;
+		}
+	}
+			     
+	dbg(DBG_DEVSTART, "%s: ifp %p num_altsetting %d endpoint addr x%x, x%x", __FUNCTION__,
+	    ifp, dev->actconfig->interface[0]->num_altsetting,
+	    ifp->endpoint[0].desc.bEndpointAddress,
+	    ifp->endpoint[1].desc.bEndpointAddress);
+	result = 0;
+err:
+	kfree(cfg_desc);
+	dbg(DBG_DEVSTART, "%s: EXIT with %d", __FUNCTION__, result);
+	return result;
+} /* update_usb_intf_descr */
+
+#else
+
+/* 2.4.x version */
+/* == PROC update_usb_intf_descr ==
+   currently (2.4.23) usb_reset_device() does not recognize that
+   the interface descr. are changed.
+   This procedure reads the configuration and does a limited parsing of
+   the interface and endpoint descriptors.
+   This is IMHO needed until usb_reset_device() is changed inside the
+   kernel's USB subsystem.
+   Copied from usb/core/config.c:usb_get_configuration()
+
+   THIS IS VERY UGLY CODE - DO NOT COPY IT ! */
+
+#define AT76C503A_USB_CONFDESCR_LEN 0x20
+/* the short configuration descriptor before reset */
+//#define AT76C503A_USB_SHORT_CONFDESCR_LEN 0x19
+
+int update_usb_intf_descr(struct usb_device *dev)
+{
+	/* the expected config descr. (two endpoints (bulk in/out) in one interface) */
+	static const u8 expected_cfg_descr[] = 
+		{0x09, 0x02, 0x20, 0x00, 0x01, 0x01, 0x00, 0x80,
+		 0xFA, 0x09, 0x04, 0x00, 0x00, 0x02, 0xFF, 0x00,
+		 0xFF, 0x00, 0x07, 0x05, 0x85, 0x02, 0x40, 0x00,
+		 0x00, 0x07, 0x05, 0x02, 0x02, 0x40, 0x00, 0x00};
+	static const u8 intf0 = 9; /* begin of intf desc in above field */ 
+	static const u8 ep0 = 18, ep1 = 25; /* offsets of endpoint descriptors in the above array */
+
+	struct usb_config_descriptor *cfg_desc;
+	int result = 0, size;
+	u8 *buffer;
+	char obuf[2*AT76C503A_USB_CONFDESCR_LEN+1] __attribute__ ((unused));
+	struct usb_interface_descriptor *ifp;
+	int i;
+
+	dbg(DBG_DEVSTART, "%s: ENTER", __FUNCTION__);
+
+	cfg_desc = (struct usb_config_descriptor *)
+		kmalloc(AT76C503A_USB_CONFDESCR_LEN, GFP_KERNEL);
+	if (!cfg_desc) {
+		err("cannot kmalloc config desc");
+		return -ENOMEM;
+	}
+
+	result = usb_get_descriptor(dev, USB_DT_CONFIG, 0,
+				    cfg_desc, AT76C503A_USB_CONFDESCR_LEN);
+	if (result < AT76C503A_USB_CONFDESCR_LEN) {
+		if (result < 0)
+			err("unable to get descriptor");
+		else {
+			err("config descriptor too short (expected >= %i, got %i)",
+			    AT76C503A_USB_CONFDESCR_LEN, result);
+			result = -EINVAL;
+		}
+		goto err;
+	}
+
+	/* now check the config descriptor */
+	le16_to_cpus(&cfg_desc->wTotalLength);
+	size = cfg_desc->wTotalLength;
+	buffer = (u8 *)cfg_desc;
+	
+	if (cfg_desc->bNumInterfaces > 1) {
+		err("found %d interfaces", cfg_desc->bNumInterfaces);
+		result = - EINVAL;
+		goto err;
+	}
+
+	if (memcmp(buffer,expected_cfg_descr, sizeof(expected_cfg_descr))) {
+		err("got unexp. config desc %s",
+		    hex2str(obuf, (u8 *)cfg_desc, size, '\0'));
+		result = - EINVAL;
+		goto err;
+	}
+
+	/* we got the correct config descriptor - update the interface's endpoints */
+	ifp = &dev->actconfig->interface[0].altsetting[0];
+
+	if (ifp->endpoint)
+		kfree(ifp->endpoint);
+
+	//memcpy(&ifp->desc, expected_cfg_descr+intf0, USB_DT_INTERFACE_SIZE);
+
+	if (!(ifp->endpoint = kmalloc(2 * sizeof(struct usb_endpoint_descriptor), GFP_KERNEL))) {
+		result = -ENOMEM;
+		goto err;
+	}
+
+	memset(ifp->endpoint, 0, 2 * sizeof(struct usb_endpoint_descriptor));
+	memcpy(&ifp->endpoint[0], expected_cfg_descr+ep0, USB_DT_ENDPOINT_SIZE);
+	le16_to_cpus(&ifp->endpoint[0].desc.wMaxPacketSize);
+	memcpy(&ifp->endpoint[1], expected_cfg_descr+ep1, USB_DT_ENDPOINT_SIZE);
+	le16_to_cpus(&ifp->endpoint[1].desc.wMaxPacketSize);
+
+	/* fill the interface data */
+	memcpy(ifp,expected_cfg_descr+intf0, USB_DT_INTERFACE_SIZE);
+
+	/* we must set the max packet for the new ep (see usb_set_maxpacket() ) */
+
+	for(i=0; i < ifp->bNumEndpoints; i++) {
+		struct usb_endpoint_descriptor	*d = &ifp->endpoint[i];		
+		int b = d->bEndpointAddress & USB_ENDPOINT_NUMBER_MASK;
+		if (usb_endpoint_out(d->bEndpointAddress)) {
+			if (d->wMaxPacketSize > dev->epmaxpacketout[b])
+				dev->epmaxpacketout[b] = d->wMaxPacketSize;
+		} else {
+			if (d->wMaxPacketSize > dev->epmaxpacketin[b])
+				dev->epmaxpacketin[b] = d->wMaxPacketSize;
+		}
+	}
+			     
+	dbg(DBG_DEVSTART, "%s: ifp %p num_altsetting %d endpoint addr x%x, x%x", __FUNCTION__,
+	    ifp, dev->actconfig->interface[0].num_altsetting,
+	    ifp->endpoint[0].bEndpointAddress,
+	    ifp->endpoint[1].bEndpointAddress);
+	result = 0;
+err:
+	kfree(cfg_desc);
+	dbg(DBG_DEVSTART, "%s: EXIT with %d", __FUNCTION__, result);
+	return result;
+} /* update_usb_intf_descr */
+#endif //#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
+
 
 int at76c503_remap(struct usb_device *udev)
 {
@@ -467,8 +764,8 @@ int at76c503_remap(struct usb_device *udev)
 	return 0;
 }
 
-static inline
-int get_op_mode(struct usb_device *udev)
+
+static int get_op_mode(struct usb_device *udev)
 {
 	int ret;
 	u8 op_mode;
@@ -541,6 +838,7 @@ static int get_hw_config(struct at76c503 *dev)
 		dev->regulatory_domain = hwcfg->i.regulatory_domain;
 		break;
 	  case BOARDTYPE_RFMD:
+	  case BOARDTYPE_RFMD_ACC:
 		ret = get_hw_cfg_rfmd(dev->udev, (unsigned char *)&hwcfg->r3, sizeof(hwcfg->r3));
 		if (ret < 0) break;
 		memcpy(dev->cr20_values, hwcfg->r3.cr20_values, 14);
@@ -624,34 +922,18 @@ int get_cmd_status(struct usb_device *udev,
 }
 
 #define EXT_FW_BLOCK_SIZE 1024
-int at76c503_download_external_fw(struct usb_device *udev, u8 *buf, int size)
+static int download_external_fw(struct usb_device *udev, u8 *buf, int size)
 {
 	int i = 0, ret = 0;
-	u8 op_mode;
 	u8 *block;
 
 	if (size < 0) return -EINVAL;
 	if ((size > 0) && (buf == NULL)) return -EFAULT;
 
-	op_mode = get_op_mode(udev);
-	if (op_mode <= 0) {
-		err("Internal firmware not loaded (%d)", op_mode);
-		return -EPROTO;
-	} 
-	if (op_mode == OPMODE_NETCARD) {
-		/* don't need firmware downloaded, it's already ready to go */
-		return 0;
-	}
-	if (op_mode != OPMODE_NOFLASHNETCARD) {
-		dbg(DBG_DEVSTART, 
-		    "Unexpected operating mode (%d)."
-		    "Attempting to download firmware anyway.", op_mode);
-	}
-
 	block = kmalloc(EXT_FW_BLOCK_SIZE, GFP_KERNEL);
 	if (block == NULL) return -ENOMEM;
 
-	dbg(DBG_DEVSTART, "Downloading external firmware...");
+	dbg(DBG_DEVSTART, "downloading external firmware");
 
 	while(size > 0){
 		int bsize = size > EXT_FW_BLOCK_SIZE ? EXT_FW_BLOCK_SIZE : size;
@@ -1254,6 +1536,14 @@ int join_bss(struct at76c503 *dev, struct bss_info *ptr)
 				sizeof(struct at76c503_join));
 } /* join_bss */
 
+/* the firmware download timeout (after remap) */
+void fw_dl_timeout(unsigned long par)
+{
+	struct at76c503 *dev = (struct at76c503 *)par;
+	defer_kevent(dev, KEVENT_EXTERNAL_FW);
+}
+
+
 /* the restart timer timed out */
 void restart_timeout(unsigned long par)
 {
@@ -1470,8 +1760,8 @@ int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf)
 			      le16_to_cpu(txbuf->wlength) + 
 			      le16_to_cpu(txbuf->padding) +
 			      AT76C503_TX_HDRLEN,
-			      at76c503_write_bulk_callback, dev);
-		ret = usb_submit_urb(dev->write_urb);
+			      (usb_complete_t)at76c503_write_bulk_callback, dev);
+		ret = submit_urb(dev->write_urb, GFP_ATOMIC);
 		if (ret) {
 			err("%s: %s error in tx submit urb: %d",
 			    dev->netdev->name, __FUNCTION__, ret);
@@ -1750,12 +2040,60 @@ int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
 
 } /* reassoc_req */
 
+#if 0
+/* == PROC re_register_intf ==
+   re-register the interfaces with the driver core. Taken from
+   usb.c:usb_new_device() after the call to usb_get_configuration() */
+int re_register_intf(struct usb_device *dev)
+{
+	int i;
+
+	dbg(DBG_DEVSTART, "%s: ENTER", __FUNCTION__);
+
+	/* Register all of the interfaces for this device with the driver core.
+	 * Remember, interfaces get bound to drivers, not devices. */
+	for (i = 0; i < dev->actconfig->desc.bNumInterfaces; i++) {
+		struct usb_interface *interface = &dev->actconfig->interface[i];
+		struct usb_interface_descriptor *desc;
+
+		desc = &interface->altsetting [interface->act_altsetting].desc;
+		interface->dev.parent = &dev->dev;
+		interface->dev.driver = NULL;
+		interface->dev.bus = dev->dev.bus; /* &usb_bus_type */
+		interface->dev.dma_mask = dev->dev.parent->dma_mask;
+		sprintf (&interface->dev.bus_id[0], "%d-%s:%d",
+			 dev->bus->busnum, dev->devpath,
+			 desc->bInterfaceNumber);
+		if (!desc->iInterface
+		    || usb_string (dev, desc->iInterface,
+				   interface->dev.name,
+				   sizeof interface->dev.name) <= 0) {
+			/* typically devices won't bother with interface
+			 * descriptions; this is the normal case.  an
+			 * interface's driver might describe it better.
+			 * (also: iInterface is per-altsetting ...)
+			 */
+			sprintf (&interface->dev.name[0],
+				 "usb-%s-%s interface %d",
+				 dev->bus->bus_name, dev->devpath,
+				 desc->bInterfaceNumber);
+		}
+		dev_dbg (&dev->dev, "%s - registering interface %s\n", __FUNCTION__,
+			 interface->dev.bus_id);
+		device_add (&interface->dev);
+//		usb_create_driverfs_intf_files (interface);
+	}
+
+	dbg(DBG_DEVSTART, "%s: EXIT", __FUNCTION__);
+	return 0;
+} /* re_register_intf */
+#endif
 
 /* shamelessly copied from usbnet.c (oku) */
 static void defer_kevent (struct at76c503 *dev, int flag)
 {
 	set_bit (flag, &dev->kevent_flags);
-	if (!schedule_task (&dev->kevent))
+	if (!schedule_work (&dev->kevent))
 		dbg(DBG_KEVENT, "%s: kevent %d may have been dropped",
 		     dev->netdev->name, flag);
 	else
@@ -1774,7 +2112,7 @@ kevent(void *data)
 	   is done. So work will be done next time something
 	   else has to be done. This is ugly. TODO! (oku) */
 
-	dbg(DBG_KEVENT, "%s: kevent entry flags=x%x", dev->netdev->name,
+	dbg(DBG_KEVENT, "%s: kevent entry flags=x%lx", dev->netdev->name,
 	    dev->kevent_flags);
 
 	down(&dev->sem);
@@ -1802,8 +2140,6 @@ kevent(void *data)
 			err("%s: get_mib failed: %d", netdev->name, ret);
 			goto new_bss_clean;
 		}
-		//    usb_debug_data(__FUNCTION__, (unsigned char *)mac_mgmt, sizeof(struct mib_mac_mgmt));
-
 
 		dbg(DBG_PROGRESS, "ibss_change = 0x%2x", mac_mgmt->ibss_change);
 		memcpy(dev->bssid, mac_mgmt->current_bssid, ETH_ALEN);
@@ -2057,9 +2393,79 @@ end_scan:
 		    dev->netdev->name, mac2str(dev->curr_bss->bssid));
 	}
 
+	/* must come _before_ KEVENT_INTERNAL_FW, because it got its bit
+	   set there ! */
+	if (test_bit(KEVENT_EXTERNAL_FW, &dev->kevent_flags)) {
+		u8 op_mode;
+
+		clear_bit(KEVENT_EXTERNAL_FW, &dev->kevent_flags);
+
+		dbg(DBG_DEVSTART, "resetting the device");
+
+		usb_reset_device(dev->udev);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
+		//jal: patch the state (patch by Dmitri)
+		dev->udev->state = USB_STATE_CONFIGURED;
+#endif
+
+		/* jal: currently (2.6.0-test2 and 2.4.23) 
+		   usb_reset_device() does not recognize that
+		   the interface descr. are changed.
+		   This procedure reads the configuration and does a limited parsing of
+		   the interface and endpoint descriptors */
+		update_usb_intf_descr(dev->udev);
+
+		op_mode = get_op_mode(dev->udev);
+		dbg(DBG_DEVSTART, "opmode %d", op_mode);
+	
+		if (op_mode != OPMODE_NORMAL_NIC_WITHOUT_FLASH) {
+			err("unexpected opmode %d", op_mode);
+			goto end_external_fw;
+		}
+
+		if (dev->extfw && dev->extfw_size) {
+			ret = download_external_fw(dev->udev, dev->extfw,
+						   dev->extfw_size);
+			if (ret < 0) {
+				err("Downloading external firmware failed: %d", ret);
+				goto end_external_fw;
+			}
+		}
+		NEW_STATE(dev,INIT);
+		init_new_device(dev);
+	}
+end_external_fw:
+
+	if (test_bit(KEVENT_INTERNAL_FW, &dev->kevent_flags)) {
+		clear_bit(KEVENT_INTERNAL_FW, &dev->kevent_flags);
+
+		dbg(DBG_DEVSTART, "downloading internal firmware");
+
+		ret=usbdfu_download(dev->udev, dev->intfw,
+				    dev->intfw_size);
+
+		if (ret < 0) {
+			err("downloading internal fw failed with %d",ret);
+			goto end_internal_fw;
+		}
+ 
+		dbg(DBG_DEVSTART, "sending REMAP");
+
+		if ((ret=at76c503_remap(dev->udev)) < 0) {
+			err("sending REMAP failed with %d",ret);
+			goto end_internal_fw;
+		}
+
+		dbg(DBG_DEVSTART, "sleeping for 2 seconds");
+		NEW_STATE(dev,EXTFW_DOWNLOAD);
+		mod_timer(&dev->fw_dl_timer, jiffies+2*HZ+1);
+	}
+end_internal_fw:
+
 	up(&dev->sem);
 
-	dbg(DBG_KEVENT, "%s: kevent exit flags=x%x", dev->netdev->name,
+	dbg(DBG_KEVENT, "%s: kevent exit flags=x%lx", dev->netdev->name,
 	    dev->kevent_flags);
 
 	return;
@@ -3068,6 +3474,11 @@ static int submit_rx_urb(struct at76c503 *dev)
 {
 	int ret, size;
 	struct sk_buff *skb = dev->rx_skb;
+	
+	if (dev->read_urb == NULL) {
+		err("%s: dev->read_urb is NULL", __FUNCTION__);
+		return -EFAULT;
+	}
 
 	if (skb == NULL) {
 		skb = dev_alloc_skb(sizeof(struct at76c503_rx_buffer));
@@ -3086,22 +3497,27 @@ static int submit_rx_urb(struct at76c503 *dev)
 	usb_fill_bulk_urb(dev->read_urb, dev->udev,
 		usb_rcvbulkpipe(dev->udev, dev->bulk_in_endpointAddr),
 		skb_put(skb, size), size,
-		at76c503_read_bulk_callback, dev);
-	ret = usb_submit_urb(dev->read_urb);
-	if (ret < 0) {
-		err("%s: rx, usb_submit_urb failed: %d", dev->netdev->name, ret);
+		(usb_complete_t)at76c503_read_bulk_callback, dev);
+	ret = submit_urb(dev->read_urb, GFP_ATOMIC);
+	if (ret < 0) { 
+		if (ret == -ENODEV) 
+			dbg(DBG_DEVSTART, "usb_submit_urb returned -ENODEV");
+		else
+			err("%s: rx, usb_submit_urb failed: %d", dev->netdev->name, ret);
 	}
 
 exit:
 	if (ret < 0) {
-		/* If we can't submit the URB, the adapter becomes completely
-		 * useless, so try again later */
-		if (--dev->nr_submit_rx_tries > 0)
-			defer_kevent(dev, KEVENT_SUBMIT_RX);
-		else {
-			err("%s: giving up to submit rx urb after %d failures -"
-			    " please unload the driver and/or power cycle the device",
-			    dev->netdev->name, NR_SUBMIT_RX_TRIES);
+		if (ret != -ENODEV) {
+			/* If we can't submit the URB, the adapter becomes completely
+		 	* useless, so try again later */
+			if (--dev->nr_submit_rx_tries > 0)
+				defer_kevent(dev, KEVENT_SUBMIT_RX);
+			else {
+				err("%s: giving up to submit rx urb after %d failures -"
+			    	    " please unload the driver and/or power cycle the device",
+			    	    dev->netdev->name, NR_SUBMIT_RX_TRIES);
+			}
 		}
 	} else
 		/* reset counter to initial value */
@@ -3131,20 +3547,41 @@ static void at76c503_read_bulk_callback (struct urb *urb)
 static void rx_tasklet(unsigned long param)
 {
 	struct at76c503 *dev = (struct at76c503 *)param;
-	struct urb *urb = dev->rx_urb;
-	struct net_device *netdev = (struct net_device *)dev->netdev;
-	struct at76c503_rx_buffer *buf = (struct at76c503_rx_buffer *)dev->rx_skb->data;
-	struct ieee802_11_hdr *i802_11_hdr = (struct ieee802_11_hdr *)buf->packet;
-	u16 frame_ctl = le16_to_cpu(i802_11_hdr->frame_ctl);
+	struct urb *urb;
+	struct net_device *netdev;
+	struct at76c503_rx_buffer *buf;
+	struct ieee802_11_hdr *i802_11_hdr;
+	u16 frame_ctl;
 
-	if(!urb) return; // paranoid
+	if (!dev) return;
+	urb = dev->rx_urb;
+	netdev = (struct net_device *)dev->netdev;
+
+	if (dev->flags & AT76C503A_UNPLUG) {
+		dbg_uc("flag UNPLUG set");
+		if (urb)
+			dbg_uc("urb status %d",urb->status);
+		return;
+	}
+
+
+	if(!urb || !dev->rx_skb || !netdev || !dev->rx_skb->data) return; // paranoid
+
+	buf = (struct at76c503_rx_buffer *)dev->rx_skb->data;
+
+	if (!buf) return;
+
+	i802_11_hdr = (struct ieee802_11_hdr *)buf->packet;
+	if (!i802_11_hdr) return;
+
+	frame_ctl = le16_to_cpu(i802_11_hdr->frame_ctl);
 
 	if(urb->status != 0){
 		if ((urb->status != -ENOENT) && 
 		    (urb->status != -ECONNRESET)) {
 			dbg(DBG_URB,"%s %s: - nonzero read bulk status received: %d",
 			    __FUNCTION__, netdev->name, urb->status);
-			goto next_urb;
+			goto no_more_urb;
 		}
 		return;
 	}
@@ -3191,6 +3628,7 @@ static void rx_tasklet(unsigned long param)
 
  next_urb:
 	submit_rx_urb(dev);
+ no_more_urb:
 	return;
 }
 
@@ -3231,8 +3669,8 @@ static void at76c503_write_bulk_callback (struct urb *urb)
 			      le16_to_cpu(mgmt_buf->wlength) + 
 			      le16_to_cpu(mgmt_buf->padding) +
 			      AT76C503_TX_HDRLEN,
-			      at76c503_write_bulk_callback, dev);
-		ret = usb_submit_urb(dev->write_urb);
+			      (usb_complete_t)at76c503_write_bulk_callback, dev);
+		ret = submit_urb(dev->write_urb, GFP_ATOMIC);
 		if (ret) {
 			err("%s: %s error in tx submit urb: %d",
 			    dev->netdev->name, __FUNCTION__, ret);
@@ -3317,8 +3755,8 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	FILL_BULK_URB(dev->write_urb, dev->udev,
 		      usb_sndbulkpipe(dev->udev, dev->bulk_out_endpointAddr),
 		      tx_buffer, submit_len,
-		      at76c503_write_bulk_callback, dev);
-	ret = usb_submit_urb(dev->write_urb);
+		      (usb_complete_t)at76c503_write_bulk_callback, dev);
+	ret = submit_urb(dev->write_urb, GFP_ATOMIC);
 	if(ret){
 		stats->tx_errors++;
 		err("%s: error in tx submit urb: %d", netdev->name, ret);
@@ -3505,16 +3943,25 @@ int at76c503_stop(struct net_device *netdev)
 	struct at76c503 *dev = (struct at76c503 *)(netdev->priv);
 	unsigned long flags;
 
+	dbg(DBG_DEVSTART, "%s: ENTER", __FUNCTION__);
+
 	if (down_interruptible(&dev->sem))
 		return -EINTR;
 
 	netif_stop_queue(netdev);
 
-	set_radio(dev, 0);
+  	NEW_STATE(dev,INIT);
 
-	usb_unlink_urb(dev->read_urb);
-	usb_unlink_urb(dev->write_urb);
-	usb_unlink_urb(dev->ctrl_urb);
+	if (!(dev->flags & AT76C503A_UNPLUG)) {
+		/* we are called by "ifconfig wlanX down", not because the
+		   device isn't avail. anymore */	
+		set_radio(dev, 0);
+
+		/* we unlink the read urb, because the _open()
+		   submits it again. _delete_device() takes care of the
+		   read_urb otherwise. */
+		usb_unlink_urb(dev->read_urb);
+	}
 
 	del_timer_sync(&dev->mgmt_timer);
 
@@ -3532,6 +3979,8 @@ int at76c503_stop(struct net_device *netdev)
 	dev->open_count--;
 
 	up(&dev->sem);
+
+	dbg(DBG_DEVSTART, "%s: EXIT", __FUNCTION__);
 
 	return 0;
 }
@@ -3686,7 +4135,7 @@ static int ethtool_ioctl(struct at76c503 *dev, void *useraddr)
 	case ETHTOOL_GDRVINFO:
 	{
 		struct ethtool_drvinfo info = { ETHTOOL_GDRVINFO };
-		strncpy(info.driver, dev->netdev->owner->name, 
+		strncpy(info.driver, "at76c503", 
 			sizeof(info.driver)-1);
 		
 		strncpy(info.version, DRIVER_VERSION, sizeof(info.version));
@@ -4330,8 +4779,8 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		/* do the restart after two seconds to catch
 		   following ioctl's (from more params of iwconfig)
 		   in _one_ restart */
-		mod_timer(&dev->restart_timer, jiffies+2*HZ);
-	}
+	mod_timer(&dev->restart_timer, jiffies+2*HZ);
+}
 #endif
 	up(&dev->sem);
 	return ret;
@@ -4340,60 +4789,90 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 void at76c503_delete_device(struct at76c503 *dev)
 {
 	int i;
+	int sem_taken;
 
-	if(dev){
-		int sem_taken;
-		if ((sem_taken=down_trylock(&rtnl_sem)) != 0)
-			info("%s: rtnl_sem already down'ed", __FUNCTION__);
-		unregister_netdevice(dev->netdev);
-		if (!sem_taken)
-			rtnl_unlock();
+	if (!dev) 
+		return;
 
-		// assuming we used keventd, it must quiesce too
-		flush_scheduled_tasks ();
 
-		if(dev->bulk_out_buffer != NULL)
-			kfree(dev->bulk_out_buffer);
-		if(dev->ctrl_buffer != NULL)
-			kfree(dev->ctrl_buffer);
+	dbg_uc("%s: ENTER",__FUNCTION__);
+	if ((sem_taken=down_trylock(&rtnl_sem)) != 0)
+		info("%s: rtnl_sem already down'ed", __FUNCTION__);
 
-		if(dev->write_urb != NULL)
-			usb_free_urb(dev->write_urb);
-		if(dev->read_urb != NULL)
-			usb_free_urb(dev->read_urb);
-		if(dev->rx_skb != NULL)
-			kfree_skb(dev->rx_skb);
-		if(dev->ctrl_buffer != NULL)
-			usb_free_urb(dev->ctrl_urb);
+        /* signal to _stop() that the device is gone */
+	dev->flags |= AT76C503A_UNPLUG; 
 
-		del_timer_sync(&dev->bss_list_timer);
-		free_bss_list(dev);
+	/* synchronously calls at76c503a_stop() */
+	unregister_netdevice(dev->netdev);
 
-		for(i=0; i < NR_RX_DATA_BUF; i++)
-			if (dev->rx_data[i].skb != NULL) {
-				dev_kfree_skb(dev->rx_data[i].skb);
-				dev->rx_data[i].skb = NULL;
-			}
-		kfree (dev->netdev); /* dev is in net_dev */ 
+	if (!sem_taken)
+		rtnl_unlock();
+
+	PUT_DEV(dev->udev);
+
+	// assuming we used keventd, it must quiesce too
+	flush_scheduled_work ();
+
+	if(dev->bulk_out_buffer != NULL)
+		kfree(dev->bulk_out_buffer);
+
+	kfree(dev->ctrl_buffer);
+
+	if(dev->write_urb != NULL) {
+		usb_unlink_urb(dev->write_urb);
+		usb_free_urb(dev->write_urb);
 	}
+	if(dev->read_urb != NULL) {
+		usb_unlink_urb(dev->read_urb);
+		usb_free_urb(dev->read_urb);
+	}
+	if(dev->ctrl_buffer != NULL) {
+		usb_unlink_urb(dev->ctrl_urb);
+		usb_free_urb(dev->ctrl_urb);
+	}
+
+	dbg_uc("%s: unlinked urbs",__FUNCTION__);
+
+	if(dev->rx_skb != NULL)
+		kfree_skb(dev->rx_skb);
+
+	free_bss_list(dev);
+	del_timer_sync(&dev->bss_list_timer);
+
+	for(i=0; i < NR_RX_DATA_BUF; i++)
+		if (dev->rx_data[i].skb != NULL) {
+			dev_kfree_skb(dev->rx_data[i].skb);
+			dev->rx_data[i].skb = NULL;
+		}
+	dbg_uc("%s: before freeing dev/netdev", __FUNCTION__);
+	kfree (dev->netdev); /* dev is in net_dev */ 
+	dbg_uc("%s: EXIT", __FUNCTION__);
 }
 
 static int at76c503_alloc_urbs(struct at76c503 *dev)
 {
 	struct usb_interface *interface = dev->interface;
-	struct usb_interface_descriptor *iface_desc = &interface->altsetting[0];
+//	struct usb_host_interface *iface_desc = &interface->altsetting[0];
 	struct usb_endpoint_descriptor *endpoint;
 	struct usb_device *udev = dev->udev;
 	int i, buffer_size;
 
-	for(i = 0; i < iface_desc->bNumEndpoints; i++) {
-		endpoint = &iface_desc->endpoint[i];
+	dbg_uc("%s: ENTER, interface->altsetting[0].desc.bNumEndpoints %d ",
+	       __FUNCTION__, NUM_EP(interface));
+
+	for(i = 0; i < NUM_EP(interface); i++) {
+		endpoint = &EP(interface,i);
+
+		dbg_uc("%s: %d. endpoint: addr x%x attr x%x", __FUNCTION__,
+		       i,
+		       endpoint->bEndpointAddress,
+		       endpoint->bmAttributes);
 
 		if ((endpoint->bEndpointAddress & 0x80) &&
 		    ((endpoint->bmAttributes & 3) == 0x02)) {
 			/* we found a bulk in endpoint */
 
-			dev->read_urb = usb_alloc_urb(0);
+			dev->read_urb = alloc_urb(0, GFP_KERNEL);
 			if (!dev->read_urb) {
 				err("No free urbs available");
 				return -1;
@@ -4404,7 +4883,7 @@ static int at76c503_alloc_urbs(struct at76c503 *dev)
 		if (((endpoint->bEndpointAddress & 0x80) == 0x00) &&
 		    ((endpoint->bmAttributes & 3) == 0x02)) {
 			/* we found a bulk out endpoint */
-			dev->write_urb = usb_alloc_urb(0);
+			dev->write_urb = alloc_urb(0, GFP_KERNEL);
 			if (!dev->write_urb) {
 				err("no free urbs available");
 				return -1;
@@ -4422,11 +4901,11 @@ static int at76c503_alloc_urbs(struct at76c503 *dev)
 				      usb_sndbulkpipe(udev, 
 						      endpoint->bEndpointAddress),
 				      dev->bulk_out_buffer, buffer_size,
-				      at76c503_write_bulk_callback, dev);
+				      (usb_complete_t)at76c503_write_bulk_callback, dev);
 		}
 	}
 
-	dev->ctrl_urb = usb_alloc_urb(0);
+	dev->ctrl_urb = alloc_urb(0, GFP_KERNEL);
 	if (!dev->ctrl_urb) {
 		err("no free urbs available");
 		return -1;
@@ -4440,19 +4919,18 @@ static int at76c503_alloc_urbs(struct at76c503 *dev)
 	return 0;
 }
 
-struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
+struct at76c503 *alloc_new_device(struct usb_device *udev, int board_type,
 				     const char *netdev_name)
 {
 	struct net_device *netdev;
 	struct at76c503 *dev = NULL;
-	struct usb_interface *interface;
-	int i,ret;
+	int i;
 
 	/* allocate memory for our device state and intialize it */
 	netdev = alloc_etherdev(sizeof(struct at76c503));
 	if (netdev == NULL) {
 		err("out of memory");
-		goto error;
+		return NULL;
 	}
 
 	dev = (struct at76c503 *)netdev->priv;
@@ -4460,9 +4938,10 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 	dev->netdev = netdev;
 
 	init_MUTEX (&dev->sem);
-	INIT_TQUEUE (&dev->kevent, kevent, dev);
+	INIT_WORK (&dev->kevent, kevent, dev);
 
 	dev->open_count = 0;
+	dev->flags = 0;
 
 	init_timer(&dev->restart_timer);
 	dev->restart_timer.data = (unsigned long)dev;
@@ -4471,9 +4950,15 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 	init_timer(&dev->mgmt_timer);
 	dev->mgmt_timer.data = (unsigned long)dev;
 	dev->mgmt_timer.function = mgmt_timeout;
+
+	init_timer(&dev->fw_dl_timer);
+	dev->fw_dl_timer.data = (unsigned long)dev;
+	dev->fw_dl_timer.function = fw_dl_timeout;
+
+
 	dev->mgmt_spinlock = SPIN_LOCK_UNLOCKED;
 	dev->next_mgmt_bulk = NULL;
-	dev->istate = INIT;
+	dev->istate = INTFW_DOWNLOAD;
 
 	/* initialize empty BSS list */
 	dev->curr_bss = dev->new_bss = NULL;
@@ -4483,8 +4968,6 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 	init_timer(&dev->bss_list_timer);
 	dev->bss_list_timer.data = (unsigned long)dev;
 	dev->bss_list_timer.function = bss_list_timeout;
-	/* we let this timer run the whole time this driver instance lives */
-	mod_timer(&dev->bss_list_timer, jiffies+BSS_LIST_TIMEOUT);
 
 #if IW_MAX_SPY > 0
 	dev->iwspy_nr = 0;
@@ -4502,10 +4985,35 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 	dev->pm_mode = pm_mode;
 	dev->pm_period_us = pm_period;
 
+	strcpy(netdev->name, netdev_name);
+
+	return dev;
+} /* alloc_new_device */
+
+/* == PROC init_new_device == 
+   firmware got downloaded, we can continue with init */
+/* We may have to move the register_netdev into alloc_new_device,
+   because hotplug may try to configure the netdev _before_
+   (or parallel to) the download of firmware */
+int init_new_device(struct at76c503 *dev)
+{
+	struct net_device *netdev = dev->netdev;
+	int ret;
+
 	/* set up the endpoint information */
 	/* check out the endpoints */
-	interface = &udev->actconfig->interface[0];
-	dev->interface = interface;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
+	dev->interface = dev->udev->actconfig->interface[0];
+#else
+	dev->interface = &dev->udev->actconfig->interface[0];
+#endif
+
+	dbg(DBG_DEVSTART, "USB interface: %d endpoints",
+	    NUM_EP(dev->interface));
+
+	/* we let this timer run the whole time this driver instance lives */
+	mod_timer(&dev->bss_list_timer, jiffies+BSS_LIST_TIMEOUT);
 
 	if(at76c503_alloc_urbs(dev) < 0)
 		goto error;
@@ -4527,7 +5035,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.35 2003/07/30 06:31:51 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.36 2003/12/25 22:40:26 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -4574,71 +5082,166 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 	netdev->do_ioctl = at76c503_ioctl;
 	netdev->set_multicast_list = at76c503_set_multicast;
 	netdev->set_mac_address = at76c503_set_mac_address;
-	strcpy(netdev->name, netdev_name);
 	//  netdev->hard_header_len = 8 + sizeof(struct ieee802_11_hdr);
 	/*
 //    netdev->hard_header = at76c503_header;
 */
-	return dev;
-
- error:
-	at76c503_delete_device(dev);
-	return NULL;
-
-}
-
-struct at76c503 *at76c503_do_probe(struct module *mod, struct usb_device *udev, u8 *extfw, int extfw_size, int board_type, const char *netdev_name)
-{
-	int ret;
-	struct at76c503 *dev;
-
-	usb_inc_dev_use(udev);
-
-	if ((ret = usb_get_configuration(udev)) != 0) {
-		err("get configuration failed: %d", ret);
-		goto error;
-	}
-
-	if ((ret = usb_set_configuration(udev, 1)) != 0) {
-		err("set configuration to 1 failed: %d", ret);
-		goto error;
-	}
-
-	if (extfw && extfw_size) {
-		ret = at76c503_download_external_fw(udev, extfw, extfw_size);
-		if (ret < 0) {
-			if (ret != USB_ST_STALL) {
-				err("Downloading external firmware failed: %d", ret);
-				goto error;
-			} else
-				dbg(DBG_DEVSTART,
-				    "assuming external fw was already downloaded");
-		}
-	}
-
-	dev = at76c503_new_device(udev, board_type, netdev_name);
-	if (!dev) {
-	        err("at76c503_new_device returned NULL");
-		goto error;
-	}
-
-	dev->netdev->owner = mod;
 
 	/* putting this inside rtnl_lock() - rtnl_unlock() hangs modprobe ...? */
 	ret = register_netdev(dev->netdev);
 	if (ret) {
-		err("Unable to register netdevice %s (status %d)!",
+		err("unable to register netdevice %s (status %d)!",
 		    dev->netdev->name, ret);
-		at76c503_delete_device(dev);
 		goto error;
 	}
 	info("registered %s", dev->netdev->name);
 
-	return dev;
+	return 0;
 
+ error:
+	at76c503_delete_device(dev);
+	return -1;
+
+} /* init_new_device */
+
+
+/* == PROC at76c503_get_fw_info ==
+   disassembles the firmware image into version, str,
+   internal and external fw part. returns 0 on success, < 0 on error */
+static int at76c503_get_fw_info(u8 *fw_data, int fw_size,
+				u32 *board, u32 *version, char **str,
+				u8 **int_fw, u32 *int_fw_size,
+				u8 **ext_fw, u32 *ext_fw_size)
+{
+/* fw structure (all numbers are little_endian)
+   offset  length  description
+   0       4       crc 32 (seed ~0, no post, all gaps are zeros, header included)
+   4       4       board type (see at76c503.h)
+   8       4       version (major<<24|middle<<16|minor<<8|build)
+   c       4       offset of printable string (id) area from begin of image
+                   (must be \0 terminated !)
+  10       4       offset of internal fw part area
+  14       4       length of internal fw part
+  18       4       offset of external fw part area (may be first byte _behind_
+                   image in case we have no external part)
+  1c       4       length of external fw part
+*/
+
+	u32 val;
+	
+	if (fw_size < 0x21) {
+		err("fw too short (x%x)",fw_size);
+		return -EFAULT;
+	}
+
+	/* crc currently not checked */
+
+	memcpy(&val,fw_data+4,4);
+	*board = le32_to_cpu(val);
+
+	memcpy(&val,fw_data+8,4);
+	*version = le32_to_cpu(val);
+
+	memcpy(&val,fw_data+0xc,4);
+	*str = fw_data + le32_to_cpu(val);
+
+	memcpy(&val,fw_data+0x10,4);
+	*int_fw = fw_data + le32_to_cpu(val);
+	memcpy(&val,fw_data+0x14,4);
+	*int_fw_size = le32_to_cpu(val);
+
+	memcpy(&val,fw_data+0x18,4);
+	*ext_fw = fw_data + le32_to_cpu(val);
+	memcpy(&val,fw_data+0x1c,4);
+	*ext_fw_size = le32_to_cpu(val);
+
+	return 0;
+}
+
+/* == PROC at76c503_do_probe == */
+int at76c503_do_probe(struct module *mod, struct usb_device *udev, 
+		      struct usb_driver *calling_driver,
+		      u8 *fw_data, int fw_size, u32 board_type,
+		      const char *netdev_name, void **devptr)
+{
+	struct usb_interface *intf = 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
+		udev->actconfig->interface[0];
+#else
+		&udev->actconfig->interface[0];
+#endif
+	int ret;
+	struct at76c503 *dev = NULL;
+	int op_mode;
+	char *id_str;
+	u32 version;
+
+	GET_DEV(udev);
+
+	if ((dev=alloc_new_device(udev, (u8)board_type, netdev_name)) == NULL) {
+		ret = -ENOMEM;
+		goto error;
+	}
+
+	op_mode = get_op_mode(udev);
+
+	usb_set_intfdata(intf, dev);
+	dev->interface = intf;
+
+	dbg(DBG_DEVSTART, "opmode %d", op_mode);
+
+	/* we get OPMODE_NONE with 2.4.23 ??? */
+	if (op_mode < 0 || op_mode == OPMODE_NONE || 
+	    op_mode == OPMODE_DFU_MODE_WITH_FLASH) {
+
+		dbg(DBG_DEVSTART, "need to download firmware");
+
+		/* disassem. the firmware */
+		if ((ret=at76c503_get_fw_info(fw_data, fw_size, &dev->board_type,
+					      &version, &id_str,
+					      &dev->intfw, &dev->intfw_size,
+					      &dev->extfw, &dev->extfw_size))) {
+			goto error;
+		}
+
+		dbg(DBG_DEVSTART, "firmware board %u version %u.%u.%u#%u "
+		    "(int %x:%x, ext %x:%x)",
+		    dev->board_type, version>>24,(version>>16)&0xff,
+		    (version>>8)&0xff, version&0xff,
+		    dev->intfw_size, dev->intfw-fw_data,
+		    dev->extfw_size, dev->extfw-fw_data);
+		if (*id_str)
+			dbg(DBG_DEVSTART, "firmware id %s",id_str);
+
+		if (dev->board_type != board_type) {
+			err("inconsistent board types %u != %u",
+			    board_type, dev->board_type);
+			at76c503_delete_device(dev);
+			goto error;
+		}
+
+		/* download internal firmware part */
+		dbg(DBG_DEVSTART, "downloading internal firmware");
+		NEW_STATE(dev,INTFW_DOWNLOAD);
+		defer_kevent(dev,KEVENT_INTERNAL_FW);
+
+	} else {
+		/* firmware already inside the device */
+		NEW_STATE(dev,INIT);
+		if (init_new_device(dev) < 0) {
+			ret = -ENODEV;
+			goto error;
+		}
+	}
+
+	SET_NETDEV_DEV(dev->netdev, &udev->dev);
+
+	*devptr = dev; /* return dev for 2.4.x kernel probe functions */
+	return 0;
 error:
-	usb_dec_dev_use(udev);
-	return NULL;
+	PUT_DEV(udev);
+	*devptr = NULL;
+	return ret;
 }
 
 /**
@@ -4662,6 +5265,9 @@ int at76c503_usbdfu_post(struct usb_device *udev)
 	return 0;
 }
 
+/* == PROC == */
+
+
 /**
  *	at76c503_init
  */
@@ -4683,11 +5289,7 @@ module_init (at76c503_init);
 module_exit (at76c503_exit);
 
 EXPORT_SYMBOL(at76c503_do_probe);
-EXPORT_SYMBOL(at76c503_download_external_fw);
-EXPORT_SYMBOL(at76c503_new_device);
 EXPORT_SYMBOL(at76c503_delete_device);
-EXPORT_SYMBOL(at76c503_usbdfu_post);
-EXPORT_SYMBOL(at76c503_remap);
 
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);

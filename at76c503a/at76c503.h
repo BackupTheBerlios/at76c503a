@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.15 2003/07/11 20:53:32 jal2 Exp $
+/* $Id: at76c503.h,v 1.16 2003/12/25 22:40:26 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -18,8 +18,20 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/wireless.h>
+#include <linux/version.h>
 
 #include "ieee802_11.h" /* we need some constants here */
+
+/* Workqueue / task queue backwards compatibility stuff */
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,5,41)
+#include <linux/workqueue.h>
+#else
+#include <linux/tqueue.h>
+#define work_struct tq_struct
+#define INIT_WORK(a,b,c) INIT_TQUEUE(a,b,c)
+#define schedule_work(w) schedule_task(w)
+#define flush_scheduled_work() flush_scheduled_tasks()
+#endif
 
 /* this wasn't even defined in early 2.4.x kernels ... */
 #ifndef SIOCIWFIRSTPRIV
@@ -66,11 +78,12 @@
 #define CMD_STATUS_HOST_FAILURE           0xff
 #define CMD_STATUS_SCAN_FAILED            0xf0
 
-#define OPMODE_NONE           0x00
-#define OPMODE_NETCARD        0x01
-#define OPMODE_CONFIG         0x02
-#define OPMODE_DFU            0x03
-#define OPMODE_NOFLASHNETCARD 0x04
+/* answers to get op mode */
+#define OPMODE_NONE                         0x00
+#define OPMODE_NORMAL_NIC_WITH_FLASH        0x01
+#define OPMODE_HW_CONFIG_MODE               0x02
+#define OPMODE_DFU_MODE_WITH_FLASH          0x03
+#define OPMODE_NORMAL_NIC_WITHOUT_FLASH     0x04
 
 #define CMD_SET_MIB    0x01
 #define CMD_GET_MIB    0x02
@@ -127,6 +140,7 @@
 #define BOARDTYPE_INTERSIL 0
 #define BOARDTYPE_RFMD     1
 #define BOARDTYPE_R505     2
+#define BOARDTYPE_RFMD_ACC 3
 
 struct hwcfg_r505 {
 	u8 cr39_values[14];
@@ -373,7 +387,9 @@ enum infra_state {
 	DISASSOCIATING,
 	JOINING,
 	CONNECTED,
-	STARTIBSS
+	STARTIBSS,
+	INTFW_DOWNLOAD,
+	EXTFW_DOWNLOAD,
 };
 
 /* a description of a regulatory domain and the allowed channels */
@@ -442,10 +458,10 @@ struct at76c503 {
 	struct iw_statistics wstats;
 	struct usb_interface *interface;		/* the interface for this device */
 	
-	unsigned char		num_ports;		/* the number of ports this device has */
-	char			num_interrupt_in;	/* number of interrupt in endpoints we have */
-	char			num_bulk_in;		/* number of bulk in endpoints we have */
-	char			num_bulk_out;		/* number of bulk out endpoints we have */
+//	unsigned char		num_ports;		/* the number of ports this device has */
+//	char			num_interrupt_in;	/* number of interrupt in endpoints we have */
+//	char			num_bulk_in;		/* number of bulk in endpoints we have */
+//	char			num_bulk_out;		/* number of bulk out endpoints we have */
 	
 	struct sk_buff *	rx_skb;			/* skbuff for receiving packets */
 	__u8			bulk_in_endpointAddr;	/* the address of the bulk in endpoint */
@@ -456,13 +472,13 @@ struct at76c503 {
 	struct urb *		read_urb;
 	__u8			bulk_out_endpointAddr;	/* the address of the bulk out endpoint */
 
-	struct tq_struct	tqueue;			/* task queue for line discipline waking up */
+//	struct work_struct	tqueue;			/* task queue for line discipline waking up */
 	int			open_count;		/* number of times this port has been opened */
 	struct semaphore	sem;			/* locks this structure */
 
 
-	u32 kevent_flags;
-	struct tq_struct kevent;
+	unsigned long kevent_flags;
+	struct work_struct kevent;
 	int nr_submit_rx_tries; /* number of tries to submit an rx urb left */
 	struct tasklet_struct tasklet;
 	struct urb *rx_urb; /* tmp urb pointer for rx_tasklet */
@@ -530,7 +546,7 @@ struct at76c503 {
 	u32 pm_period_us; /* power manag. period (in us ?) - set by iwconfig */
 	u32 pm_period_beacon; /* power manag. period (in beacon intervals
 				 of the curr_bss) */
-	int board_type; /* 0 = Intersil, 1 = RFMD, 2 = R505 */
+	u32 board_type; /* BOARDTYPE_* defined above*/
 
 	struct reg_domain const *domain; /* the description of the regulatory domain */
 
@@ -561,17 +577,32 @@ struct at76c503 {
 
 	int rx_data_fcs_len; /* length of the trailing FCS 
 				(0 for fw <= 0.84.x, 4 otherwise) */
+
 	/* store rx fragments until complete */
 	struct rx_data_buf rx_data[NR_RX_DATA_BUF];
+
+	/* firmware downloading stuff */
+	struct timer_list fw_dl_timer; /* timer used to wait after REMAP
+					  until device is reset */
+	int extfw_size;
+	int intfw_size;
+	/* these point into a buffer managed by at76c503-xxx.o, no need to dealloc */
+	u8 *extfw; /* points to external firmware part, extfw_size bytes long */
+	u8 *intfw; /* points to internal firmware part, intfw_size bytes long */
+	struct usb_driver *calling_driver; /* the calling driver: at76c503-{rfmd,i3861,i3863,...} */
+	int flags; /* AT76C503A_UNPLUG signals at76c503a_stop() 
+		      that the device was unplugged */
 };
+
+#define AT76C503A_UNPLUG 1
 
 /* Function prototypes */
 
-struct at76c503 *at76c503_do_probe(struct module *mod, struct usb_device *udev, u8 *extfw, int extfw_size, int board_type, const char *netdev_name);
-int at76c503_download_external_fw(struct usb_device *udev, u8 *buf, int size);
-struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type, const char *netdev_name);
+int at76c503_do_probe(struct module *mod, struct usb_device *udev, 
+		      struct usb_driver *calling_driver,
+		      u8 *fw_data, int fw_size, u32 board_type,
+		      const char *netdev_name, void **devptr);
+
 void at76c503_delete_device(struct at76c503 *dev);
-int at76c503_usbdfu_post(struct usb_device *udev);
-int at76c503_remap(struct usb_device *udev);
 
 #endif /* _AT76C503_H */
