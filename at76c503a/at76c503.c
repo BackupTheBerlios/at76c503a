@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.47 2004/03/22 17:10:25 jal2 Exp $
+/* $Id: at76c503.c,v 1.48 2004/03/26 21:54:10 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -346,13 +346,14 @@ struct ieee802_11_mgmt {
 /* the size of the ieee802.11 header (excl. the at76c503 tx header) */
 #define IEEE802_11_MGMT_HEADER_SIZE offsetof(struct ieee802_11_mgmt, data)
 
+#define BEACON_MAX_DATA_LENGTH 1500
 /* beacon in ieee802_11_mgmt.data */
 struct ieee802_11_beacon_data {
 	u8   timestamp[8];           // TSFTIMER
 	u16  beacon_interval;         // Kms between TBTTs (Target Beacon Transmission Times)
 	u16  capability_information;
-	u8   data[1500]; /* contains: SSID (tag,length,value), 
-			    Supported Rates (tlv), channel */
+	u8   data[BEACON_MAX_DATA_LENGTH]; /* contains: SSID (tag,length,value), 
+					  Supported Rates (tlv), channel */
 } __attribute__ ((packed));
 
 /* disassoc frame in ieee802_11_mgmt.data */
@@ -2974,13 +2975,30 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 			   struct at76c503_rx_buffer *buf)
 {
 	struct ieee802_11_mgmt *mgmt = (struct ieee802_11_mgmt *)buf->packet;
+
+	/* beacon content */
 	struct ieee802_11_beacon_data *bdata = 
 		(struct ieee802_11_beacon_data *)mgmt->data;
+
+	/* length of var length beacon parameters */
+	int varpar_len = min((int)buf->wlength -
+			     (int)(offsetof(struct ieee802_11_mgmt, data) +
+			      offsetof(struct ieee802_11_beacon_data, data)),
+			     BEACON_MAX_DATA_LENGTH);
+
 	struct list_head *lptr;
 	struct bss_info *match; /* entry matching addr3 with its bssid */
-	u8 *tlv_ptr;
 	int new_entry = 0;
 	int len;
+	struct data_element {
+		u8 type;
+		u8 length;
+		u8 data_head;
+	} *element;
+	int have_ssid = 0;
+	int have_rates = 0;
+	int have_channel = 0;
+	int keep_going = 1;
 	unsigned long flags;
 	
 	spin_lock_irqsave(&dev->bss_list_spinlock, flags);
@@ -3042,32 +3060,115 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 	dbg(DBG_RX_BEACON, "%s: bssid %s", dev->netdev->name, 
 			mac2str(match->bssid));
 	
-	tlv_ptr = bdata->data;
+	element = (struct data_element*)bdata->data;
 	
-	assert(*tlv_ptr == IE_ID_SSID);
-	len = min(IW_ESSID_MAX_SIZE,(int)*(tlv_ptr+1));
-	if ((new_entry) || !is_cloaked_ssid(tlv_ptr+2, len)) {
-		/* we copy only if this is a new entry,
-		   or the incoming SSID is not a cloaked SSID. This will
-		   protect us from overwriting a real SSID read in a
-		   ProbeResponse with a cloaked one from a following beacon. */
-		match->ssid_len = len;
-		memcpy(match->ssid, tlv_ptr+2, len);
-		match->ssid[len] = '\0'; /* terminate the string for printing */
+#define data_end(element) (&(element->data_head) + element->length)
+	
+	// This routine steps through the bdata->data array to try and get 
+	// some useful information about the access point.
+	// Currently, this implementation supports receipt of: SSID, 
+	// supported transfer rates and channel, in any order, with some 
+	// tolerance for intermittent unknown codes (although this 
+	// functionality may not be necessary as the useful information will 
+	// usually arrive in consecutively, but there have been some 
+	// reports of some of the useful information fields arriving in a 
+	// different order).
+	// It does not support any more IE_ID types as although IE_ID_TIM may 
+	// be supported (on my AP at least).  
+	// The bdata->data array is about 1500 bytes long but only ~36 of those 
+	// bytes are useful, hence the have_ssid etc optimistaions.
+
+	while (keep_going &&
+	       ((int)(data_end(element) - bdata->data) <= varpar_len)) {
+
+		switch (element->type) {
+		
+		case IE_ID_SSID:
+			len = min(IW_ESSID_MAX_SIZE, (int)element->length);
+			if (!have_ssid && ((new_entry) || 
+                                           !is_cloaked_ssid(&(element->data_head), len))) {
+			/* we copy only if this is a new entry,
+			   or the incoming SSID is not a cloaked SSID. This 
+			   will protect us from overwriting a real SSID read 
+			   in a ProbeResponse with a cloaked one from a 
+			   following beacon. */
+			
+				match->ssid_len = len;
+				memcpy(match->ssid, &(element->data_head), len);
+				match->ssid[len] = '\0'; /* terminate the 
+							    string for 
+							    printing */
+				dbg(DBG_RX_BEACON, "%s: SSID - %s", 
+					dev->netdev->name, match->ssid);
+			}
+			have_ssid = 1;
+			break;
+		
+		case IE_ID_SUPPORTED_RATES:
+			if (!have_rates) {
+				char obuf[2*64+1] __attribute__ ((unused));
+
+				match->rates_len = 
+					min((int)sizeof(match->rates), 
+						(int)element->length);
+				memcpy(match->rates, &(element->data_head), 
+					match->rates_len);
+				have_rates = 1;
+				dbg(DBG_RX_BEACON, 
+				    "%s: SUPPORTED RATES %s", 
+				    dev->netdev->name,
+				    hex2str(obuf, &(element->data_head),
+					    min((sizeof(obuf)-1)/2,
+						(size_t)element->length), '\0'));
+			}
+			break;
+		
+		case IE_ID_DS_PARAM_SET:
+			if (!have_channel) {
+				match->channel = element->data_head;
+				have_channel = 1;
+				dbg(DBG_RX_BEACON, "%s: CHANNEL - %d", 
+					dev->netdev->name, match->channel);
+			}
+			break;
+		
+		case IE_ID_CF_PARAM_SET:
+		case IE_ID_TIM:
+		case IE_ID_IBSS_PARAM_SET:
+		default:
+		{
+			char obuf[2*255+1] __attribute__ ((unused));
+
+			dbg(DBG_RX_BEACON, "%s: beacon IE id %d len %d %s",
+			    dev->netdev->name, element->type, element->length,
+			    hex2str(obuf,&(element->data_head),
+				    min((sizeof(obuf)-1)/2,
+					(size_t)element->length),'\0'));
+			break;
+		}
+
+		} // switch (element->type)
+		
+		// advance to the next 'element' of data
+		element = (struct data_element*)data_end(element);
+
+		// Optimisation: after all, the bdata->data array is  
+		// varpar_len bytes long, whereas we get all of the useful 
+		// information after only ~36 bytes, this saves us a lot of 
+		// time (and trouble as the remaining portion of the array 
+		// could be full of junk)
+		// Comment this out if you want to see what other information
+		// comes from the AP - although little of it may be useful
+
+		//if (have_ssid && have_rates && have_channel)
+		//	keep_going = 0;
 	}
-	tlv_ptr += (1+1 + *(tlv_ptr+1));
-
-	assert(*tlv_ptr == IE_ID_SUPPORTED_RATES);
-	match->rates_len = min((int)sizeof(match->rates),(int)*(tlv_ptr+1));
-	memcpy(match->rates, tlv_ptr+2, match->rates_len);
-	tlv_ptr += (1+1 + *(tlv_ptr+1));
-
-	assert(*tlv_ptr == IE_ID_DS_PARAM_SET);
-	match->channel = *(tlv_ptr+2);
-	dbg(DBG_RX_BEACON, "%s: channel %d", dev->netdev->name, match->channel);
-
+	
+	dbg(DBG_RX_BEACON, "%s: Finished processing beacon data", 
+		dev->netdev->name);
+	
 	match->last_rx = jiffies; /* record last rx of beacon */
-
+	
 rx_mgmt_beacon_end:
 	spin_unlock_irqrestore(&dev->bss_list_spinlock, flags);
 } /* rx_mgmt_beacon */
@@ -6283,7 +6384,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.47 2004/03/22 17:10:25 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.48 2004/03/26 21:54:10 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
