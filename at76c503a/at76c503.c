@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.19 2003/05/14 20:58:49 jal2 Exp $
+/* $Id: at76c503.c,v 1.20 2003/05/18 23:26:02 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -1973,6 +1973,8 @@ static void dump_bss_table(struct at76c503 *dev)
 			    ptr->rates_len, ' '),
 		    ptr->rssi, ptr->link_qual, ptr->noise_level);
 	}
+
+	spin_unlock_irqrestore(&dev->bss_list_spinlock, flags);
 }
 
 /* try to find a matching bss in dev->bss, starting at position start.
@@ -3901,7 +3903,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.19 2003/05/14 20:58:49 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.20 2003/05/18 23:26:02 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
