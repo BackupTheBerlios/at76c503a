@@ -1,6 +1,6 @@
-#$Id: Makefile,v 1.28 2004/03/28 22:12:30 jal2 Exp $
+#$Id: Makefile,v 1.29 2004/04/03 22:06:36 jal2 Exp $
 
-VERSION = 0.12beta9
+VERSION = 0.12beta10
 
 CC=gcc
 
