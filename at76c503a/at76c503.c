@@ -1,14 +1,19 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.65 2004/08/13 22:45:49 jal2 Exp $
+/* $Id: at76c503.c,v 1.66 2004/08/18 22:01:45 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
- * Copyright (c) 2002 - 2003 Oliver Kurth <oku@masqmail.cx>
+ * Copyright (c) 2002 - 2003 Oliver Kurth
+ * Copyright (c) 2004 Joerg Albert <joerg.albert@gmx.de>
+ * Copyright (c) 2004 Nick Jones
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License as
  *	published by the Free Software Foundation; either version 2 of
  *	the License, or (at your option) any later version.
+ *
+ * This file is part of the Berlios driver for WLAN USB devices based on the
+ * Atmel AT76C503A/505/505A. See at76c503.h for details.
  *
  * Some iw_handler code was taken from airo.c, (C) 1999 Benjamin Reed
  *
@@ -112,8 +117,8 @@
 #include <linux/rtnetlink.h>  /* for rtnl_lock() */
 
 #include "at76c503.h"
-#include "ieee802_11.h"
-#include "usbdfu.h"
+#include "at76_ieee802_11.h"
+#include "at76_usbdfu.h"
 
 /* timeout in seconds for the usb_control_msg in get_cmd_status
  * and set_card_command
@@ -209,11 +214,7 @@ static inline void usb_set_intfdata(struct usb_interface *intf, void *data) {}
 #define DBG_RX_FRAGS_SKB    0x400000 /* show skb header for incoming rx fragments */
 #define DBG_BSS_TABLE_RM    0x800000 /* inform on removal of old bss table entries */
 
-#ifdef CONFIG_USB_DEBUG
-#define DBG_DEFAULTS (DBG_PROGRESS | DBG_PARAMS | DBG_BSS_TABLE | DBG_DEVSTART)
-#else
 #define DBG_DEFAULTS 0
-#endif
 static int debug = DBG_DEFAULTS;
 
 static const u8 zeros[32];
@@ -264,7 +265,7 @@ static const u8 zeros[32];
 /* Module paramaters */
 MODULE_PARM(debug, "i");
 #define DRIVER_AUTHOR \
-"Oliver Kurth <oku@masqmail.cx>, Joerg Albert <joerg.albert@gmx.de>, Alex <alex@foogod.com>"
+"Oliver Kurth, Joerg Albert <joerg.albert@gmx.de>, Alex, Nick Jones"
 MODULE_PARM_DESC(debug, "Debugging level");
 
 static int rx_copybreak = 200;
@@ -6586,7 +6587,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.65 2004/08/13 22:45:49 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.66 2004/08/18 22:01:45 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,

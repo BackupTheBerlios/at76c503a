@@ -1,11 +1,11 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-i3863.c,v 1.10 2004/01/19 19:43:20 jal2 Exp $
+ * $Id: at76c503-i3863.c,v 1.11 2004/08/18 22:01:45 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using a Intersil 3863 radio chip
  *
- * Copyright (c) 2002 - 2003 Oliver Kurth <oku@masqmail.cx>
+ * Copyright (c) 2002 - 2003 Oliver Kurth
  * Changes Copyright (c) 2003 Joerg Albert <joerg.albert@gmx.de>
  *
  *	This program is free software; you can redistribute it and/or
@@ -13,6 +13,9 @@
  *	published by the Free Software Foundation; either version 2 of
  *	the License, or (at your option) any later version.
  *
+ *
+ * This file is part of the Berlios driver for WLAN USB devices based on the
+ * Atmel AT76C503A/505/505A. See at76c503.h for details.
  *
  * This driver is derived from usb-skeleton.c
  *
@@ -46,7 +49,8 @@ struct firmware {
 
 /* Include firmware data definition: a dummy or a statically compiled-in fw */
 #ifdef CONFIG_AT76C503_FIRMWARE_DOWNLOAD
-# include "fw-empty.h"
+/* a dummy struct to use if at76c503-*.o shall load the firmware via hotplug */
+static struct firmware static_fw = {0,NULL};
 #else
 # include "fw-pkg-i3863.h"
 #endif

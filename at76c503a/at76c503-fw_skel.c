@@ -1,16 +1,19 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-fw_skel.c,v 1.6 2004/03/18 20:54:57 jal2 Exp $
+ * $Id: at76c503-fw_skel.c,v 1.7 2004/08/18 22:01:45 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  *
- * Copyright (c) 2002 - 2003 Oliver Kurth <oku@masqmail.cx>
- * Changes Copyright (c) 2003 Joerg Albert <joerg.albert@gmx.de>
+ * Copyright (c) 2002 - 2003 Oliver Kurth
+ * Changes Copyright (c) 2004 Joerg Albert <joerg.albert@gmx.de>
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License as
  *	published by the Free Software Foundation; either version 2 of
  *	the License, or (at your option) any later version.
+ *
+ * This file is part of the Berlios driver for WLAN USB devices based on the
+ * Atmel AT76C503A/505/505A. See at76c503.h for details.
  *
  * This file is the skeleton used in every fw-specific file.
  * It assumes to have the following defines
@@ -126,7 +129,7 @@ static int at76c50x_probe(struct usb_interface *interface,
 			} else {
 				err("firmware " FW_NAME " not found.");
 				err("You may need to download the firmware from "
-				    "http://www.thekelleys.org.uk/atmel or"
+				    "http://www.thekelleys.org.uk/atmel or "
 				    "ftp://ftp.berlios.de/pub/at76c503a/firmware/");
 				RETERR(-EFAULT);
 			}

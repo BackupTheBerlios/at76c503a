@@ -1,12 +1,12 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-i3861.c,v 1.19 2004/03/07 22:09:41 jal2 Exp $
+ * $Id: at76c503-i3861.c,v 1.20 2004/08/18 22:01:45 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using Intersil 3861 radio chips
  *
- * Copyright (c) 2002 - 2003 Oliver Kurth <oku@masqmail.cx>
- * Changes Copyright (c) 2003 Joerg Albert <joerg.albert@gmx.de>
+ * Copyright (c) 2002 - 2003 Oliver Kurth
+ * Changes Copyright (c) 2004 Joerg Albert <joerg.albert@gmx.de>
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License as
@@ -15,6 +15,9 @@
  *
  *
  * This driver is derived from usb-skeleton.c
+ *
+ * This file is part of the Berlios driver for WLAN USB devices based on the
+ * Atmel AT76C503A/505/505A. See at76c503.h for details.
  *
  * This driver contains code specific to Atmel AT76C503 (USB wireless 802.11)
  * devices which use a Intersil 3861 radio chip.  Almost
@@ -47,7 +50,8 @@ struct firmware {
 
 /* Include firmware data definition: a dummy or a statically compiled-in fw */
 #ifdef CONFIG_AT76C503_FIRMWARE_DOWNLOAD
-# include "fw-empty.h"
+/* a dummy struct to use if at76c503-*.o shall load the firmware via hotplug */
+static struct firmware static_fw = {0,NULL};
 #else
 # include "fw-pkg-i3861.h"
 #endif
@@ -109,6 +113,10 @@ Wireless USB Adapter SMC2662W (v1) */
 #define VENDOR_ID_IO_DATA		0x04bb
 #define PRODUCT_ID_IO_DATA_WN_B11_USB   0x0919 /* IO-DATA WN-B11/USB */
 
+#define VENDOR_ID_BT            0x069a
+#define PRODUCT_ID_BT_VOYAGER_1010  0x0821 /* BT Voyager 1010 */
+
+
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_503I        ) },
 	{ USB_DEVICE(VENDOR_ID_LINKSYS,  PRODUCT_ID_LINKSYS_WUSB11_V21) },
@@ -124,6 +132,7 @@ static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_CONCEPTRONIC,PRODUCT_ID_CONCEPTRONIC_C11U) },
 	{ USB_DEVICE(VENDOR_ID_ARESCOM, PRODUCT_ID_WL_210) },
 	{ USB_DEVICE(VENDOR_ID_IO_DATA, PRODUCT_ID_IO_DATA_WN_B11_USB) },
+	{ USB_DEVICE(VENDOR_ID_BT,       PRODUCT_ID_BT_VOYAGER_1010   ) },
 	{ }
 };
 

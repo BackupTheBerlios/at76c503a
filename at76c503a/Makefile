@@ -1,6 +1,13 @@
-#$Id: Makefile,v 1.38 2004/08/13 22:42:06 jal2 Exp $
-
-VERSION = 0.12beta16
+#$Id: Makefile,v 1.39 2004/08/18 22:01:45 jal2 Exp $
+#
+# Copyright (c) 2002 - 2003 Oliver Kurth
+#           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
+#
+#	This program is free software; you can redistribute it and/or
+#	modify it under the terms of the GNU General Public License as
+#	published by the Free Software Foundation; either version 2 of
+#	the License, or (at your option) any later version.
+#
 
 CC=gcc
 
@@ -12,20 +19,18 @@ FW_DL=
 
 # compile for firmware download from user space
 # if no firmware header files are available
-ifeq ($(wildcard fw-pkg*.h),)
-FW_DL += -DCONFIG_AT76C503_FIRMWARE_DOWNLOAD
-DVERSION = $(VERSION)-fwdl
-else
-DVERSION = $(VERSION)
+ifneq ($(wildcard fw-pkg*.h),)
+FW_DL += -DCOMPILE_FIRMWARE_INTO_DRIVER
 endif
 
-MODULES = at76c503.o usbdfu.o at76c503-i3861.o at76c503-rfmd.o at76c503-rfmd-acc.o \
-          at76c505-rfmd.o at76c503-i3863.o at76c505-rfmd2958.o at76c505a-rfmd2958.o
+MODULES = at76c503-i3861.o at76c503-rfmd.o at76c503-rfmd-acc.o \
+          at76c505-rfmd.o at76c503-i3863.o at76c505-rfmd2958.o at76c505a-rfmd2958.o \
+	  at76c503.o at76_usbdfu.o 
 
-SRCS = at76c503.c usbdfu.c at76c503-rfmd.c at76c505-rfmd.c at76c503-rfmd-acc.c \
+SRCS = at76c503.c at76_usbdfu.c at76c503-rfmd.c at76c505-rfmd.c at76c503-rfmd-acc.c \
        at76c503-i3861.c at76c503-i3863.c at76c505-rfmd2958.c at76c505a-rfmd2958.c
 
-HDRS = at76c503.h ieee802_11.h usbdfu.h at76c503-fw_skel.c fw-empty.h
+HDRS = at76c503.h at76_ieee802_11.h at76_usbdfu.h at76c503-fw_skel.c
 FW_HDRS= fw-pkg-505-rfmd2958-1.101.0-86.h  fw-pkg-i3863.h  \
 	fw-pkg-rfmd-1.101.0-84.h fw-pkg-i3861.h \
 	fw-pkg-rfmd-0.90.2-140.h \
@@ -35,14 +40,21 @@ FW_HDRS= fw-pkg-505-rfmd2958-1.101.0-86.h  fw-pkg-i3863.h  \
 SCRIPTS = fwbin2h fwbin2pkg.sh fwconvert fwversion
 
 DISTFILES = $(SRCS) $(HDRS) $(FW_HDRS) Makefile README COPYING \
-            CHANGELOG gen_fw.c
+            CHANGELOG gen_fw.c kernel_patch.sh Makefile.k26
 TOPDISTFILES = 
-DISTNAME = at76c503-$(VERSION)
+
+# get the version from at76c503.h
+# for 2.6.x kernels the shell command is evaluated too late, 
+#  looking for at76c503.h in the kernel root dir :-(
+#VERSION = -
+#VERSION += $(shell grep '\#define DRIVER_VERSION' at76c503.h | sed 's/\#define.*DRIVER_VERSION.*"\(.*\)"/\1/g' )
+VERSION = 
+DISTNAME = at76c503$(VERSION)
 DISTDIR = ../dist
 
 # delete any old module in this tree before installing a new one
 DEL_MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNEL_VERSION)
-MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNEL_VERSION)/kernel/drivers/usb/
+MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNEL_VERSION)/kernel/drivers/net/wireless/at76c503
 DEPMOD = /sbin/depmod
 
 # if Rules.make exists in the kernel tree, we assume 2.4 style modules
@@ -63,7 +75,7 @@ modules:
 	mkdir -p .tmp_versions
 	-cp $(KERNEL_SRC)/.tmp_versions/*.mod $(MODVERDIR)
 	$(MAKE) -C $(KERNEL_SRC) SUBDIRS=$(SRCDIR) MODVERDIR=$(MODVERDIR) \
-		EXTRA_CFLAGS="-DDRIVER_VERSION=\\\"v$(DVERSION)\\\" $(FW_DL)" modules
+		EXTRA_CFLAGS="$(FW_DL)" modules
 
 mv_old:
 	for i in $(MODULES:%.o=%.ko); do \
@@ -83,7 +95,6 @@ else
 
 CPPFLAGS = -D__KERNEL__ \
 	-DMODULE -DEXPORT_SYMTAB \
-	-DDRIVER_VERSION=\"v$(DVERSION)\" \
 	-I$(KERNEL_HEADERS)
 CFLAGS = -O2 -Wall -Wstrict-prototypes -pipe -fno-strict-aliasing \
 	 $(FW_DL) \
@@ -114,7 +125,7 @@ install: all mv_old
 uninstall:
 	for f in $(MODULES); do rm $(MODULE_DIR)/$$f; done
 
-.PHONY: dist
+.PHONY: dist kernel_patch rmmod
 
 %.o: %.c
 	$(CC) -MD $(CFLAGS) $(CPPFLAGS) $(MFLAG) -c $<
@@ -150,3 +161,9 @@ dist:
 	mv $(DISTNAME) $(DISTNAME)-fwdl
 	tar zcvf $(DISTNAME)-fwdl.tar.gz $(DISTNAME)-fwdl
 	rm -rf $(DISTNAME)-fwdl
+
+kernel_patch:
+	 DRV_SRC="$(SRCS)" DRV_HDR="$(HDRS)" ./kernel_patch.sh $(KERNEL_SRC)
+
+rmmod:
+	rmmod $(MODULES:%.o=%)	

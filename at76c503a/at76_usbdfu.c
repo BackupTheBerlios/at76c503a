@@ -1,8 +1,13 @@
 /* -*- linux-c -*- */
+/* $Id: at76_usbdfu.c,v 1.1 2004/08/18 22:01:45 jal2 Exp $ */
 /*
  * USB Device Firmware Upgrade (DFU) handler
  *
- * Copyright (c) 2003 Oliver Kurth <oku@masqmail.cx>
+ * Copyright (c) 2003 Oliver Kurth
+ * Copyright (c) 2004 Jörg Albert
+ *
+ * This file is part of the driver for WLAN USB devices based on the Atmel
+ * AT76C503A/505/505A. See at76c503.h for details.
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License as
@@ -26,13 +31,10 @@
 #include <linux/usb.h>
 #include <linux/version.h>
 #include <linux/init.h>
-#include "usbdfu.h"
+#include "at76c503.h" /* for DRIVER_VERSION only */
+#include "at76_usbdfu.h"
 
-#ifdef CONFIG_USB_DEBUG
-static int debug = 1;
-#else
-static int debug;
-#endif
+static int debug = 0;
 
 /* Use our own dbg macro */
 #undef dbg

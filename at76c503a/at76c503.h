@@ -1,15 +1,27 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.25 2004/08/13 00:17:23 jal2 Exp $
+/* $Id: at76c503.h,v 1.26 2004/08/18 22:01:45 jal2 Exp $
  *
- * USB at76c503 driver
- *
- * Copyright (c) 2002 - 2003 Oliver Kurth <oku@masqmail.cx>
+ * Copyright (c) 2002 - 2003 Oliver Kurth
+ *           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License as
  *	published by the Free Software Foundation; either version 2 of
  *	the License, or (at your option) any later version.
  *
+ *  This driver was based on information from the Sourceforge driver
+ *  released and maintained by Atmel:
+ *
+ *  http://sourceforge.net/projects/atmelwlandriver/
+ *
+ *  althrough the code was completely re-written.
+ *  It would have been impossible without Atmel's decision to
+ *  release an Open Source driver (unfortunately the firmware was
+ *  kept binary only). Thanks for that decision to Atmel!
+ *  
+ *  For the latest version of this driver, mailinglists
+ *  and other info,  please check
+ *        http://at76c503a.berlios.de/
  */
 
 #ifndef _AT76C503_H
@@ -23,7 +35,20 @@
 #endif
 #include <linux/version.h>
 
-#include "ieee802_11.h" /* we need some constants here */
+#include "at76_ieee802_11.h" /* we need some constants here */
+
+#ifndef COMPILE_FIRMWARE_INTO_DRIVER
+# define CONFIG_AT76C503_FIRMWARE_DOWNLOAD
+# define VERSION_APPEND "-fw_dwl"
+#else
+# ifdef CONFIG_AT76C503_FIRMWARE_DOWNLOAD
+#  undef CONFIG_AT76C503_FIRMWARE_DOWNLOAD
+# endif
+# define VERSION_APPEND "-static"
+#endif
+ 
+/* current driver version */
+#define DRIVER_VERSION "v0.12beta17" VERSION_APPEND
 
 /* Workqueue / task queue backwards compatibility stuff */
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,5,41)

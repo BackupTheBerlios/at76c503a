@@ -2,15 +2,18 @@
 /*
  * USB Device Firmware Upgrade (DFU) handler
  *
- * Copyright (c) 2003 Oliver Kurth <oku@masqmail.cx>
- * Copyright (c) 2003 Joerg Albert <joerg.albert@gmx.de>
+ * Copyright (c) 2003 Oliver Kurth
+ * Copyright (c) 2004 Joerg Albert <joerg.albert@gmx.de>
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License as
  *	published by the Free Software Foundation; either version 2 of
  *	the License, or (at your option) any later version.
  *
+ * This file is part of the Berlios driver for WLAN USB devices based on the 
+ * Atmel AT76C503A/505/505A. See at76c503.h for details.
  *
+*
  */
 
 /* Different to the previous version of usbdfu.c this module does not

@@ -1,17 +1,20 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c505a-rfmd2958.c,v 1.1 2004/06/15 20:02:05 jal2 Exp $
+ * $Id: at76c505a-rfmd2958.c,v 1.2 2004/08/18 22:01:45 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using a at76c505a (with RFMD radio chips ?)
  *
- * Copyright (c) 2005 Joerg Albert <joerg.albert@gmx.de>
+ * Copyright (c) 2004 Joerg Albert <joerg.albert@gmx.de>
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License as
  *	published by the Free Software Foundation; either version 2 of
  *	the License, or (at your option) any later version.
  *
+ *
+ * This file is part of the Berlios driver for WLAN USB devices based on the
+ * Atmel AT76C503A/505/505A. See at76c503.h for details.
  *
  * This driver is derived from usb-skeleton.c
  *
@@ -45,7 +48,8 @@ struct firmware {
 
 /* Include firmware data definition: a dummy or a statically compiled-in fw */
 #ifdef CONFIG_AT76C503_FIRMWARE_DOWNLOAD
-# include "fw-empty.h"
+/* a dummy struct to use if at76c503-*.o shall load the firmware via hotplug */
+static struct firmware static_fw = {0,NULL};
 #else
 # include "fw-pkg-505a-rfmd2958-1.102.0-113.h"
 #endif
