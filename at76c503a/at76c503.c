@@ -105,6 +105,8 @@ static int debug = 1;
 static int debug;
 #endif
 
+static const u8 zeros[32];
+
 /* Use our own dbg macro */
 #undef dbg
 #define dbg(format, arg...) do { if (debug) printk(KERN_DEBUG __FILE__ ": " format "\n" , ## arg); } while (0)
@@ -857,19 +859,19 @@ int get_current_channel(struct at76c503 *dev)
 }
 
 static
-int start_scan(struct at76c503 *dev)
+int start_scan(struct at76c503 *dev, int use_essid)
 {
 	struct at76c503_start_scan scan;
 
-	dev->bss_nr = 0; /* empty the table dev->bss[] */
-	dev->curr_bss = dev->new_bss = -1;
-
 	memset(&scan, 0, sizeof(struct at76c503_start_scan));
 	memset(scan.bssid, 0xff, ETH_ALEN);
-	//jal: we scan for all SSID and choose the right one later
-	//     to see our env etc.
-	//memcpy(scan.essid, dev->essid, IW_ESSID_MAX_SIZE);
-	scan.essid_size = 0;
+
+	if (use_essid) {
+		memcpy(scan.essid, dev->essid, IW_ESSID_MAX_SIZE);
+		scan.essid_size = dev->essid_size;
+	} else
+		scan.essid_size = 0;
+
 	scan.probe_delay = 10000;
 	//jal: why should we start at a certain channel? we do scan the whole range
 	//allowed by reg domain.
@@ -1248,7 +1250,7 @@ int assoc_req(struct at76c503 *dev, int idx)
 
 	*tlv++ = IE_ID_SSID;
 	*tlv++ = bss->ssid_len;
-	memcpy(tlv,bss->ssid, bss->ssid_len);
+	memcpy(tlv, bss->ssid, bss->ssid_len);
 	tlv += bss->ssid_len;
 
 	*tlv++ = IE_ID_SUPPORTED_RATES;
@@ -1557,19 +1559,42 @@ end_join:
 	if (test_bit(KEVENT_SCAN, &dev->kevent_flags)) {
 		clear_bit(KEVENT_SCAN, &dev->kevent_flags);
 		assert(dev->istate == SCANNING);
-		if ((ret=start_scan(dev)) < 0) {
+
+		dev->bss_nr = 0; /* empty the table dev->bss[] */
+		dev->curr_bss = dev->new_bss = -1;
+
+		/* scan twice: first run with ProbeReq containing the
+		   empty SSID, the second run with the real SSID.
+		   APs in cloaked mode (e.g. Agere) will answer
+		   in the second run with their real SSID. */
+
+		if ((ret=start_scan(dev, 0)) < 0) {
 			err("%s: start_scan failed with %d",
 			    dev->netdev->name, ret);
 			goto end_scan;
 		}
-		
 		if ((ret=wait_completion(dev,CMD_SCAN)) !=
 		    CMD_STATUS_COMPLETE) {
-				err("%s start_scan completed with %d",
-				    dev->netdev->name, ret);
-				goto end_scan;
+			err("%s start_scan completed with %d",
+			    dev->netdev->name, ret);
+			goto end_scan;
 		}
 
+		/* dump the results of the scan with ANY ssid */
+		dump_bss_table(dev);
+		if ((ret=start_scan(dev, 1)) < 0) {
+			err("%s: 2.start_scan failed with %d",
+			    dev->netdev->name, ret);
+				goto end_scan;
+		}
+		if ((ret=wait_completion(dev,CMD_SCAN)) !=
+		    CMD_STATUS_COMPLETE) {
+			err("%s 2.start_scan completed with %d",
+			    dev->netdev->name, ret);
+			goto end_scan;
+		}
+
+		/* dump the results of the scan with real ssid */
 		dump_bss_table(dev);
 		NEW_STATE(dev,JOINING);
 		assert(dev->curr_bss == -1); /* done in start_scan, 
@@ -1593,20 +1618,8 @@ end_scan:
 static
 int essid_matched(struct at76c503 *dev, struct bss_info *ptr)
 {
-	static const u8 zeros[32];
-
-	if (dev->iw_mode != IW_MODE_ADHOC) {
-		if (ptr->ssid_len == 0)
-			return 1; /* bss cloaked its ssid */
-		if (ptr->ssid_len == 1 && ptr->ssid == '\0')
-			return 1; /* Agere APs cloaking method */
-		if (ptr->ssid_len == dev->essid_size &&
-		    !memcmp(ptr->ssid, zeros, ptr->ssid_len))
-			return 1; /* Belkin AP cloaking method */
-	}
-
 	/* common criteria for both modi */
-	return dev->essid_size == 0 ||
+	return dev->essid_size == 0  /* ANY ssid */ ||
 		(dev->essid_size == ptr->ssid_len &&
 		 !memcmp(dev->essid, ptr->ssid, ptr->ssid_len));
 }
@@ -1916,6 +1929,7 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 	struct bss_info *bss_ptr;
 	u8 *tlv_ptr;
 	int i;
+	int len;
 
 	if (dev->istate == CONNECTED) {
 		/* in state CONNECTED we use the mgmt_timer to control
@@ -1961,8 +1975,15 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 	tlv_ptr = bdata->data;
 
 	assert(*tlv_ptr == IE_ID_SSID);
-	bss_ptr->ssid_len = min(IW_ESSID_MAX_SIZE,(int)*(tlv_ptr+1));
-	memcpy(bss_ptr->ssid, tlv_ptr+2, bss_ptr->ssid_len);
+	len = min(IW_ESSID_MAX_SIZE,(int)*(tlv_ptr+1));
+	if (i >= dev->bss_nr || (len > 0 && memcmp(tlv_ptr+2,zeros,len))) {
+		/* we copy only if this is a new entry,
+		   or the incoming SSID is not a cloaked SSID. This will
+		   protect us from overwriting a real SSID read in a
+		   ProbeResponse with a cloaked one from a following beacon. */
+		bss_ptr->ssid_len = len;
+		memcpy(bss_ptr->ssid, tlv_ptr+2, len);
+	}
 	tlv_ptr += (1+1 + *(tlv_ptr+1));
 
 	assert(*tlv_ptr == IE_ID_SUPPORTED_RATES);
@@ -2515,6 +2536,9 @@ int at76c503_open(struct net_device *netdev)
 	if(down_interruptible(&dev->sem))
 	   return -EINTR;
 
+	/* remove BSSID from previous run */
+	memset(dev->bssid, 0, ETH_ALEN);
+
 	{
 		struct at76c503_card_config *ccfg = &dev->card_config;
 
@@ -2813,15 +2837,31 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	case SIOCGIWESSID:
 		dbg("%s: SIOCGIWESSID", netdev->name);
 		{
-			char essidbuf[IW_ESSID_MAX_SIZE];
+			char *essid = NULL;
 			struct iw_point *erq = &wrq->u.essid;
 
-			memcpy(essidbuf, dev->essid, sizeof(essidbuf));
-			erq->flags = 1;
-			erq->length = strlen(essidbuf);
+			if (dev->essid_size) {
+				/* not the ANY ssid in dev->essid */
+				erq->flags = 1;
+				erq->length = dev->essid_size;
+				essid = dev->essid;
+			} else {
+				/* the ANY ssid was specified */
+				if (dev->istate == CONNECTED) {
+					/* report the SSID we have found */
+					erq->flags=1;
+					erq->length = dev->bss[dev->curr_bss].ssid_len;
+					essid = dev->bss[dev->curr_bss].ssid;
+				} else {
+					/* report ANY back */
+					erq->flags=0;
+					erq->length=0;
+				}
+			}
 
 			if(erq->pointer){
-				if(copy_to_user(erq->pointer, essidbuf, erq->length)){
+				if(copy_to_user(erq->pointer, essid, 
+						erq->length)){
 					ret = -EFAULT;
 					goto error;
 				}
@@ -2849,11 +2889,13 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 					goto error;
 				}
 	
+				assert(erq->length > 0);
 				/* iwconfig gives len including 0 byte -
 				   3 hours debugging... grrrr (oku) */
 				dev->essid_size = erq->length - 1; 
 				memcpy(dev->essid, essidbuf, IW_ESSID_MAX_SIZE);
-			}
+			} else
+				dev->essid_size = 0; /* ANY ssid */
 		}
 		break;
 
