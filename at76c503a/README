@@ -44,23 +44,24 @@ driver from atmelwlandriver.sourceforge.net, replug the device
 If you have hotplug installed, the drivers should now be loaded. If not,
 load them by hand:
 
-modprobe -v at76c503
+modprobe -v at76c503-rfmd
 or
-insmod usbdfu.o; insmod at76c503
+insmod usbdfu.o; insmod at76c503.o; insmod at76c503-rfmd.o
 
-You can give the network device another name than eth by giving
-the module the eth_name parameter. Eg.
-insmod at76c50.o eth_name=wlan%d
-would give the first device the name wlan0, the second wlan1 etc...
+You can give the network device another name than wlan by giving
+the module the netdev_name parameter. Eg.
+insmod at76c503-rfmd.o netdev_name=eth%d
+would give the first device the name eth0, the second eth1 etc...
 
 Check if the modules are loaded with lsmod. It should look like this:
 
 ...
-at76c503               49972   0 
-usbdfu                  6164   0  [at76c503]
+at76c503-rfmd          38656   0  (unused)
+at76c503               34004   0  [at76c503-rfmd]
+usbdfu                  9144   0  [at76c503-rfmd]
 ...
 
-setup networking (replace <iface> with eth0, eth1, ..., <ch> with a
+setup networking (replace <iface> with wlan0, wlan1, ..., <ch> with a
 channel number (1..14) <essid> with your network id (a string), <ip>
 with an IP address)
 
@@ -68,8 +69,8 @@ iwconfig <iface> channel <ch> mode ad-hoc essid <essid>
 ifonfig <iface> <ip> up
 
 Example:
-iwconfig eth2 mode ad-hoc channel 10 essid okuwlan
-ifconfig eth2 192.168.3.1 up
+iwconfig wlan2 mode ad-hoc channel 10 essid okuwlan
+ifconfig wlan2 192.168.3.1 up
 
 Test it by pinging another host with a wlan adaptor.
 

@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * USB Device Firmware Uploader
+ * USB Device Firmware Upgrade (DFU) handler
  *
  * Copyright (c) 2003 Oliver Kurth <oku@masqmail.cx>
  *
@@ -13,23 +13,16 @@
  * - initial release
  *
  * TODO:
- * - make it more generic, so that it works with devices other than
- *   at76c503
+ * (someday)
+ * - make a way for drivers to feed firmware data at download time (instead of
+ *   providing it all at once during register)
+ * - procfs support for userland firmware downloaders
+ * - Firmware upload (device-to-host) support
  */
 
 #include <linux/config.h>
-#include <linux/kernel.h>
-#include <linux/sched.h>
-#include <linux/signal.h>
-#include <linux/errno.h>
-#include <linux/poll.h>
-#include <linux/init.h>
 #include <linux/slab.h>
-#include <linux/fcntl.h>
 #include <linux/module.h>
-#include <linux/spinlock.h>
-#include <linux/list.h>
-#include <linux/smp_lock.h>
 #include <linux/usb.h>
 #include "usbdfu.h"
 
@@ -43,14 +36,27 @@ static int debug;
 #undef dbg
 #define dbg(format, arg...) do { if (debug) printk(KERN_DEBUG __FILE__ ": " format "\n" , ## arg); } while (0)
 
+#ifdef DEBUG_SEM
+  #define dfu_down(sem) do { dbg("sem %s down", #sem); down(sem); } while (0)
+  #define dfu_up(sem) do { dbg("sem %s up", #sem); up(sem); } while (0)
+#else
+  #define dfu_down(sem) down(sem)
+  #define dfu_up(sem) up(sem)
+#endif
 
 /* Version Information */
-#define DRIVER_AUTHOR "Oliver Kurth oku@masqmail.cx"
-#define DRIVER_DESC "USB Device Fimware Uploader (DFU)"
+#define DRIVER_AUTHOR \
+"Oliver Kurth <oku@masqmail.cx>, Joerg Albert <joerg.albert@gmx.de>, Alex <alex@foogod.com>"
+#define DRIVER_DESC "USB Device Fimware Upgrade (DFU) handler"
 
 /* Module paramaters */
 MODULE_PARM(debug, "i");
 MODULE_PARM_DESC(debug, "Debug enabled or not");
+
+/* USB class/subclass for DFU devices/interfaces */
+
+#define DFU_USB_CLASS    0xfe
+#define DFU_USB_SUBCLASS 0x01
 
 /* DFU states */
 
@@ -82,11 +88,9 @@ struct dfu_status {
 	unsigned char iString;
 } __attribute__ ((packed));
 
-struct usbdfu_driver {
+struct usbdfu_infolist {
 	struct list_head list;
-	struct usb_driver *driver;
-	u8 *fw_buf;
-	u32 fw_buf_len;
+	struct usbdfu_info *info;
 };
 
 /* driver independent download context */
@@ -97,27 +101,25 @@ struct dfu_ctx {
 	u8 *buf;
 };
 
-#define KEVENT_FLAG_AGAIN 1
-#define KEVENT_FLAG_REMAP 2
-#define KEVENT_FLAG_RESET 3
+#define KEVENT_FLAG_SCHEDRESET 1
+#define KEVENT_FLAG_RESET 2
 
 /* Structure to hold all of our device specific stuff */
 struct usbdfu {
 	struct usb_device *	udev;			/* save off the usb device pointer */
-	struct usb_interface *	interface;		/* the interface for this device */
 
-	struct timer_list timer_reset;
+	struct timer_list timer;
 
 	struct tq_struct	kevent;
 	u32 kevent_flags;
 		
 	struct semaphore	sem;			/* locks this structure */
 
-	struct usbdfu_driver *drv;
+	struct usbdfu_info *info;
 	u8 op_mode;
 };
 
-LIST_HEAD(usbdfu_driver_list);
+LIST_HEAD(usbdfu_infolist_head);
 struct semaphore usbdfu_lock;
 
 /* local function prototypes */
@@ -162,7 +164,6 @@ static inline void usbdfu_debug_data (const char *function, int size, const unsi
 #define INTERFACE_VENDOR_REQUEST_OUT 0x41
 #define INTERFACE_VENDOR_REQUEST_IN  0xc1
 
-#if 0
 static
 int dfu_detach(struct usb_device *udev)
 {
@@ -181,7 +182,6 @@ int dfu_detach(struct usb_device *udev)
 
 	return result;
 }
-#endif
 
 static
 int dfu_download_block(struct dfu_ctx *ctx, u8 *buffer,
@@ -230,10 +230,9 @@ int dfu_get_status(struct dfu_ctx *ctx, struct dfu_status *status)
 }
 
 static
-u8 dfu_get_state(struct dfu_ctx *ctx, u8 *state)
+u8 dfu_get_state(struct usb_device *udev, u8 *state)
 {
 	int result;
-	struct usb_device *udev = ctx->udev;
 
 //	dbg("dfu_get_state()");
 
@@ -274,7 +273,7 @@ struct dfu_ctx *dfu_alloc_ctx(struct usb_device *udev)
 	return ctx;
 }
 
-int dfu_download(struct usb_device *udev, unsigned char *dfu_buffer,
+int do_dfu_download(struct usb_device *udev, unsigned char *dfu_buffer,
 		 unsigned int dfu_len)
 {
 	struct dfu_ctx *ctx;
@@ -300,7 +299,7 @@ int dfu_download(struct usb_device *udev, unsigned char *dfu_buffer,
 
 	do {
 		if (need_dfu_state) {
-			status = dfu_get_state(ctx, &ctx->dfu_state);
+			status = dfu_get_state(ctx->udev, &ctx->dfu_state);
 			if (!USB_SUCCESS(status)) {
 				err("DFU: Failed to get DFU state: %d", status);
 				goto exit;
@@ -370,10 +369,10 @@ int dfu_download(struct usb_device *udev, unsigned char *dfu_buffer,
 				need_dfu_state = 0;
 
 				if (dfu_timeout >= 0){
-					dbg("DFU: Resetting device");
+					dbg("DFU: Waiting for manifest phase");
 
 					set_current_state( TASK_INTERRUPTIBLE );
-					schedule_timeout(1+dfu_timeout*HZ/1000);
+					schedule_timeout((dfu_timeout*HZ+999)/1000);
 				}else
 					dbg("DFU: In progress");
 			}
@@ -409,49 +408,41 @@ int dfu_download(struct usb_device *udev, unsigned char *dfu_buffer,
 
  exit:
 	kfree(ctx);
-	return status;
-}
-
-static inline
-int remap(struct usbdfu *dev)
-{
-	struct usb_device *udev = dev->udev;
-	return usb_control_msg(udev, usb_sndctrlpipe(udev,0),
-			 0x0a, INTERFACE_VENDOR_REQUEST_OUT,
-			 0, 0,
-			 NULL, 0, HZ);
-}
-
-static inline
-int get_op_mode(struct usbdfu *dev, u8 *op_mode)
-{
-	struct usb_device *udev = dev->udev;
-	int ret;
-
-	ret = usb_control_msg(udev, usb_rcvctrlpipe(udev,0),
-			      0x33, INTERFACE_VENDOR_REQUEST_IN,
-			      0x01, 0,
-			      op_mode, 1, HZ);
-	return ret;
+	if (status < 0)
+		return status;
+	else
+		return 0;
 }
 
 static
 int usbdfu_download(struct usbdfu *dev, u8 *fw_buf, u32 fw_len)
 {
-	int ret;
+	int ret = 0;
 
-	info("downloading firmware");
+	if (dev->info->pre_download_hook) {
+		ret = dev->info->pre_download_hook(dev->udev);
+	}
 
-	ret = dfu_download(dev->udev, fw_buf, fw_len);
+	if (ret)
+		return ret;
 
-	if(ret >= 0){
-		info("remap");
-		ret = remap(dev);
-		if(ret < 0)
-			err("remap failed: %d", ret);
+	info("Downloading firmware for USB device %d...", dev->udev->devnum);
+
+	ret = do_dfu_download(dev->udev, fw_buf, fw_len);
+
+	if (ret)
+		return ret;
+
+	if (dev->info->post_download_hook) {
+		ret = dev->info->post_download_hook(dev->udev);
 	}
 
 	return ret;
+}
+
+static inline void usbdfu_delete (struct usbdfu *dev)
+{
+	kfree (dev);
 }
 
 /* shamelessly copied from usbnet.c (oku) */
@@ -464,25 +455,28 @@ static void defer_kevent (struct usbdfu *dev, int flag)
 		dbg ("kevent %d scheduled", flag);
 }
 
-static void kevent_timer_reset(unsigned long data)
+static void kevent_timer(unsigned long data)
 {
 	struct usbdfu *dev = (struct usbdfu *)data;
 
 	defer_kevent(dev, KEVENT_FLAG_RESET);
 
-	del_timer_sync(&dev->timer_reset);
+	del_timer_sync(&dev->timer);
 }
 
 /* TODO: how do we make sure the device hasn't been
    plugged out in the meantime? */
+/* We don't really need to (trying to reset a disconnected device shouldn't
+ * cause a problem), we just need to make sure that disconnect hasn't freed the
+ * dev structure already.  We do this by not freeing dev as long as
+ * "kevent_flags" has something set (indicating a kevent is pending)  --alex */
 
 static void
 kevent(void *data)
 {
 	struct usbdfu *dev = data;
-	struct usb_driver *driver;
 	struct usb_device *udev;
-	struct usbdfu_driver *drv;
+	struct usbdfu_info *info;
 	struct usb_interface *interface;
 
 	dbg("kevent entered");
@@ -493,133 +487,238 @@ kevent(void *data)
 		return;
 	}
 
-	down(&dev->sem);
+	dfu_down(&dev->sem);
 
-	if(!dev->drv){
-		err("kevent: no dev->drv!");
-		goto error;
-	}
-	driver = dev->drv->driver;
-	if(!driver){
-		err("kevent: no driver!");
-		goto error;
+	info = dev->info;
+	if(!info){
+		err("kevent: no dev->info!");
+		goto exit;
 	}
 	udev = dev->udev;
 	if(!udev){
 		err("kevent: no device!");
-		goto error;
+		goto exit;
 	}
-	drv = dev->drv;
-	interface = dev->interface;
 
-	up(&dev->sem);
+	if (test_bit(KEVENT_FLAG_SCHEDRESET, &dev->kevent_flags)) {
+		clear_bit(KEVENT_FLAG_SCHEDRESET, &dev->kevent_flags);
+		defer_kevent (dev, KEVENT_FLAG_RESET);
+	} else if (test_bit(KEVENT_FLAG_RESET, &dev->kevent_flags)) {
+		clear_bit(KEVENT_FLAG_RESET, &dev->kevent_flags);
 
-	/* releasing interface, so it can be claimed by our
-	   fellow driver */
-	usb_driver_release_interface(&usbdfu_driver, dev->interface);
+		/* releasing interface, so it can be claimed by our
+		   fellow driver */
+		interface = &udev->actconfig->interface[0];
+		usb_driver_release_interface(&usbdfu_driver, interface);
 
-	info("resetting device");
-	usb_reset_device(udev);
+		/* Once we release the interface, the USB system won't call
+		 * usbdfu_disconnect for us, so we need to do that ourselves.
+		 * Note: we cannot use dev after this point. */
+		dfu_up(&dev->sem);
+		usbdfu_disconnect(udev, dev);
 
-	info("scanning unclaimed devices");
-	usb_scan_devices();
+		dbg("resetting device");
+		usb_reset_device(udev);
 
-	/* we cannot use dev after reset - disconnect may have been
-	   been called, it's gone */
+		dbg("scanning unclaimed devices");
+		usb_scan_devices();
 
-	return;
- error:
-	up(&dev->sem);
+		return;
+	}
+
+ exit:
+	dfu_up(&dev->sem);
 	return;
 }
 
-int usbdfu_register(struct usb_driver *driver, u8 *fw_buf, int fw_buf_len)
+int usbdfu_register(struct usbdfu_info *info)
 {
-	struct usbdfu_driver *drv = kmalloc(sizeof(struct usbdfu_driver), GFP_KERNEL);
+	struct usbdfu_infolist *infolist = kmalloc(sizeof(struct usbdfu_infolist), GFP_KERNEL);
 
-	if(!drv)
+	if(!infolist)
 		return -ENOMEM;
 
-	drv->fw_buf = fw_buf;
-	drv->fw_buf_len = fw_buf_len;
-	drv->driver = driver;
+	infolist->info = info;
 
-	down(&usbdfu_lock);
-	list_add_tail(&drv->list, &usbdfu_driver_list);
-	up(&usbdfu_lock); /* before scan, because that calls probe() */
+	dfu_down(&usbdfu_lock);
+	list_add_tail(&infolist->list, &usbdfu_infolist_head);
+	dfu_up(&usbdfu_lock); /* before scan, because that calls probe() */
+
+	dbg("registered new driver %s", info->name);
 
 	/* if the device is not yet plugged in, we are settled. If it already
-	   is, we have to scan for unclaimed devices. This will call our
-	   probe function again. */
-	/* I hope this works: */
+	   is (and it's already in DFU state), we have to scan for unclaimed
+	   devices. This will call our probe function again. */
 	usb_scan_devices();
 	
 	return 0;
 }
 
-void usbdfu_deregister(struct usb_driver *driver)
+void usbdfu_deregister(struct usbdfu_info *info)
 {
 	struct list_head *tmp;
-	struct usbdfu_driver *drv;
+	struct usbdfu_infolist *infolist = NULL;
 
-	down(&usbdfu_lock);
+	dbg("deregistering driver %s", info->name);
+	dfu_down(&usbdfu_lock);
 
-        for(tmp = usbdfu_driver_list.next;
-	      tmp != &usbdfu_driver_list;
+        for(tmp = usbdfu_infolist_head.next;
+	      tmp != &usbdfu_infolist_head;
 	      tmp = tmp->next) {
 
-                drv = list_entry(tmp, struct usbdfu_driver,
+                infolist = list_entry(tmp, struct usbdfu_infolist,
 				 list);
 
-		if(drv->driver == driver)
+		if(infolist->info == info)
 			break;
         }
-	if(tmp != &usbdfu_driver_list){
-		list_del(&drv->list);
-		kfree(drv);
+	if(tmp != &usbdfu_infolist_head){
+		list_del(tmp);
+		kfree(infolist);
+	} else {
+		err("unregistering %s: driver was not previously registered!",
+		    info->name);
 	}
-	up(&usbdfu_lock);
+	dfu_up(&usbdfu_lock);
 }
 
-static inline void usbdfu_delete (struct usbdfu *dev)
+int usbdfu_in_use(struct usb_device *udev, unsigned int ifnum)
 {
-	kfree (dev);
+	int result;
+       	u8 state;
+	struct usb_interface *interface;
+	struct usb_interface_descriptor *idesc;
+
+	if (ifnum != 0) {
+		/* DFU-mode devices only have one interface */
+		return 0;
+	}
+
+	/* Check to see whether the interface's class is a DFU device.
+	 * We need to check this first to make sure the DFU_GETSTATE command
+	 * isn't misinterpreted as something else. */
+	interface = &udev->actconfig->interface[ifnum];
+	idesc = &interface->altsetting[interface->act_altsetting];
+	if ((idesc->bInterfaceClass != DFU_USB_CLASS) ||
+	    (idesc->bInterfaceSubClass != DFU_USB_SUBCLASS)) {
+		dbg("interface class is not DFU");
+		return 0;
+	}
+
+	result = dfu_get_state(udev, &state);
+	if (result < 0) {
+		return result;
+	} else if (result != 1) {
+		/* This should be an error.  The device reported this interface
+		 * as a DFU-class interface, but it's not responding correctly
+		 * to DFU-class commands on this interface.  However, there
+		 * appear to be some broken devices out there where this is
+		 * normal behavior in some cases (at76c503 immediately after
+		 * fw-load-reset), so just continue on (and hope we didn't
+		 * screw anything up with that DFU command).. */
+		dbg("DFU state query returned %d-byte response",
+		    result);
+		return 0;
+	}
+
+	switch (state) {
+	  case STATE_IDLE:
+	  case STATE_DETACH:
+		/* Device is in an application mode, it's up to other drivers
+		 * to deal with it */
+		dbg("DFU state=App (%d)", state);
+		return 0;
+	  case STATE_DFU_IDLE:
+	  case STATE_DFU_DOWNLOAD_SYNC:
+	  case STATE_DFU_DOWNLOAD_BUSY:
+	  case STATE_DFU_DOWNLOAD_IDLE:
+	  case STATE_DFU_MANIFEST_SYNC:
+	  case STATE_DFU_MANIFEST:
+	  case STATE_DFU_MANIFEST_WAIT_RESET:
+	  case STATE_DFU_UPLOAD_IDLE:
+	  case STATE_DFU_ERROR:
+		/* This is what we're looking for.  We're in the middle
+		 * of dealing with this device */
+		dbg("DFU state=DFU (%d)", state);
+		return 1;
+	  default:
+		/* We got something that shouldn't be a valid response to a DFU
+		 * state query.  Again, this sometimes happens on broken
+		 * devices (at76c503 immediately after fw-load-reset) which
+		 * report DFU class but aren't really DFU-capable. */
+		dbg("DFU state query returned bizarre response (%d)", state);
+		return 0;
+	}
+}
+
+static struct usbdfu_info *find_info(struct usb_device *udev)
+{
+	struct usb_interface *interface;
+	struct list_head *tmp;
+	struct usbdfu_infolist *infolist;
+
+	dbg("searching for driver");
+
+	interface = &udev->actconfig->interface[0];
+
+        for(tmp = usbdfu_infolist_head.next;
+	      tmp != &usbdfu_infolist_head;
+	      tmp = tmp->next) {
+		infolist = list_entry(tmp, struct usbdfu_infolist,
+				 list);
+		if(usb_match_id(udev, interface, infolist->info->id_table))
+			return infolist->info;
+	}
+
+	return NULL;
+}
+
+int usbdfu_initiate_download(struct usb_device *udev)
+{
+	int result;
+
+	if (!find_info(udev)) {
+		return -ENOENT;
+	}
+
+	result = dfu_detach(udev);
+	if (!result) {
+		dbg("dfu_detach failed (%d)", result);
+		return result;
+	}
+
+	usb_reset_device(udev);
+	usb_scan_devices();
+
+	return 0;
 }
 
 static void * usbdfu_probe(struct usb_device *udev, unsigned int ifnum, const struct usb_device_id *id)
 {
 	struct usbdfu *dev = NULL;
-	struct usb_interface *interface;
-	struct list_head *tmp;
-	struct usbdfu_driver *drv = NULL;
+	struct usbdfu_info *info = NULL;
 	int ret;
 
 	dbg("usbdfu_probe entered");
 
-	if(ifnum != 0){
-		info("cannot handle multiple interfaces");
+	if (ifnum != 0) {
+		dbg("more than one interface, cannot be DFU mode");
 		return NULL;
 	}
 
-	interface = &udev->actconfig->interface[ifnum];
+	dfu_down(&usbdfu_lock);
 
-	down(&usbdfu_lock);
-
-	dbg("searching driver");
-
-        for(tmp = usbdfu_driver_list.next;
-	      tmp != &usbdfu_driver_list;
-	      tmp = tmp->next) {
-		drv = list_entry(tmp, struct usbdfu_driver,
-				 list);
-		if(usb_match_id(udev, interface, drv->driver->id_table))
-			break;
-	}
-
-	if(tmp == &usbdfu_driver_list)
+	info = find_info(udev);
+	if (!info)
 		goto exit; /* not for us */
 
-	dbg("driver %s found", drv->driver->name);
+	dbg("device is registered (%s)", info->name);
+
+	if (usbdfu_in_use(udev, ifnum) != 1) {
+		dbg("device not in DFU-idle mode");
+		goto exit;
+	}
+	dbg("device is in DFU mode");
 
 	/* allocate memory for our device state and intialize it */
 	dev = kmalloc (sizeof(struct usbdfu), GFP_KERNEL);
@@ -631,53 +730,40 @@ static void * usbdfu_probe(struct usb_device *udev, unsigned int ifnum, const st
 
 	init_MUTEX (&dev->sem);
 
-	down(&dev->sem);
+	dfu_down(&dev->sem);
 
 	INIT_TQUEUE (&dev->kevent, kevent, dev);
 	dev->udev = udev;
-	dev->interface = interface;
-	dev->drv = drv;
-
-	ret = get_op_mode(dev, &dev->op_mode);
-	if(ret < 0){
-		/* this is not a problem: this happens on some hosts when the
-		   fw is not loaded. */
-		err("get_op_mode() failed: %d", ret);
-	}else{
-		info("op_mode = %d", (int)dev->op_mode);
-		if(dev->op_mode == 4){
-			info("firmware already loaded");
-			goto error; /* it'fine, but we are not needed */
-		}
-	}
+	dev->info = info;
 
 	dbg("going for download");
 	/* here our main action takes place: */
-	ret = usbdfu_download(dev, drv->fw_buf, drv->fw_buf_len);
+	ret = usbdfu_download(dev, info->fw_buf, info->fw_buf_len);
 	if(ret < 0){
-		err("download failed");
+		err("Firmware download failed for USB device %d", udev->devnum);
 		goto error;
 	}
 
-	set_bit(KEVENT_FLAG_AGAIN, &dev->kevent_flags);
-//	defer_kevent(dev, KEVENT_FLAG_RESET);
-	
-	init_timer(&dev->timer_reset);
-        dev->timer_reset.data = (long) dev;
-        dev->timer_reset.function = kevent_timer_reset;
+	if(info->reset_delay){
+		init_timer(&dev->timer);
+		dev->timer.data = (long) dev;
+		dev->timer.function = kevent_timer;
+		
+		mod_timer(&dev->timer, jiffies + info->reset_delay);
+	}else{
+		defer_kevent (dev, KEVENT_FLAG_SCHEDRESET);
+	}
 
-	mod_timer(&dev->timer_reset, jiffies + 2*HZ);
-
-	up(&dev->sem);
+	dfu_up(&dev->sem);
 	goto exit;
 	
 error:
-	up(&dev->sem);
+	dfu_up(&dev->sem);
 	usbdfu_delete (dev);
 	dev = NULL;
 
 exit:
-	up(&usbdfu_lock);
+	dfu_up(&usbdfu_lock);
 
 	dbg("usbdfu_probe() exiting");
 	return dev;
@@ -686,13 +772,23 @@ exit:
 
 static void usbdfu_disconnect(struct usb_device *udev, void *ptr)
 {
-	struct usbdfu *dev;
+	struct usbdfu *dev = (struct usbdfu *)ptr;
+	int kevent_pending;
 
-	dev = (struct usbdfu *)ptr;
-	
+	dbg("usbdfu_disconnect called");
+
+	while (1) {
+		dfu_down(&dev->sem);
+		kevent_pending = dev->kevent_flags;
+		dfu_up(&dev->sem);
+		if (!kevent_pending) break;
+		dbg("usbdfu_disconnect: waiting for kevent to complete (%d pending)...", kevent_pending);
+		schedule();
+	}
+
 	usbdfu_delete(dev);
-		
-	info("USB DFU now disconnected");
+
+	dbg("USB DFU now disconnected");
 }
 
 static int __init usbdfu_init(void)
@@ -728,6 +824,8 @@ module_exit (usbdfu_exit);
 
 EXPORT_SYMBOL(usbdfu_register);
 EXPORT_SYMBOL(usbdfu_deregister);
+EXPORT_SYMBOL(usbdfu_in_use);
+EXPORT_SYMBOL(usbdfu_initiate_download);
 
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);

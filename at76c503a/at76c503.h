@@ -11,6 +11,13 @@
  *
  */
 
+#ifndef _AT76C503_H
+#define _AT76C503_H
+
+#include <linux/netdevice.h>
+#include <linux/etherdevice.h>
+#include <linux/wireless.h>
+
 #define DEVICE_VENDOR_REQUEST_OUT    0x40
 #define DEVICE_VENDOR_REQUEST_IN     0xc0
 #define INTERFACE_VENDOR_REQUEST_OUT 0x41
@@ -28,6 +35,12 @@
 #define CMD_STATUS_HOST_FAILURE           0xff
 #define CMD_STATUS_SCAN_FAILED            0xf0
 
+#define OPMODE_NONE           0x00
+#define OPMODE_NETCARD        0x01
+#define OPMODE_CONFIG         0x02
+#define OPMODE_DFU            0x03
+#define OPMODE_NOFLASHNETCARD 0x04
+
 #define CMD_SET_MIB    0x01
 #define CMD_GET_MIB    0x02
 #define CMD_SCAN       0x03
@@ -35,6 +48,7 @@
 #define CMD_START_IBSS 0x05
 #define CMD_RADIO      0x06
 #define CMD_STARTUP    0x0B
+#define CMD_GETOPMODE  0x33
 
 #define MIB_LOCAL      0x01
 #define MIB_MAC_ADD    0x02
@@ -70,6 +84,10 @@
 #define IROAMING_OFFSET \
   offsetof(struct mib_mac_mgmt, multi_domain_capability_enabled)
 
+#define BOARDTYPE_INTERSIL 0
+#define BOARDTYPE_RFMD     1
+#define BOARDTYPE_R505     2
+
 struct hwcfg_r505 {
 	u8 cr39_values[14];
 	u8 reserved1[14];
@@ -94,12 +112,12 @@ struct hwcfg_rfmd {
 	u8 reserved1[3];   
 } __attribute__ ((packed));
 
-struct hwcfg_other {
+struct hwcfg_intersil {
 	u8   mac_addr[ETH_ALEN];
-	u8   cr31[14];
-	u8   cr58[14];
-	u8   vidpid[4];
-	u8   reg_domain;
+	u8   cr31_values[14];
+	u8   cr58_values[14];
+	u8   pidvid[4];
+	u8   regulatory_domain;
 	u8   reserved[1];
 } __attribute__ ((packed));
 
@@ -301,4 +319,153 @@ struct mib_mdomain {
         u8 channel_list[14]; /* 0 for invalid channels */
 } __attribute__ ((packed));
 
+#define NR_BSS_INFO 16 /* how many BSS do we record */
 
+/* states in infrastructure mode */
+enum infra_state {
+	INIT,
+	SCANNING,
+	AUTHENTICATING,
+	ASSOCIATING,
+	REASSOCIATING,
+	DISASSOCIATING,
+	JOINING,
+	CONNECTED,
+	STARTIBSS
+};
+
+/* struct to store BSS info found during scan */
+#define MAX_RATE_LEN 32 /* 32 rates should be enough ... */
+
+struct bss_info{
+	u8 mac[ETH_ALEN]; /* real mac address, differs 
+			     for ad-hoc from bssid */
+	u8 bssid[ETH_ALEN]; /* bssid */
+	u8 ssid[IW_ESSID_MAX_SIZE+1]; /* ssid, +1 for trailing \0 
+					 to make it printable */
+	u8 ssid_len; /* length of ssid above */
+	u8 channel;
+	u16 capa; /* the capabilities of the BSS (in original endianess -
+		     we only check IEEE802_11 bits in it) */
+	u16 beacon_interval; /* the beacon interval (in cpu endianess -
+				we must calc. values from it */
+	u8 rates[MAX_RATE_LEN]; /* supported rates (list of bytes: 
+				   (basic_rate ? 0x80 : 0) + rate/(500 Kbit/s); e.g. 
+				   x82,x84,x8b,x96 for basic rates 1,2,5.5,11 MBit/s) */
+	u8 rates_len;
+
+	/* quality of received beacon */
+	u8 rssi;
+	u8 link_qual;
+	u8 noise_level;
+};
+
+struct at76c503 {
+	struct usb_device *udev;			/* save off the usb device pointer */
+	struct net_device *netdev;			/* save off the net device pointer */
+	struct net_device_stats stats;
+	struct iw_statistics wstats;
+	struct usb_interface *interface;		/* the interface for this device */
+	
+	unsigned char		num_ports;		/* the number of ports this device has */
+	char			num_interrupt_in;	/* number of interrupt in endpoints we have */
+	char			num_bulk_in;		/* number of bulk in endpoints we have */
+	char			num_bulk_out;		/* number of bulk out endpoints we have */
+	
+	unsigned char *	bulk_in_buffer;		/* the buffer to receive data */
+	int			bulk_in_size;		/* the size of the receive buffer */
+	__u8			bulk_in_endpointAddr;	/* the address of the bulk in endpoint */
+	
+	unsigned char *	bulk_out_buffer;	/* the buffer to send data */
+	int			bulk_out_size;		/* the size of the send buffer */
+	struct urb *		write_urb;		/* the urb used to send data */
+	struct urb *		read_urb;
+	__u8			bulk_out_endpointAddr;	/* the address of the bulk out endpoint */
+
+	struct tq_struct	tqueue;			/* task queue for line discipline waking up */
+	int			open_count;		/* number of times this port has been opened */
+	struct semaphore	sem;			/* locks this structure */
+
+
+	u32 kevent_flags;
+	struct tq_struct kevent;
+
+	struct tasklet_struct tasklet;
+	struct urb *rx_urb; /* tmp urb pointer for rx_tasklet */
+
+	unsigned char *ctrl_buffer;
+	struct urb *ctrl_urb;
+
+	u8 op_mode;
+
+        /* the WEP stuff */
+        int  wep_excl_unencr; /* 1 if unencrypted packets shall be discarded */
+        int wep_enabled;      /* 1 if WEP is enabled */ 
+        int wep_key_id;       /* key id to be used */
+        u8 wep_keys[NR_WEP_KEYS][WEP_KEY_SIZE]; /* the four WEP keys,
+						   5 or 13 bytes are used */
+        u8  wep_keys_len[NR_WEP_KEYS]; /* the length of the above keys */
+
+	int channel;
+	int iw_mode;
+	int curr_ap;
+	u8 bssid[ETH_ALEN];
+	u8 essid[IW_ESSID_MAX_SIZE];
+	int essid_size;
+	int radio_on;
+	int promisc;
+
+	int preamble_type; /* 0 - long preamble, 1 - short preamble */
+	int txrate; /* 0,1,2,3 = 1,2,5.5,11 MBit, 4 is auto-fallback */
+        int frag_threshold; /* threshold for fragmentation of tx packets */
+        int rts_threshold; /* threshold for RTS mechanism */
+
+	struct bss_info bss[NR_BSS_INFO]; /* the list we got from scanning */
+	int bss_nr; /* how many valid entries in bss[] (from 0)? */
+
+	/* some data for infrastructure mode only */
+	spinlock_t mgmt_spinlock; /* this spinlock protects access to
+				     next_mgmt_bulk and istate */
+	struct at76c503_tx_buffer *next_mgmt_bulk; /* pending management msg to
+						     send via bulk out */
+	enum infra_state istate;
+	int curr_bss; /* if istate == AUTH, ASSOC, REASSOC, JOIN or CONN 
+			 dev->bss[curr_bss] is the currently selected BSS
+			 we operate on */
+	int new_bss; /* if istate == REASSOC dev->bss[new_bss] is the new bss
+			we want to reassoc to */
+	struct timer_list mgmt_timer; /* the timer we use to repeat auth_req etc. */
+	int retries; /* counts backwards while re-trying to send auth/assoc_req's */
+	u16 assoc_id; /* the assoc_id for states JOINING, REASSOCIATING, CONNECTED */
+
+	int board_type; /* 0 = Intersil, 1 = RFMD, 2 = R505 */
+
+	/* These fields contain HW config provided by the device (not all of
+	 * these fields are used by all board types) */
+	u8 mac_addr[ETH_ALEN];
+	u8 bb_cr[14];
+	u8 pidvid[4];
+	u8 regulatory_domain;
+	u8 cr15_values[14];
+	u8 cr20_values[14]; 
+	u8 cr21_values[14]; 
+	u8 cr31_values[14];
+	u8 cr39_values[14];
+	u8 cr58_values[14];
+	u8 low_power_values[14];     
+	u8 normal_power_values[14]; 
+
+	struct at76c503_card_config card_config;
+	struct mib_fw_version fw_version;
+};
+
+/* Function prototypes */
+
+struct at76c503 *at76c503_do_probe(struct module *mod, struct usb_device *udev, u8 *extfw, int extfw_size, int board_type, const char *netdev_name);
+int at76c503_download_external_fw(struct usb_device *udev, u8 *buf, int size);
+struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type, const char *netdev_name);
+void at76c503_delete_device(struct at76c503 *dev);
+int at76c503_usbdfu_post(struct usb_device *udev);
+int at76c503_remap(struct usb_device *udev);
+
+#endif /* _AT76C503_H */

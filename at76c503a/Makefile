@@ -1,4 +1,4 @@
-VERSION = 0.8
+VERSION = 0.9
 
 CC=gcc
 
@@ -7,10 +7,10 @@ KERNEL_VERSION = $(shell uname -r)
 KERNEL_SRC = /lib/modules/$(KERNEL_VERSION)/build
 KERNEL_HEADERS = $(KERNEL_SRC)/include
 
-MODULES = at76c503.o usbdfu.o
+MODULES = at76c503.o usbdfu.o at76c503-rfmd.o at76c505-rfmd.o at76c503-i3861.o at76c503-i3863.o
 
-SRCS = at76c503.c usbdfu.c at76c503fw.c rom2h.c
-HDRS = internalr.h externalr.h at76c503.h ieee802_11.h usbdfu.h
+SRCS = at76c503.c usbdfu.c at76c503-rfmd.c at76c505-rfmd.c at76c503-i3861.c at76c503-i3863.c
+HDRS = at76c503.h ieee802_11.h usbdfu.h fw-rfmd-0.90.2-140.h fw-rfmd-0.100.4-16.h fw-r505.h fw-i3861.h fw-i3863.h
 MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNEL_VERSION)/kernel/drivers/usb/
 CPPFLAGS = -D__KERNEL__ \
 	-DMODULE -DEXPORT_SYMTAB \
@@ -29,18 +29,12 @@ endif
 CCDEP = $(CC) $(CFLAGS) -M
 TAR = tar
 
-DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING
+DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING scripts
 TOPDISTFILES = 
 DISTNAME = at76c503-$(VERSION)
 DISTDIR = ../dist
 
 all: $(MODULES)
-
-at76c503fw: at76c503fw.c
-	$(CC) $(CFLAGS) -o $@ $< -lusb
-
-rom2h: rom2h.c
-	$(CC) $(CFLAGS) -o $@ $<
 
 TAGS:
 	rm -f TAGS
@@ -56,7 +50,6 @@ uninstall:
 	for f in $(MODULES); do rm $(MODULE_DIR)/$$f; done
 
 clean:
-	rm -f at76c503fw rom2h
 	rm -f core *.o *~ a.out *.d
 	rm -f *.s *.i
 

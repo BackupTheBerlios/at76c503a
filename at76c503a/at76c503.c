@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * USB at76c503 driver
+ * USB at76c503/at76c505 driver
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth <oku@masqmail.cx>
  *
@@ -9,8 +9,6 @@
  *	published by the Free Software Foundation; either version 2 of
  *	the License, or (at your option) any later version.
  *
- *
- * This driver is derived from usb-skeleton.c
  *
  * History:
  *
@@ -100,11 +98,6 @@
 
 #include "at76c503.h"
 #include "ieee802_11.h"
-#include "usbdfu.h"
-
-typedef unsigned char UCHAR;
-#include "internalr.h"
-#include "externalr.h"
 
 #ifdef CONFIG_USB_DEBUG
 static int debug = 1;
@@ -145,46 +138,13 @@ static int debug;
 #define RESCAN_TIME 10
 
 /* Version Information */
-#define DRIVER_AUTHOR "Oliver Kurth <oku@masqmail.cx>, Joerg Albert <joerg.albert@gmx.de>"
-#define DRIVER_DESC "Atmel at76c503 Wireless LAN Driver"
+#define DRIVER_DESC "Generic Atmel at76c503/at76c505 routines"
 
 /* Module paramaters */
 MODULE_PARM(debug, "i");
+#define DRIVER_AUTHOR \
+"Oliver Kurth <oku@masqmail.cx>, Joerg Albert <joerg.albert@gmx.de>, Alex <alex@foogod.com>"
 MODULE_PARM_DESC(debug, "Debug enabled or not");
-
-static char eth_name[IFNAMSIZ+1] = "eth%d";
-MODULE_PARM(eth_name, "c" __MODULE_STRING(IFNAMSIZ));
-MODULE_PARM_DESC(eth_name,
-                 "the device name (default is eth%d)");
-
-/* except for belkin and netgear, none of these are tested: */
-
-#define VENDOR_ID_ATMEL      0x03eb
-#define PRODUCT_ID_ATMEL_503 0x7605
-#define PRODUCT_ID_ATMEL_505 0x7606 /* not yet supported, but there will be a time.. */
-
-#define VENDOR_ID_BELKIN     0x0d5c
-#define PRODUCT_ID_BELKIN    0xa002 /* Belkin F5D6050 */
-
-#define VENDOR_ID_DYNALINK   0x069a
-#define PRODUCT_ID_DYNALINK  0x0321 /* Dynalink/Askey WLL013 */
-
-#define VENDOR_ID_LINKSYS    0x077b
-#define PRODUCT_ID_LINKSYS   0x2219 /* Linksys WUSB11 v2.6 */
-
-#define VENDOR_ID_NETGEAR         0x0864
-#define PRODUCT_ID_NETGEAR_MA101B 0x4102 /* Netgear MA 101 Rev. B */
-
-static struct usb_device_id at76c503_table [] = {
-	{ USB_DEVICE(VENDOR_ID_ATMEL, PRODUCT_ID_ATMEL_503) },
-	{ USB_DEVICE(VENDOR_ID_BELKIN, PRODUCT_ID_BELKIN) },
-	{ USB_DEVICE(VENDOR_ID_DYNALINK, PRODUCT_ID_DYNALINK) },
-	{ USB_DEVICE(VENDOR_ID_LINKSYS, PRODUCT_ID_LINKSYS) },
-	{ USB_DEVICE(VENDOR_ID_NETGEAR, PRODUCT_ID_NETGEAR_MA101B) },
-	{ }
-};
-
-MODULE_DEVICE_TABLE (usb, at76c503_table);
 
 struct header_struct {
         /* 802.3 */
@@ -220,8 +180,8 @@ const long channel_frequency[] = {
 /* the broadcast address */
 const u8 bc_addr[ETH_ALEN] = {0xff,0xff,0xff,0xff,0xff,0xff};
 
-/* the basic rates of this hardware */
-const u8 hw_rates[4] = {0x82,0x84,0x8b,0x96};
+/* the supported rates of this hardware, bit7 marks a mandantory rate */
+const u8 hw_rates[4] = {0x82,0x84,0x0b,0x16};
 
 /* the max padding size for tx in bytes */
 #define MAX_PADDING_SIZE 53
@@ -324,144 +284,14 @@ struct ieee802_11_deauth_frame {
 #define KEVENT_NEW_BSS 2
 #define KEVENT_SET_PROMISC 3
 #define KEVENT_MGMT_TIMEOUT 4
-#define KEVENT_SCANJOIN 5 /* SCAN and JOIN are used in infrastructure mode only */
-
-/* struct to store BSS info found during scan */
-#define MAX_RATE_LEN 32 /* 32 rates should be enough ... */
-
-struct bss_info{
-	u8 mac[ETH_ALEN]; /* real mac address, differs 
-			      for ad-hoc from bssid */
-	u8 bssid[ETH_ALEN]; /* bssid */
-	u8 ssid[IW_ESSID_MAX_SIZE+1]; /* ssid, +1 for trailing \0 
-					 to make it printable */
-	u8 ssid_len; /* length of ssid above */
-	u8 channel;
-	u16 capa; /* the capabilities of the BSS (in original endianess -
-		   we only check IEEE802_11 bits in it) */
-	u16 beacon_interval; /* the beacon interval (in cpu endianess -
-				we must calc. values from it */
-	u8 rates[MAX_RATE_LEN]; /* supported rates (list of bytes: 
-				   (basic_rate ? 0x80 : 0) + rate/(500 Kbit/s); e.g. 
-				   x82,x84,x8b,x96 for basic rates 1,2,5.5,11 MBit/s) */
-	u8 rates_len;
-
-	/* quality of received beacon */
-	u8 rssi;
-	u8 link_qual;
-	u8 noise_level;
-};
-
-#define NR_BSS_INFO 16 /* how many BSS do we record */
-
-/* states in infrastructure mode */
-enum infra_state {
-	INIT,
-	SCANNING,
-	AUTHENTICATING,
-	ASSOCIATING,
-	REASSOCIATING,
-	DISASSOCIATING,
-	JOINING,
-	CONNECTED
-};
-
-struct at76c503 {
-	struct usb_device *udev;			/* save off the usb device pointer */
-	struct net_device *netdev;			/* save off the net device pointer */
-	struct net_device_stats stats;
-	struct iw_statistics wstats;
-	struct usb_interface *interface;		/* the interface for this device */
-	
-	unsigned char		num_ports;		/* the number of ports this device has */
-	char			num_interrupt_in;	/* number of interrupt in endpoints we have */
-	char			num_bulk_in;		/* number of bulk in endpoints we have */
-	char			num_bulk_out;		/* number of bulk out endpoints we have */
-	
-	unsigned char *	bulk_in_buffer;		/* the buffer to receive data */
-	int			bulk_in_size;		/* the size of the receive buffer */
-	__u8			bulk_in_endpointAddr;	/* the address of the bulk in endpoint */
-	
-	unsigned char *	bulk_out_buffer;	/* the buffer to send data */
-	int			bulk_out_size;		/* the size of the send buffer */
-	struct urb *		write_urb;		/* the urb used to send data */
-	struct urb *		read_urb;
-	__u8			bulk_out_endpointAddr;	/* the address of the bulk out endpoint */
-
-	struct tq_struct	tqueue;			/* task queue for line discipline waking up */
-	int			open_count;		/* number of times this port has been opened */
-	struct semaphore	sem;			/* locks this structure */
-
-
-	u32 kevent_flags;
-	struct tq_struct kevent;
-
-	struct tasklet_struct tasklet;
-	struct urb *rx_urb; /* tmp urb pointer for rx_tasklet */
-
-	unsigned char *ctrl_buffer;
-	struct urb *ctrl_urb;
-
-	u8 op_mode;
-
-        /* the WEP stuff */
-        int  wep_excl_unencr; /* 1 if unencrypted packets shall be discarded */
-        int wep_enabled;      /* 1 if WEP is enabled */ 
-        int wep_key_id;       /* key id to be used */
-        u8 wep_keys[NR_WEP_KEYS][WEP_KEY_SIZE]; /* the four WEP keys,
-						   5 or 13 bytes are used */
-        u8  wep_keys_len[NR_WEP_KEYS]; /* the length of the above keys */
-
-	int channel;
-	int iw_mode;
-	int curr_ap;
-	u8 bssid[ETH_ALEN];
-	u8 essid[IW_ESSID_MAX_SIZE];
-	int essid_size;
-	int radio_on;
-	int promisc;
-
-	int preamble_type; /* 0 - long preamble, 1 - short preamble */
-	int txrate; /* 0,1,2,3 = 1,2,5.5,11 MBit, 4 is auto-fallback */
-        int frag_threshold; /* threshold for fragmentation of tx packets */
-        int rts_threshold; /* threshold for RTS mechanism */
-
-	struct bss_info bss[NR_BSS_INFO]; /* the list we got from scanning */
-	int bss_nr; /* how many valid entries in bss[] (from 0)? */
-
-	/* some data for infrastructure mode only */
-	spinlock_t mgmt_spinlock; /* this spinlock protects access to
-				     next_mgmt_bulk and istate */
-	struct at76c503_tx_buffer *next_mgmt_bulk; /* pending management msg to
-						     send via bulk out */
-	enum infra_state istate;
-	int curr_bss; /* if istate == AUTH, ASSOC, REASSOC, JOIN or CONN 
-			 dev->bss[curr_bss] is the currently selected BSS
-			 we operate on */
-	int new_bss; /* if istate == REASSOC dev->bss[new_bss] is the new bss
-			we want to reassoc to */
-	struct timer_list mgmt_timer; /* the timer we use to repeat auth_req etc. */
-	int retries; /* counts backwards while re-trying to send auth/assoc_req's */
-	u16 assoc_id; /* the assoc_id for states JOINING, REASSOCIATING, CONNECTED */
-
-	/* provide hooks for non-rfmd */
-	union{
-		struct hwcfg_rfmd rfmd;
-		struct hwcfg_r505 r505;
-		struct hwcfg_other other;
-	}hwcfg;
-
-	struct at76c503_card_config card_config;
-	struct mib_fw_version fw_version;
-};
+#define KEVENT_SCAN 5 
+#define KEVENT_JOIN 6
+#define KEVENT_STARTIBSS 7
 
 static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 
 /* local function prototypes */
 	
-static void * at76c503_probe(struct usb_device *dev, unsigned int ifnum,
-			     const struct usb_device_id *id);
-static void at76c503_disconnect(struct usb_device *dev, void *ptr);
 static void at76c503_write_bulk_callback(struct urb *urb);
 static void defer_kevent (struct at76c503 *dev, int flag);
 static int find_matching_bss(struct at76c503 *dev, int start);
@@ -470,17 +300,6 @@ static int disassoc_req(struct at76c503 *dev, int idx);
 static int assoc_req(struct at76c503 *dev, int idx);
 static int reassoc_req(struct at76c503 *dev, int curr, int new);
 static void dump_bss_table(struct at76c503 *dev);
-
-/* usb specific object needed to register this driver with the usb subsystem */
-static struct usb_driver at76c503_driver = {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,20)
-	owner:      THIS_MODULE,
-#endif
-	name:	    "at76c503",
-	probe:	    at76c503_probe,
-	disconnect: at76c503_disconnect,
-	id_table:   at76c503_table,
-};
 
 /* hexdump len many bytes from buf into obuf, separated by delim,
    add a trailing \0 into obuf */
@@ -529,26 +348,32 @@ static inline void usb_debug_data (const char *function, const unsigned char *da
 	printk ("\n");
 }
 
-static inline
-int remap(struct usb_device *udev)
+int at76c503_remap(struct usb_device *udev)
 {
-  return usb_control_msg(udev, usb_sndctrlpipe(udev,0),
-			 0x0a, INTERFACE_VENDOR_REQUEST_OUT,
-			 0, 0,
-			 NULL, 0, HZ);
+	int ret;
+	ret = usb_control_msg(udev, usb_sndctrlpipe(udev,0),
+			      0x0a, INTERFACE_VENDOR_REQUEST_OUT,
+			      0, 0,
+			      NULL, 0, HZ);
+	if (ret < 0)
+		return ret;
+
+	return 0;
 }
 
 static inline
-int get_op_mode(struct at76c503 *dev)
+int get_op_mode(struct usb_device *udev)
 {
 	int ret;
-	ret = usb_control_msg(dev->udev, usb_rcvctrlpipe(dev->udev,0),
+	u8 op_mode;
+
+	ret = usb_control_msg(udev, usb_rcvctrlpipe(udev, 0),
 			      0x33, INTERFACE_VENDOR_REQUEST_IN,
 			      0x01, 0,
-			      &dev->op_mode, 1, HZ);
+			      &op_mode, 1, HZ);
 	if(ret < 0)
 		return ret;
-	return dev->op_mode;
+	return op_mode;
 }
 
 /* this loads a block of the second part of the firmware */
@@ -563,13 +388,85 @@ int load_ext_fw_block(struct usb_device *udev,
 }
 
 static inline
-int get_hw_cfg(struct usb_device *udev,
+int get_hw_cfg_rfmd(struct usb_device *udev,
 	       unsigned char *buf, int buf_size)
 {
 	return usb_control_msg(udev, usb_rcvctrlpipe(udev,0),
 			       0x33, INTERFACE_VENDOR_REQUEST_IN,
 			       ((0x0a << 8) | 0x02), 0,
 			       buf, buf_size, HZ);
+}
+
+/* Intersil boards use a different "value" for GetHWConfig requests */
+static inline
+int get_hw_cfg_intersil(struct usb_device *udev,
+	       unsigned char *buf, int buf_size)
+{
+	return usb_control_msg(udev, usb_rcvctrlpipe(udev,0),
+			       0x33, INTERFACE_VENDOR_REQUEST_IN,
+			       ((0x09 << 8) | 0x02), 0,
+			       buf, buf_size, HZ);
+}
+
+/* Get the hardware configuration for the adapter and place the appropriate
+ * data in the appropriate fields of 'dev' (the GetHWConfig request and
+ * interpretation of the result depends on the type of board we're dealing
+ * with) */
+static int get_hw_config(struct at76c503 *dev)
+{
+	int ret;
+	union {
+		struct hwcfg_intersil i;
+		struct hwcfg_rfmd     r3;
+		struct hwcfg_r505     r5;
+	} *hwcfg = kmalloc(sizeof(*hwcfg), GFP_KERNEL);
+
+	if (!hwcfg)
+		return -ENOMEM;
+
+	switch (dev->board_type) {
+	  case BOARDTYPE_INTERSIL:
+		ret = get_hw_cfg_intersil(dev->udev, (unsigned char *)&hwcfg->i, sizeof(hwcfg->i));
+		if (ret < 0) break;
+		memcpy(dev->mac_addr, hwcfg->i.mac_addr, ETH_ALEN);
+		memcpy(dev->cr31_values, hwcfg->i.cr31_values, 14);
+		memcpy(dev->cr58_values, hwcfg->i.cr58_values, 14);
+		memcpy(dev->pidvid, hwcfg->i.pidvid, 4);
+		dev->regulatory_domain = hwcfg->i.regulatory_domain;
+		break;
+	  case BOARDTYPE_RFMD:
+		ret = get_hw_cfg_rfmd(dev->udev, (unsigned char *)&hwcfg->r3, sizeof(hwcfg->r3));
+		if (ret < 0) break;
+		memcpy(dev->cr20_values, hwcfg->r3.cr20_values, 14);
+		memcpy(dev->cr21_values, hwcfg->r3.cr21_values, 14);
+		memcpy(dev->bb_cr, hwcfg->r3.bb_cr, 14);
+		memcpy(dev->pidvid, hwcfg->r3.pidvid, 4);
+		memcpy(dev->mac_addr, hwcfg->r3.mac_addr, ETH_ALEN);
+		dev->regulatory_domain = hwcfg->r3.regulatory_domain;
+		memcpy(dev->low_power_values, hwcfg->r3.low_power_values, 14);
+		memcpy(dev->normal_power_values, hwcfg->r3.normal_power_values, 14);
+		break;
+	  case BOARDTYPE_R505:
+		ret = get_hw_cfg_rfmd(dev->udev, (unsigned char *)&hwcfg->r5, sizeof(hwcfg->r5));
+		if (ret < 0) break;
+		memcpy(dev->cr39_values, hwcfg->r5.cr39_values, 14);
+		memcpy(dev->bb_cr, hwcfg->r5.bb_cr, 14);
+		memcpy(dev->pidvid, hwcfg->r5.pidvid, 4);
+		memcpy(dev->mac_addr, hwcfg->r5.mac_addr, ETH_ALEN);
+		dev->regulatory_domain = hwcfg->r5.regulatory_domain;
+		memcpy(dev->cr15_values, hwcfg->r5.cr15_values, 14);
+		break;
+	  default:
+		err("Bad board type set (%d).  Unable to get hardware config.", dev->board_type);
+		ret = -EINVAL;
+	}
+
+	kfree(hwcfg);
+
+	if (ret < 0) {
+		err("Get HW Config failed (%d)", ret);
+	}
+	return ret;
 }
 
 static inline
@@ -593,19 +490,32 @@ int get_cmd_status(struct usb_device *udev,
 }
 
 #define EXT_FW_BLOCK_SIZE 1024
-static int
-download_external_fw(struct usb_device *udev, u8 *buf, int size)
+int at76c503_download_external_fw(struct usb_device *udev, u8 *buf, int size)
 {
 	int i = 0, ret = 0;
+	u8 op_mode;
 	u8 *block;
 
-	if(size < 0) return -EINVAL;
-	if((size > 0) && (buf == NULL)) return -EFAULT;
+	if (size < 0) return -EINVAL;
+	if ((size > 0) && (buf == NULL)) return -EFAULT;
+
+	op_mode = get_op_mode(udev);
+	if (op_mode <= 0) {
+		err("Internal firmware not loaded (%d)", op_mode);
+		return -EPROTO;
+	} 
+	if (op_mode == OPMODE_NETCARD) {
+		/* don't need firmware downloaded, it's already ready to go */
+		return 0;
+	}
+	if (op_mode != OPMODE_NOFLASHNETCARD) {
+		dbg("Unexpected operating mode (%d).  Attempting to download firmware anyway.", op_mode);
+	}
 
 	block = kmalloc(EXT_FW_BLOCK_SIZE, GFP_KERNEL);
-	if(block == NULL) return -ENOMEM;
+	if (block == NULL) return -ENOMEM;
 
-	info("downloading external firmware");
+	info("Downloading external firmware...");
 
 	while(size > 0){
 		int bsize = size > EXT_FW_BLOCK_SIZE ? EXT_FW_BLOCK_SIZE : size;
@@ -1021,7 +931,7 @@ void handle_mgmt_timeout(struct at76c503 *dev)
 	switch(dev->istate) {
 
 	case SCANNING: /* we use the mgmt_timer to delay the next scan for some time */
-		defer_kevent(dev, KEVENT_SCANJOIN);
+		defer_kevent(dev, KEVENT_SCAN);
 		break;
 
 	case JOINING:
@@ -1035,7 +945,7 @@ void handle_mgmt_timeout(struct at76c503 *dev)
 		netif_carrier_off(dev->netdev); /* disable running netdev watchdog */
 		netif_stop_queue(dev->netdev); /* stop tx data packets */
 		NEW_STATE(dev,SCANNING);
-		defer_kevent(dev,KEVENT_SCANJOIN);
+		defer_kevent(dev,KEVENT_SCAN);
 		break;
 
 	case AUTHENTICATING:
@@ -1044,13 +954,8 @@ void handle_mgmt_timeout(struct at76c503 *dev)
 			mod_timer(&dev->mgmt_timer, jiffies+HZ);
 		} else {
 			/* try to get next matching BSS */
-			dev->curr_bss = find_matching_bss(dev,dev->curr_bss+1);
-			if (dev->curr_bss >= 0) {
-				NEW_STATE(dev,JOINING);
-			} else {
-				NEW_STATE(dev,SCANNING);
-			}
-			defer_kevent(dev,KEVENT_SCANJOIN);
+			NEW_STATE(dev,JOINING);
+			defer_kevent(dev,KEVENT_JOIN);
 		}
 		break;
 
@@ -1064,13 +969,8 @@ void handle_mgmt_timeout(struct at76c503 *dev)
 			   in the future ... */
 
 			/* try to get next matching BSS */
-			dev->curr_bss = find_matching_bss(dev,dev->curr_bss+1);
-			if (dev->curr_bss >= 0) {
-				NEW_STATE(dev,JOINING);
-			} else {
-				NEW_STATE(dev,SCANNING);
-			}
-			defer_kevent(dev,KEVENT_SCANJOIN);
+			NEW_STATE(dev,JOINING);
+			defer_kevent(dev,KEVENT_JOIN);
 		}
 		break;
 
@@ -1094,7 +994,7 @@ void handle_mgmt_timeout(struct at76c503 *dev)
 		} else {
 			/* we scan again ... */
 			NEW_STATE(dev,SCANNING);
-			defer_kevent(dev,KEVENT_SCANJOIN);
+			defer_kevent(dev,KEVENT_SCAN);
 		}
 		break;
 
@@ -1151,9 +1051,8 @@ int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf)
 		/* a data/mgmt tx is already pending in the URB -
 		   if this is no error in some situations we must
 		   implement a queue or silently modify the old msg */
-		err("%s:" __FUNCTION__ " removed pending mgmt buffer "
-		    "%s",
-		    dev->netdev->name,
+		err("%s: %s removed pending mgmt buffer %s",
+		    dev->netdev->name, __FUNCTION__,
 		    hex2str(obuf, (u8 *)dev->next_mgmt_bulk, 64,' '));
 		kfree(dev->next_mgmt_bulk);
 	}
@@ -1165,9 +1064,8 @@ int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf)
 //		txbuf->padding = 
 //		   cpu_to_le16(calc_padding(le16_to_cpu(txbuf->wlength)));
 		if (dev->next_mgmt_bulk) {
-			err("%s:" __FUNCTION__ " URB status %d, "
-			    "but mgmt is pending",
-			    dev->netdev->name, urb_status);
+			err("%s: %s URB status %d, but mgmt is pending",
+			    dev->netdev->name, __FUNCTION__, urb_status);
 		}
 #if 0
 		dbg("%s: tx mgmt: wlen %d tx_rate %d pad %d %s",
@@ -1191,8 +1089,8 @@ int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf)
 			      at76c503_write_bulk_callback, dev);
 		ret = usb_submit_urb(dev->write_urb);
 		if (ret) {
-			err("%s:" __FUNCTION__ " error in tx submit urb: %d",
-			    dev->netdev->name, ret);
+			err("%s: %s error in tx submit urb: %d",
+			    dev->netdev->name, __FUNCTION__, ret);
 		}
 		kfree(txbuf);
 	} /* if (txbuf) */
@@ -1222,8 +1120,6 @@ int disassoc_req(struct at76c503 *dev, int idx)
 	/* no need to care about endianness of constants - is taken care
 	   of in ieee802_11.h */
 	mgmt->frame_ctl = IEEE802_11_FTYPE_MGMT|IEEE802_11_STYPE_AUTH;
-	if (dev->wep_enabled)
-		mgmt->frame_ctl |= IEEE802_11_FCTL_WEP;
 	mgmt->duration_id = cpu_to_le16(0x8000);
 	memcpy(mgmt->addr1, bss->bssid, ETH_ALEN);
 	memcpy(mgmt->addr2, dev->netdev->dev_addr, ETH_ALEN);
@@ -1255,7 +1151,7 @@ int auth_req(struct at76c503 *dev, int idx)
 
 	assert(idx >= 0 && idx < dev->bss_nr);
 
-	tx_buffer = kmalloc(AUTH_FRAME_SIZE+MAX_PADDING_SIZE, GFP_ATOMIC);
+	tx_buffer = kmalloc(AUTH_FRAME_SIZE, GFP_ATOMIC);
 	if (!tx_buffer)
 		return -ENOMEM;
 
@@ -1314,8 +1210,6 @@ int assoc_req(struct at76c503 *dev, int idx)
 	/* no need to care about endianness of constants - is taken care
 	   of in ieee802_11.h */
 	mgmt->frame_ctl = IEEE802_11_FTYPE_MGMT|IEEE802_11_STYPE_ASSOC_REQ;
-	if (dev->wep_enabled)
-		mgmt->frame_ctl |= IEEE802_11_FCTL_WEP;
 
 	mgmt->duration_id = cpu_to_le16(0x8000);
 	memcpy(mgmt->addr1, bss->bssid, ETH_ALEN);
@@ -1402,8 +1296,6 @@ int reassoc_req(struct at76c503 *dev, int curr, int idx)
 	   of in ieee802_11.h */
 	/* jal: encrypt this packet if wep_enabled is TRUE ??? */
 	mgmt->frame_ctl = IEEE802_11_FTYPE_MGMT|IEEE802_11_STYPE_REASSOC_REQ;
-	if (dev->wep_enabled)
-		mgmt->frame_ctl |= IEEE802_11_FCTL_WEP;
 	mgmt->duration_id = cpu_to_le16(0x8000);
 	memcpy(mgmt->addr1, bss->bssid, ETH_ALEN);
 	memcpy(mgmt->addr2, dev->netdev->dev_addr, ETH_ALEN);
@@ -1548,66 +1440,131 @@ kevent(void *data)
 		handle_mgmt_timeout(dev);
 	}
 
-	if (test_bit(KEVENT_SCANJOIN, &dev->kevent_flags)) {
-		clear_bit(KEVENT_SCANJOIN, &dev->kevent_flags);
-		if (dev->istate == SCANNING) {
-			if ((ret=start_scan(dev)) < 0)
-				err("%s: start_scan failed with %d",
-				    dev->netdev->name, ret);
-			else {
-				if ((ret=wait_completion(dev,CMD_SCAN)) !=
-				    CMD_STATUS_COMPLETE) {
-					err("%s start_scan completed with %d",
-					    dev->netdev->name, ret);
-				}
-			}
-			/* if start_scan failed above, the bss table is empty ... */
-			dump_bss_table(dev);
-			if ((dev->curr_bss=find_matching_bss(dev,0)) >= 0) {
-				NEW_STATE(dev,JOINING);
-				/* call join_bss immediately after
-				   re-schedule in kevent */
-				defer_kevent(dev,KEVENT_SCANJOIN);
-			} else {
-				/* haven't found a matching BSS - 
-				   use timer to try again in 10 seconds */
-				mod_timer(&dev->mgmt_timer,jiffies+RESCAN_TIME*HZ);
-			}
-		} else {
-			assert(dev->istate == JOINING);
-			assert(dev->curr_bss >= 0 &&
-			       dev->curr_bss < dev->bss_nr);
-			if ((ret=join_bss(dev,dev->curr_bss)) < 0)
+	/* check this _before_ KEVENT_JOIN, 'cause _JOIN sets _STARTIBSS bit */
+	if (test_bit(KEVENT_STARTIBSS, &dev->kevent_flags)) {
+		struct set_mib_buffer mib_buf;
+		clear_bit(KEVENT_STARTIBSS, &dev->kevent_flags);
+		assert(dev->istate == STARTIBSS);
+		ret = start_ibss(dev);
+		if(ret < 0){
+			err("%s: start_ibss failed: %d", dev->netdev->name, ret);
+			goto end_startibss;
+		}
+
+		ret = wait_completion(dev, CMD_START_IBSS);
+		if (ret != CMD_STATUS_COMPLETE) {
+			err("%s start_ibss failed to complete,%d",
+			    dev->netdev->name, ret);
+			goto end_startibss;
+		}
+
+		ret = get_current_bssid(dev);
+		if(ret < 0) goto end_startibss;
+
+		ret = get_current_channel(dev);
+		if(ret < 0) goto end_startibss;
+
+		/* not sure what this is good for ??? */
+		memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
+		mib_buf.type = MIB_MAC_MGMT;
+		mib_buf.size = 1;
+		mib_buf.index = IBSS_CHANGE_OK_OFFSET;
+		ret = set_mib(dev->udev, &mib_buf);
+		if(ret < 0){
+			err("%s: set_mib (ibss change ok) failed: %d", dev->netdev->name, ret);
+			goto end_startibss;
+		}
+
+		netif_start_queue(dev->netdev);
+	end_startibss:
+	}
+
+	/* check this _before_ KEVENT_SCAN, 'cause _SCAN sets _JOIN bit */
+	if (test_bit(KEVENT_JOIN, &dev->kevent_flags)) {
+		clear_bit(KEVENT_JOIN, &dev->kevent_flags);
+		assert(dev->istate == JOINING);
+		if ((dev->curr_bss=find_matching_bss(dev,dev->curr_bss+1)) >= 0) {
+			if ((ret=join_bss(dev,dev->curr_bss)) < 0) {
 				err("%s: join_bss failed with %d",
 				    dev->netdev->name, ret);
-			else {
-				ret=wait_completion(dev,CMD_JOIN);
-				if (ret != CMD_STATUS_COMPLETE) {
-					if (ret != CMD_STATUS_TIME_OUT)
-						err("%s join_bss completed with %d",
-						    dev->netdev->name, ret);
-					else
-						info("%s join_bss timed out",
-						     dev->netdev->name);
-					if ((dev->curr_bss=
-					     find_matching_bss(dev,dev->curr_bss+1)) >= 0) {
-						/* try to join the next bss immediately */
-						defer_kevent(dev,KEVENT_SCANJOIN);
-					} else {
-						/* scan again, after 10 seconds */
-						NEW_STATE(dev,SCANNING);
-						mod_timer(&dev->mgmt_timer,jiffies+
-							  RESCAN_TIME*HZ);
-					}
-				} else {
-					/* send auth req */
-					NEW_STATE(dev,AUTHENTICATING);
-					auth_req(dev,dev->curr_bss);
-					mod_timer(&dev->mgmt_timer, jiffies+HZ);
-				}
+				goto end_join;
 			}
+			
+			ret=wait_completion(dev,CMD_JOIN);
+			if (ret != CMD_STATUS_COMPLETE) {
+				if (ret != CMD_STATUS_TIME_OUT)
+					err("%s join_bss completed with %d",
+					    dev->netdev->name, ret);
+				else
+					info("%s join_bss ssid %s timed out",
+						     dev->netdev->name,
+					     mac2str(dev->bss[dev->curr_bss].bssid));
+
+				/* retry next BSS immediately */
+				defer_kevent(dev,KEVENT_JOIN);
+				goto end_join;
+			}
+
+			/* here we have joined the (I)BSS */
+			if (dev->iw_mode == IW_MODE_ADHOC) {
+				struct bss_info *bptr = dev->bss+dev->curr_bss;
+				NEW_STATE(dev,CONNECTED);
+				/* get ESSID, BSSID and channel for dev->curr_bss */
+				dev->essid_size = bptr->ssid_len;
+				memcpy(dev->essid, bptr->ssid, bptr->ssid_len);
+				memcpy(dev->bssid, bptr->bssid, ETH_ALEN);
+				dev->channel = bptr->channel;
+
+				netif_start_queue(dev->netdev);
+				/* just to be sure */
+				del_timer_sync(&dev->mgmt_timer);
+			} else {
+				/* send auth req */
+				NEW_STATE(dev,AUTHENTICATING);
+				auth_req(dev,dev->curr_bss);
+				mod_timer(&dev->mgmt_timer, jiffies+HZ);
+			}
+			goto end_join;
+		} /* if ((dev->curr_bss=find_matching_bss(dev,0)) >= 0) */
+
+		/* here we haven't found a matching (i)bss ... */
+		if (dev->iw_mode == IW_MODE_ADHOC) {
+			NEW_STATE(dev,STARTIBSS);
+			defer_kevent(dev,KEVENT_STARTIBSS);
+			goto end_join;
 		}
-	} /* if (test_bit(KEVENT_SCANJOIN, &dev->kevent_flags)) */
+		/* haven't found a matching BSS
+		   in infra mode - use timer to try again in 10 seconds */
+		NEW_STATE(dev,SCANNING);
+		mod_timer(&dev->mgmt_timer, jiffies+RESCAN_TIME*HZ);
+	end_join:
+	} /* if (test_bit(KEVENT_JOIN, &dev->kevent_flags)) */
+
+	if (test_bit(KEVENT_SCAN, &dev->kevent_flags)) {
+		clear_bit(KEVENT_SCAN, &dev->kevent_flags);
+		assert(dev->istate == SCANNING);
+		if ((ret=start_scan(dev)) < 0) {
+			err("%s: start_scan failed with %d",
+			    dev->netdev->name, ret);
+			goto end_scan;
+		}
+		
+		if ((ret=wait_completion(dev,CMD_SCAN)) !=
+		    CMD_STATUS_COMPLETE) {
+				err("%s start_scan completed with %d",
+				    dev->netdev->name, ret);
+				goto end_scan;
+		}
+
+		dump_bss_table(dev);
+		NEW_STATE(dev,JOINING);
+		assert(dev->curr_bss == -1); /* done in start_scan, 
+						find_bss will start with index -1 + 1 */
+		/* call join_bss immediately after
+		   re-run of all other threads in kevent */
+		defer_kevent(dev,KEVENT_JOIN);
+	end_scan:
+	} /* if (test_bit(KEVENT_SCAN, &dev->kevent_flags)) */
 
 	up(&dev->sem);
 
@@ -1617,9 +1574,7 @@ kevent(void *data)
 static
 int essid_matched(struct at76c503 *dev, struct bss_info *ptr)
 {
-	u8 zeros[32];
-
-	memset(zeros, 0, 32);
+	static const u8 zeros[32];
 
 	if (dev->iw_mode != IW_MODE_ADHOC) {
 		if (ptr->ssid_len == 0)
@@ -1656,8 +1611,8 @@ int rates_matched(struct at76c503 *dev, struct bss_info *ptr)
 		if (*rate & 0x80) {
 			/* this is a basic rate we have to support
 			   (see IEEE802.11, ch. 7.3.2.2) */
-			if (*rate != hw_rates[0] && *rate != hw_rates[1] &&
-			    *rate != hw_rates[2] && *rate != hw_rates[3]) {
+			if (*rate != (0x80|hw_rates[0]) && *rate != (0x80|hw_rates[1]) &&
+			    *rate != (0x80|hw_rates[2]) && *rate != (0x80|hw_rates[3])) {
 				info("%s: bssid %s: basic rate %02x not supported",
 				     dev->netdev->name, mac2str(ptr->bssid),*rate);
 				return 0;
@@ -1730,9 +1685,9 @@ static int find_matching_bss(struct at76c503 *dev, int start)
 	memcpy(ossid, dev->essid, dev->essid_size);
 	ossid[dev->essid_size] = '\0';
 
-	dbg("%s " __FUNCTION__ ": try to match ssid %s (%s) mode %s wep %s, start at %d,"
+	dbg("%s %s: try to match ssid %s (%s) mode %s wep %s, start at %d,"
 	    " return %d",
-	    dev->netdev->name, ossid, 
+	    dev->netdev->name, __FUNCTION__, ossid, 
 	    hex2str(hexssid,dev->essid,dev->essid_size,'\0'),
 	    dev->iw_mode == IW_MODE_ADHOC ? "adhoc" : "infra",
 	    dev->wep_enabled ? "enabled" : "disabled", start, ret);
@@ -1773,13 +1728,8 @@ static void rx_mgmt_assoc(struct at76c503 *dev,
 			dev->essid_size = ptr->ssid_len;
 			dev->channel = ptr->channel;
 		} else {
-			if ((dev->curr_bss=
-			     find_matching_bss(dev,dev->curr_bss+1)) >= 0) {
-				NEW_STATE(dev,JOINING);
-			} else {
-				NEW_STATE(dev,SCANNING);
-			}
-			defer_kevent(dev,KEVENT_SCANJOIN);
+			NEW_STATE(dev,JOINING);
+			defer_kevent(dev,KEVENT_JOIN);
 		}
 		del_timer_sync(&dev->mgmt_timer);
 	} else
@@ -1805,19 +1755,24 @@ static void rx_mgmt_reassoc(struct at76c503 *dev,
 
 	if (dev->istate == REASSOCIATING) {
 		if (resp->status == IEEE802_11_STATUS_SUCCESS) {
+			struct bss_info *bptr = dev->bss+dev->new_bss;
 			dev->assoc_id = le16_to_cpu(resp->assoc_id);
-			NEW_STATE(dev,JOINING);
-			join_bss(dev,dev->curr_bss);
-			mod_timer(&dev->mgmt_timer, jiffies+HZ);
+			NEW_STATE(dev,CONNECTED);
+			dev->curr_bss = dev->new_bss;
+			/* get ESSID, BSSID and channel for dev->curr_bss */
+			dev->essid_size = bptr->ssid_len;
+			memcpy(dev->essid, bptr->ssid, bptr->ssid_len);
+			memcpy(dev->bssid, bptr->bssid, ETH_ALEN);
+			dev->channel = bptr->channel;
+			dbg("%s: reassociated to BSSID %s",
+			    dev->netdev->name, mac2str(dev->bssid));
+			
+			netif_carrier_on(dev->netdev);
+			netif_wake_queue(dev->netdev);
 		} else {
-			if ((dev->curr_bss=
-			     find_matching_bss(dev,dev->curr_bss+1)) >= 0) {
-				NEW_STATE(dev,JOINING);
-			} else {
-				NEW_STATE(dev,SCANNING);
-			}
 			del_timer_sync(&dev->mgmt_timer);
-			defer_kevent(dev,KEVENT_SCANJOIN);
+			NEW_STATE(dev,JOINING);
+			defer_kevent(dev,KEVENT_JOIN);
 		}
 	} else
 		info("%s: ReAssocResp in state %d ignored",
@@ -1848,18 +1803,13 @@ static void rx_mgmt_disassoc(struct at76c503 *dev,
 		    dev->istate == CONNECTED  ||
 		    dev->istate == JOINING)
 		{
-			if ((dev->curr_bss=
-			     find_matching_bss(dev,dev->curr_bss+1)) >= 0) {
-				NEW_STATE(dev,JOINING);
-			} else {
-				NEW_STATE(dev,SCANNING);
-			}
 			del_timer_sync(&dev->mgmt_timer);
-			defer_kevent(dev,KEVENT_SCANJOIN);
+			NEW_STATE(dev,JOINING);
+			defer_kevent(dev,KEVENT_JOIN);
 		} else
 		/* ignore DisAssoc in states SCANNING, AUTH, ASSOC */
-		info("%s: DisAssoc in state %d ignored",
-		     dev->netdev->name, dev->istate);
+			info("%s: DisAssoc in state %d ignored",
+			     dev->netdev->name, dev->istate);
 	}
 	/* ignore DisAssoc to other STA or from other BSSID */
 } /* rx_mgmt_disassoc */
@@ -1887,14 +1837,10 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 		/* this is a AuthFrame from the BSS we are connected or
 		   trying to connect to, directed to us */
 		if (resp->status != IEEE802_11_STATUS_SUCCESS) {
-			if ((dev->curr_bss=
-			     find_matching_bss(dev,dev->curr_bss+1)) >= 0) {
-				NEW_STATE(dev,JOINING);
-			} else {
-				NEW_STATE(dev,SCANNING);
-				defer_kevent(dev,KEVENT_SCANJOIN);
-			}
 			del_timer_sync(&dev->mgmt_timer);
+			/* try to join next bss */
+			NEW_STATE(dev,JOINING);
+			defer_kevent(dev,KEVENT_JOIN);
 		} else {
 			dev->retries = ASSOC_RETRIES;
 			NEW_STATE(dev,ASSOCIATING);
@@ -1931,13 +1877,8 @@ static void rx_mgmt_deauth(struct at76c503 *dev,
 		    dev->istate == CONNECTED  ||
 		    dev->istate == JOINING)
 		{
-			if ((dev->curr_bss=
-			     find_matching_bss(dev,dev->curr_bss+1)) >= 0) {
-				NEW_STATE(dev,JOINING);
-			} else {
-				NEW_STATE(dev,SCANNING);
-				defer_kevent(dev,KEVENT_SCANJOIN);
-			}
+			NEW_STATE(dev,JOINING);
+			defer_kevent(dev,KEVENT_JOIN);
 			del_timer_sync(&dev->mgmt_timer);
 		} else
 		/* ignore DeAuth in states SCANNING */
@@ -2161,8 +2102,8 @@ static void rx_tasklet(unsigned long param)
 	if(urb->status != 0){
 		if ((urb->status != -ENOENT) && 
 		    (urb->status != -ECONNRESET)) {
-			dbg(__FUNCTION__ " %s: - nonzero read bulk status received: %d",
-			    netdev->name, urb->status);
+			dbg("%s %s: - nonzero read bulk status received: %d",
+			    __FUNCTION__, netdev->name, urb->status);
 			goto next_urb;
 		}
 		return;
@@ -2217,8 +2158,8 @@ static void at76c503_write_bulk_callback (struct urb *urb)
 	if(urb->status != 0){
 		if((urb->status != -ENOENT) && 
 		   (urb->status != -ECONNRESET)) {
-			dbg(__FUNCTION__ " - nonzero write bulk status received: %d",
-			    urb->status);
+			dbg("%s - nonzero write bulk status received: %d",
+			    __FUNCTION__, urb->status);
 		}else
 			return; /* urb has been unlinked */
 		stats->tx_errors++;
@@ -2245,8 +2186,8 @@ static void at76c503_write_bulk_callback (struct urb *urb)
 			      at76c503_write_bulk_callback, dev);
 		ret = usb_submit_urb(dev->write_urb);
 		if (ret) {
-			err("%s:" __FUNCTION__ " error in tx submit urb: %d",
-			    dev->netdev->name, ret);
+			err("%s: %s error in tx submit urb: %d",
+			    dev->netdev->name, __FUNCTION__, ret);
 		}
 		kfree(mgmt_buf);
 	} else
@@ -2306,6 +2247,10 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	/* setup 'atmel' header */
 	tx_buffer->wlength = cpu_to_le16(wlen);
 	tx_buffer->tx_rate = dev->txrate; 
+        /* for broadcast destination addresses, the firmware 0.100.x 
+	   seems to choose the highest rate set with CMD_STARTUP in
+	   basic_rate_set replacing this value */
+	
 
 	//info("txrate %d\n", dev->txrate);
 
@@ -2364,7 +2309,6 @@ int at76c503_open(struct net_device *netdev)
 {
 	struct at76c503 *dev = (struct at76c503 *)(netdev->priv);
 	int ret = 0;
-	struct set_mib_buffer mib_buf;
 
 	if(down_interruptible(&dev->sem))
 	   return -EINTR;
@@ -2431,92 +2375,11 @@ int at76c503_open(struct net_device *netdev)
 		goto err;
 	}
 
-	if (dev->iw_mode == IW_MODE_INFRA) {
-		NEW_STATE(dev,SCANNING);
-		defer_kevent(dev,KEVENT_SCANJOIN);
-		netif_carrier_off(dev->netdev); /* disable running netdev watchdog */
-		netif_stop_queue(dev->netdev); /* stop tx data packets */
-
-		goto good_end;
-	}
-
-	/* here we go in adhoc mode only */
-	ret = start_scan(dev);
-	if(ret < 0){
-		err("%s: start_scan failed: %d", netdev->name, ret);
-		goto err;
-	}
-
-	wait_completion(dev, CMD_SCAN);
-
-//	dump_bss_table(dev);
-
-	if ((dev->curr_bss = find_matching_bss(dev,0)) >= 0) {
-		ret = join_bss(dev, dev->curr_bss);
-		if(ret < 0){
-			err("%s: join_bss failed: %d", 
-			    netdev->name, ret);
-		} else {
-			ret = wait_completion(dev, CMD_JOIN);
-			if (ret != CMD_STATUS_COMPLETE) {
-				/* it may time out -> dbg, not err */
-				dbg("%s join failed to complete,%d",
-				    netdev->name, ret);
-			} else {
-				dbg("%s: join succeeded", netdev->name);
-				netif_start_queue(netdev);
-
-				ret = get_current_bssid(dev);
-				if(ret < 0) goto err;
-				
-				ret = get_current_channel(dev);
-				if(ret < 0) goto err;
-
-				goto good_end;
-			}
-		}
-	}else
-		dbg("%s: cannot find matching IBSS - start own",
-		    dev->netdev->name);
-
-	/* we either didn't find a matching BSS or
-	   repeately failed to join it */
-	ret = start_ibss(dev);
-	if(ret < 0){
-		err("%s: start_ibss failed: %d", netdev->name, ret);
-		goto err;
-	}
-
-	ret = wait_completion(dev, CMD_START_IBSS);
-	if (ret != CMD_STATUS_COMPLETE) {
-		err("%s start_ibss failed to complete,%d",
-		    netdev->name, ret);
-		goto err;
-	}
-
-	ret = get_current_bssid(dev);
-	if(ret < 0) goto err;
-
-	ret = get_current_channel(dev);
-	if(ret < 0) goto err;
-
-	//  usb_debug_data(__FUNCTION__, (unsigned char *)phy, sizeof(struct mib_phy));
-
-
-	/* not sure what this is good for */
-	memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
-	mib_buf.type = MIB_MAC_MGMT;
-	mib_buf.size = 1;
-	mib_buf.index = IBSS_CHANGE_OK_OFFSET;
-	ret = set_mib(dev->udev, &mib_buf);
-	if(ret < 0){
-		err("%s: set_mib (ibss change ok) failed: %d", netdev->name, ret);
-		goto err;
-	}
-
-	netif_start_queue(netdev);
-
- good_end:
+  	NEW_STATE(dev,SCANNING);
+  	defer_kevent(dev,KEVENT_SCAN);
+  	netif_carrier_off(dev->netdev); /* disable running netdev watchdog */
+  	netif_stop_queue(dev->netdev); /* stop tx data packets */
+   
 	dbg("at76c503_open end");
  err:
 	up(&dev->sem);
@@ -2899,7 +2762,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		break;
 
 	default:
-		dbg("%s: not supported (%ux)", netdev->name, cmd);
+		dbg("%s: ioctl not supported (0x%x)", netdev->name, cmd);
 		ret = -EOPNOTSUPP;
 	}
 
@@ -2908,9 +2771,11 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	return ret;
 }
 
-static inline void at76c503_delete(struct at76c503 *dev)
+void at76c503_delete_device(struct at76c503 *dev)
 {
 	if(dev){
+		unregister_netdevice(dev->netdev);
+
 		if(dev->bulk_in_buffer != NULL)
 			kfree(dev->bulk_in_buffer);
 		if(dev->bulk_out_buffer != NULL)
@@ -3002,7 +2867,7 @@ static int at76c503_alloc_urbs(struct at76c503 *dev)
 	return 0;
 }
 
-static void *at76c503_probe(struct usb_device *udev, unsigned int ifnum, const struct usb_device_id *id)
+struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type, const char *netdev_name)
 {
 	struct net_device *netdev;
 	struct at76c503 *dev = NULL;
@@ -3034,46 +2899,15 @@ static void *at76c503_probe(struct usb_device *udev, unsigned int ifnum, const s
 	dev->tasklet.func = rx_tasklet;
 	dev->tasklet.data = (unsigned long)dev;
 
-	if((ret = usb_get_configuration(udev)) != 0) {
-		err("get configuration failed: %d", ret);
-		goto error;
-	}
-  
-	if ((ret = usb_set_configuration(udev, 1)) != 0) {
-		err("set configuration to 1 failed: %d", ret);
-		goto error;
-	}
+	dev->board_type = board_type;
 
 	/* set up the endpoint information */
 	/* check out the endpoints */
 	interface = &udev->actconfig->interface[0];
 	dev->interface = interface;
 
-	ret = get_op_mode(dev);
-	if(ret < 0){
-		err("getting op mode failed: is the firmware loaded?");
-		goto error;
-	}
-
-	if(dev->op_mode == 0){
-		err("firmware is not loaded");
-		goto error;
-	}
-
 	if(at76c503_alloc_urbs(dev) < 0)
 		goto error;
-
-	/* download external firmware */
-	/* checking for presence of ext. fw by eg. checking the version does not work:
-	   if it's not present, just the get_mib command will fubar the device,
-	   so that not even usb_clear_halt() helps.
-	   But it does not seem to hurt if we reload the ext. fw again. (oku)
-	*/
-	ret = download_external_fw(dev->udev, ExternalRFMD, sizeof(ExternalRFMD));
-	if(ret < 0){
-		err("downloading external firmware failed: %d", ret);
-		goto error;
-	}
 
 	/* get firmware version */
 	ret = get_mib(dev->udev, MIB_FW_VERSION, (u8*)&dev->fw_version, sizeof(dev->fw_version));
@@ -3090,12 +2924,12 @@ static void *at76c503_probe(struct usb_device *udev, unsigned int ifnum, const s
 	     dev->fw_version.patch, dev->fw_version.build);
 
 	/* MAC address */
-	ret = get_hw_cfg(dev->udev, (unsigned char *)&dev->hwcfg.rfmd, sizeof(struct hwcfg_rfmd));
+	ret = get_hw_config(dev);
 	if(ret < 0){
-		err("could not get MAC: get_hw_cfg() failed, ret = %d", ret);
+		err("could not get MAC address");
 		goto error;
 	}
-	memcpy(netdev->dev_addr, &(dev->hwcfg.rfmd.mac_addr), ETH_ALEN);
+	memcpy(netdev->dev_addr, dev->mac_addr, ETH_ALEN);
 	info("using MAC %s", mac2str(netdev->dev_addr));
 
 	set_mac_address(dev, netdev->dev_addr); /* may have been changed, write back original */
@@ -3121,81 +2955,113 @@ static void *at76c503_probe(struct usb_device *udev, unsigned int ifnum, const s
 	netdev->do_ioctl = at76c503_ioctl;
 	netdev->set_multicast_list = at76c503_set_multicast;
 	netdev->set_mac_address = at76c503_set_mac_address;
-	strcpy(netdev->name, eth_name);
+	strcpy(netdev->name, netdev_name);
 	//  netdev->hard_header_len = 8 + sizeof(struct ieee802_11_hdr);
 	/*
 //    netdev->hard_header = at76c503_header;
 */
-	SET_MODULE_OWNER(netdev);
-
-	register_netdev(netdev);
-
-	info("using net device %s", netdev->name);
-
-	goto exit;
+	return dev;
 
  error:
-	at76c503_delete(dev);
-	dev = NULL;
+	at76c503_delete_device(dev);
+	return NULL;
 
- exit:
-	return dev;
 }
 
-
-/**
- *	at76c503_disconnect
- *
- *	Called by the usb core when the device is removed from the system.
- */
-static void at76c503_disconnect(struct usb_device *udev, void *ptr)
+struct at76c503 *at76c503_do_probe(struct module *mod, struct usb_device *udev, u8 *extfw, int extfw_size, int board_type, const char *netdev_name)
 {
+	int ret;
 	struct at76c503 *dev;
 
-	dbg("udev=%p, ptr=%p", udev, ptr);
+	usb_inc_dev_use(udev);
 
-	dev = (struct at76c503 *)ptr;
-	
-	unregister_netdev(dev->netdev);
-	at76c503_delete(dev);
+	if ((ret = usb_get_configuration(udev)) != 0) {
+		err("get configuration failed: %d", ret);
+		goto error;
+	}
 
-	info("at76c503 now disconnected");
+	if ((ret = usb_set_configuration(udev, 1)) != 0) {
+		err("set configuration to 1 failed: %d", ret);
+		goto error;
+	}
+
+	if (extfw && extfw_size) {
+		ret = at76c503_download_external_fw(udev, extfw, extfw_size);
+		if (ret < 0) {
+			err("Downloading external firmware failed: %d", ret);
+			goto error;
+		}
+	}
+
+	dev = at76c503_new_device(udev, board_type, netdev_name);
+	if (!dev) {
+		dbg("at76c503_new_device returned NULL");
+		goto error;
+	}
+
+	dev->netdev->owner = mod;
+	ret = register_netdev(dev->netdev);
+	if (ret) {
+		err("Unable to register netdevice %s (status %d)!",
+		    dev->netdev->name, ret);
+		at76c503_delete_device(dev);
+		goto error;
+	}
+
+	return dev;
+
+error:
+	usb_dec_dev_use(udev);
+	return NULL;
 }
 
 /**
- *	at76c503_usb_init
+ * 	at76c503_usbdfu_post
+ *
+ * 	Called by usbdfu driver after the firmware has been downloaded, before
+ * 	the final reset.
+ * 	(this is called in a usb probe (khubd) context)
  */
-static int __init at76c503_init(void)
+
+int at76c503_usbdfu_post(struct usb_device *udev)
 {
 	int result;
 
-	info(DRIVER_DESC " " DRIVER_VERSION);
-
-	usbdfu_register(&at76c503_driver, InternalRFMD, sizeof(InternalRFMD));
-	/* register this driver with the USB subsystem */
-	result = usb_register(&at76c503_driver);
-	info("driver registered");
+	dbg("Sending remap command...");
+	result = at76c503_remap(udev);
 	if (result < 0) {
-		err("usb_register failed for the "__FILE__" driver. Error number %d",
-		    result);
-		return -1;
+		err("Remap command failed (%d)", result);
+		return result;
 	}
 	return 0;
 }
 
 /**
- *	at76c503_usb_exit
+ *	at76c503_init
+ */
+static int __init at76c503_init(void)
+{
+	info(DRIVER_DESC " " DRIVER_VERSION);
+	return 0;
+}
+
+/**
+ *	at76c503_exit
  */
 static void __exit at76c503_exit(void)
 {
-	info(DRIVER_DESC " " DRIVER_VERSION "exit");
-	/* deregister this driver with the USB subsystem */
-	usbdfu_deregister(&at76c503_driver);
-	usb_deregister(&at76c503_driver);
+	info(DRIVER_DESC " " DRIVER_VERSION " exit");
 }
 
 module_init (at76c503_init);
 module_exit (at76c503_exit);
+
+EXPORT_SYMBOL(at76c503_do_probe);
+EXPORT_SYMBOL(at76c503_download_external_fw);
+EXPORT_SYMBOL(at76c503_new_device);
+EXPORT_SYMBOL(at76c503_delete_device);
+EXPORT_SYMBOL(at76c503_usbdfu_post);
+EXPORT_SYMBOL(at76c503_remap);
 
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
