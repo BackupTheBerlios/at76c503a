@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.56 2004/06/12 10:59:59 jal2 Exp $
+/* $Id: at76c503.c,v 1.57 2004/06/13 22:03:08 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -5909,8 +5909,13 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	
 	case SIOCGIWRANGE:
 	{
-		char extra[sizeof(struct iw_range)];
-		
+		//char extra[sizeof(struct iw_range)];
+		char *extra = (char*)kmalloc(sizeof(struct iw_range), GFP_KERNEL);
+
+		if (!extra) {
+			ret = -ENOMEM;
+			break;
+		}
 		at76c503_iw_handler_get_range(netdev, NULL, 
 			&(wrq->u.data), extra);
 		
@@ -5918,13 +5923,21 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 				sizeof(struct iw_range))) {
 			ret = -EFAULT;
 		}
+		
+		kfree(extra);
 	}
 	break;
 	
 	case SIOCGIWPRIV:
 	{
-		char extra[sizeof(at76c503_priv_args)];
+		//char extra[sizeof(at76c503_priv_args)];
+		char *extra = (char*)kmalloc(sizeof(at76c503_priv_args), GFP_KERNEL);
 		
+		if (!extra) {
+			ret = -ENOMEM;
+			break;
+		}
+
 		at76c503_iw_handler_get_priv(netdev, NULL, 
 			&(wrq->u.data), extra);
 		
@@ -5932,6 +5945,8 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 				sizeof(at76c503_priv_args))) {
 			ret = -EFAULT;
 		}
+		
+		kfree(extra);
 	}
 	break;
 	
@@ -5939,7 +5954,13 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	// Set the spy list
 	case SIOCSIWSPY:
 	{
-		char extra[sizeof(struct sockaddr) * IW_MAX_SPY];
+		//char extra[sizeof(struct sockaddr) * IW_MAX_SPY];
+		char *extra = (char*)kmalloc(sizeof(struct sockaddr) * IW_MAX_SPY, GFP_KERNEL);
+
+		if (!extra) {
+			ret = -ENOMEM;
+			break;
+		}
 		
 		if (wrq->u.data.length > IW_MAX_SPY) {
 			ret = -E2BIG;
@@ -5956,16 +5977,25 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		// never needs a device restart
 		at76c503_iw_handler_set_spy(netdev, NULL, 
 			&(wrq->u.data), extra);
-	}
 sspyerror:
+		kfree(extra);
+	}
 	break;
 	
 	// Get the spy list
 	case SIOCGIWSPY:
 	{
 		// one sockaddr and iw_quality struct for each station we spy on
-		char extra[(sizeof(struct sockaddr) + sizeof(struct iw_quality)) 
-			* wrq->u.data.length];
+		//char extra[(sizeof(struct sockaddr) + sizeof(struct iw_quality)) 
+		//	* wrq->u.data.length];
+		char *extra = (char*)kmalloc((sizeof(struct sockaddr) + 
+			sizeof(struct iw_quality)) * wrq->u.data.length, 
+			GFP_KERNEL);
+
+		if (!extra) {
+			ret = -ENOMEM;
+			break;
+		}
 		
 		at76c503_iw_handler_get_spy(netdev, NULL, 
 			&(wrq->u.data), extra);
@@ -5976,6 +6006,8 @@ sspyerror:
 				wrq->u.data.length)) {
 			ret = -EFAULT;
 		}
+		
+		kfree(extra);
 	}
 	break;
 #endif // #if (WIRELESS_EXT <= 15) && (IW_MAX_SPY > 0)
@@ -6008,7 +6040,13 @@ sspyerror:
 	
 	case SIOCGIWSCAN:
 	{
-		char extra[IW_SCAN_MAX_DATA];
+		//char extra[IW_SCAN_MAX_DATA];
+		char *extra = (char*)kmalloc(IW_SCAN_MAX_DATA, GFP_KERNEL);
+
+		if (!extra) {
+			ret = -ENOMEM;
+			break;
+		}
 		
 		at76c503_iw_handler_get_scan(netdev, NULL, 
 			&(wrq->u.data), extra);
@@ -6017,16 +6055,24 @@ sspyerror:
 				wrq->u.data.length)) {
 			ret = -EFAULT;
 		}
+		
+		kfree(extra);
 	}
 	break;
 #endif // #if WIRELESS_EXT > 13
 	
 	case SIOCSIWESSID:
 	{
-		char extra[IW_ESSID_MAX_SIZE + 1];
+		//char extra[IW_ESSID_MAX_SIZE + 1];
+		char *extra = (char*)kmalloc(IW_ESSID_MAX_SIZE + 1, GFP_KERNEL);
+
+		if (!extra) {
+			ret = -ENOMEM;
+			break;
+		}
 		
 		if (wrq->u.data.length > IW_ESSID_MAX_SIZE) {
-			return -E2BIG;
+			ret = -E2BIG;
 			goto sessiderror;
 		}
 		
@@ -6038,13 +6084,20 @@ sspyerror:
 		
 		ret = at76c503_iw_handler_set_essid(netdev, NULL, 
 			&(wrq->u.data), extra);
-	}
 sessiderror:
+		kfree(extra);
+	}
 	break;
 	
 	case SIOCGIWESSID:
 	{
-		char extra[IW_ESSID_MAX_SIZE + 1];
+		//char extra[IW_ESSID_MAX_SIZE + 1];
+		char *extra = (char*)kmalloc(IW_ESSID_MAX_SIZE + 1, GFP_KERNEL);
+
+		if (!extra) {
+			ret = -ENOMEM;
+			break;
+		}
 		
 		at76c503_iw_handler_get_essid(netdev, NULL, 
 			&(wrq->u.data), extra);
@@ -6053,15 +6106,23 @@ sessiderror:
 				wrq->u.data.length)) {
 			ret = -EFAULT;
 		}
+		
+		kfree(extra);
 	}
 	break;
 	
 	case SIOCSIWNICKN:
 	{
-		char extra[IW_ESSID_MAX_SIZE + 1];
+		//char extra[IW_ESSID_MAX_SIZE + 1];
+		char *extra = (char*)kmalloc(IW_ESSID_MAX_SIZE + 1, GFP_KERNEL);
+
+		if (!extra) {
+			ret = -ENOMEM;
+			break;
+		}
 		
 		if (wrq->u.data.length > IW_ESSID_MAX_SIZE) {
-			return -E2BIG;
+			ret = -E2BIG;
 			goto snickerror;
 		}
 		
@@ -6073,13 +6134,20 @@ sessiderror:
 		
 		ret = at76c503_iw_handler_set_nickname(netdev, NULL, 
 			&(wrq->u.data), extra);
-	}
 snickerror:
+		kfree(extra);
+	}
 	break;
 	
 	case SIOCGIWNICKN:
 	{
-		char extra[IW_ESSID_MAX_SIZE + 1];
+		//char extra[IW_ESSID_MAX_SIZE + 1];
+		char *extra = (char*)kmalloc(IW_ESSID_MAX_SIZE + 1, GFP_KERNEL);
+
+		if (!extra) {
+			ret = -ENOMEM;
+			break;
+		}
 		
 		at76c503_iw_handler_get_nickname(netdev, NULL, 
 			&(wrq->u.data), extra);
@@ -6088,6 +6156,8 @@ snickerror:
 				wrq->u.data.length)) {
 			ret = -EFAULT;
 		}
+		
+		kfree(extra);
 	}
 	break;
 	
@@ -6162,10 +6232,16 @@ snickerror:
 	
 	case SIOCSIWENCODE:
 	{
-		char extra[WEP_KEY_SIZE + 1];
+		//char extra[WEP_KEY_SIZE + 1];
+		char *extra = (char*)kmalloc(WEP_KEY_SIZE + 1, GFP_KERNEL);
+
+		if (!extra) {
+			ret = -ENOMEM;
+			break;
+		}
 		
 		if (wrq->u.data.length > WEP_KEY_SIZE) {
-			return -E2BIG;
+			ret = -E2BIG;
 			goto sencodeerror;
 		}
 		
@@ -6177,13 +6253,20 @@ snickerror:
 		
 		ret = at76c503_iw_handler_set_encode(netdev, NULL, 
 			&(wrq->u.encoding), extra);
-	}
 sencodeerror:
+		kfree(extra);
+	}
 	break;
 	
 	case SIOCGIWENCODE:
 	{
-		char extra[WEP_KEY_SIZE + 1];
+		//char extra[WEP_KEY_SIZE + 1];
+		char *extra = (char*)kmalloc(WEP_KEY_SIZE + 1, GFP_KERNEL);
+
+		if (!extra) {
+			ret = -ENOMEM;
+			break;
+		}
 		
 		at76c503_iw_handler_get_encode(netdev, NULL, 
 			&(wrq->u.encoding), extra);
@@ -6192,6 +6275,8 @@ sencodeerror:
 				wrq->u.data.length)) {
 			ret = -EFAULT;
 		}
+		
+		kfree(extra);
 	}
 	break;
 	
@@ -6218,7 +6303,13 @@ sencodeerror:
 
 	case PRIV_IOCTL_SET_DEBUG:
 	{
-		char extra[wrq->u.data.length];
+		//char extra[wrq->u.data.length];
+		char *extra = (char*)kmalloc(wrq->u.data.length, GFP_KERNEL);
+
+		if (!extra) {
+			ret = -ENOMEM;
+			break;
+		}
 		
 		if (copy_from_user(extra, wrq->u.data.pointer, 
 				wrq->u.data.length)) {
@@ -6228,8 +6319,9 @@ sencodeerror:
 		
 		at76c503_iw_handler_PRIV_IOCTL_SET_DEBUG
 			(netdev, NULL, &(wrq->u.data), extra);
-	}
 set_debug_end:
+		kfree(extra);
+	}
 	break;
 	
 	case PRIV_IOCTL_SET_POWERSAVE_MODE:
@@ -6537,7 +6629,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.56 2004/06/12 10:59:59 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.57 2004/06/13 22:03:08 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,

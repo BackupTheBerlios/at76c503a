@@ -1,6 +1,6 @@
-#$Id: Makefile,v 1.32 2004/06/12 10:59:59 jal2 Exp $
+#$Id: Makefile,v 1.33 2004/06/13 22:03:08 jal2 Exp $
 
-VERSION = 0.12beta13
+VERSION = 0.12beta14
 
 CC=gcc
 
@@ -94,11 +94,6 @@ TAR = tar
 
 all: $(MODULES)
 
-TAGS:
-	rm -f TAGS
-#	find $(KERNEL_SRC)/ -name '*.[ch]' | xargs etags --append
-	etags --append $(SRCS) $(HDRS)
-
 install:
 	mkdir -p $(MODULE_DIR)
 	for f in $(MODULES); do install -m 644 -o 0 -g 0 $$f $(MODULE_DIR)/$$f; done
@@ -121,6 +116,10 @@ uninstall:
 -include $(SRCS:%.c=%.d)
 
 endif
+
+TAGS:
+	rm -f TAGS
+	etags --append $(SRCS) $(HDRS)
 
 clean:
 	rm -f core *.o *~ a.out *.d
