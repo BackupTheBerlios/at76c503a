@@ -1,9 +1,19 @@
-/* $Id: gen_fw.c,v 1.2 2003/12/25 22:40:27 jal2 Exp $ */
+/* $Id: gen_fw.c,v 1.3 2003/12/26 00:08:31 jal2 Exp $ */
 
 /* This file includes the old style firmwares and outputs new, binary files. */
 
 #include <stdio.h>
 #include <assert.h>
+
+typedef unsigned char u8;
+typedef unsigned int u32;
+
+
+#include "fw-rfmd-0.90.2-140.h"
+u8 intfw_503rfmd_0_90_2[] = FW_503RFMD_INTERNAL;
+u8 extfw_503rfmd_0_90_2[] = FW_503RFMD_EXTERNAL;
+#undef FW_503RFMD_INTERNAL
+#undef FW_503RFMD_EXTERNAL
 
 #include "fw-rfmd-1.101.0-84.h"
 #include "fw-rfmd-acc-1.101.0-84.h"
@@ -11,9 +21,6 @@
 #include "fw-i3863.h"
 #include "fw-r505.h"
 #include "fw-505rfmd2958-1.101.0-86.h"
-
-typedef unsigned char u8;
-typedef unsigned int u32;
 
 /* The struct of the firmware header: */
 typedef struct {
@@ -54,6 +61,11 @@ struct fw {
 	u8 *extfw;
 	u32 extfw_sz;
 } fws[] = {
+	{ "at76c503-rfmd-0.90.2-140-fw", 1, 0x01650054, "0.90.2-140 503 RFMD "
+	  "Copyright (c) 1999-2000 by Atmel Corporation",
+	  intfw_503rfmd_0_90_2, sizeof(intfw_503rfmd_0_90_2),
+          extfw_503rfmd_0_90_2, sizeof(extfw_503rfmd_0_90_2)},
+
 	{ "at76c503-rfmd-fw", 1, 0x01650054, "1.101.0-84 503 RFMD "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
 	  intfw_503rfmd, sizeof(intfw_503rfmd), extfw_503rfmd, sizeof(extfw_503rfmd)},
