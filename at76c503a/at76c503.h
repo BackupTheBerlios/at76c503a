@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.18 2004/01/10 20:31:17 jal2 Exp $
+/* $Id: at76c503.h,v 1.19 2004/02/20 22:14:42 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -601,8 +601,7 @@ struct at76c503 {
 
 #define AT76C503A_UNPLUG 1
 #define AT76C503A_NETDEV_REGISTERED 2
-#define AT76C503A_USB_RESET 4  /* set during call to usb_reset_device and 
-				  update_usb_intf_descr() in at76c503.c */
+
 /* Function prototypes */
 
 int at76c503_do_probe(struct module *mod, struct usb_device *udev, 

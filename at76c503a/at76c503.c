@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.42 2004/01/10 20:31:17 jal2 Exp $
+/* $Id: at76c503.c,v 1.43 2004/02/20 22:14:42 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -2464,20 +2464,12 @@ end_scan:
 
 		dbg(DBG_DEVSTART, "resetting the device");
 
-		/* flag that we reset the device to
-		   at76c503-fw_skel.c:at76c50x_disconnect(), which gets
-		   called during reset by usb-uhci of 2.4.23 (uhci doesn't
-		   call it, nor does uhci-hcd of 2.6.0!) */
-		dev->flags |= AT76C503A_USB_RESET;
-
 		usb_reset_device(dev->udev);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
 		//jal: patch the state (patch by Dmitri)
 		dev->udev->state = USB_STATE_CONFIGURED;
 #endif
-
-		dev->flags &= ~AT76C503A_USB_RESET;
 
 		/* jal: currently (2.6.0-test2 and 2.4.23) 
 		   usb_reset_device() does not recognize that
@@ -5113,7 +5105,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.42 2004/01/10 20:31:17 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.43 2004/02/20 22:14:42 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
