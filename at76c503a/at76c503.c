@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.62 2004/08/10 23:05:08 jal2 Exp $
+/* $Id: at76c503.c,v 1.63 2004/08/10 23:10:32 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -118,8 +118,9 @@
 /* timeout in seconds for the usb_control_msg in get_cmd_status
  * and set_card_command
  */
-#define USB_CTRL_GET_TIMEOUT 5
-#define USB_CTRL_SET_TIMEOUT 5
+#ifndef USB_CTRL_GET_TIMEOUT
+# define USB_CTRL_GET_TIMEOUT 5
+#endif
 
 /* try to make it compile for both 2.4.x and 2.6.x kernels */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
@@ -1110,7 +1111,7 @@ int set_card_command(struct usb_device *udev, int cmd,
 				      0, 0,
 				      cmd_buf,
 				      sizeof(struct at76c503_command) + buf_size,
-				      HZ * USB_CTRL_SET_TIMEOUT);
+				      HZ * USB_CTRL_GET_TIMEOUT);
 		kfree(cmd_buf);
 		return ret;
 	}
@@ -6565,7 +6566,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.62 2004/08/10 23:05:08 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.63 2004/08/10 23:10:32 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
