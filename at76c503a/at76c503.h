@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.11 2003/05/22 22:22:00 jal2 Exp $
+/* $Id: at76c503.h,v 1.12 2003/06/01 19:42:28 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -39,11 +39,15 @@
 /* set debug parameter */
 #define PRIV_IOCTL_SET_DEBUG           (SIOCIWFIRSTPRIV + 0x1)
 /* set authentication mode: 0 - open, 1 - shared key */
-#define PRIV_IOCTL_SET_AUTH            (SIOCIWFIRSTPRIV + 0x2)
+#define PRIV_IOCTL_SET_AUTH_MODE       (SIOCIWFIRSTPRIV + 0x2)
 /* dump bss table */
 #define PRIV_IOCTL_LIST_BSS            (SIOCIWFIRSTPRIV + 0x3)
 /* set power save mode (incl. the Atmel proprietary smart save mode */
-#define PRIV_IOCTL_SET_PS_MODE         (SIOCIWFIRSTPRIV + 0x4)
+#define PRIV_IOCTL_SET_POWERSAVE_MODE  (SIOCIWFIRSTPRIV + 0x4)
+/* set min and max channel times for scan */
+#define PRIV_IOCTL_SET_SCAN_TIMES      (SIOCIWFIRSTPRIV + 0x5)
+/* set scan mode */
+#define PRIV_IOCTL_SET_SCAN_MODE       (SIOCIWFIRSTPRIV + 0x6)
 
 #define DEVICE_VENDOR_REQUEST_OUT    0x40
 #define DEVICE_VENDOR_REQUEST_IN     0xc0
@@ -484,6 +488,10 @@ struct at76c503 {
         int frag_threshold; /* threshold for fragmentation of tx packets */
         int rts_threshold; /* threshold for RTS mechanism */
 
+	int scan_min_time; /* scan min channel time */
+	int scan_max_time; /* scan max channel time */
+	int scan_mode;     /* SCAN_TYPE_ACTIVE, SCAN_TYPE_PASSIVE */
+
 	/* the list we got from scanning */
 	spinlock_t bss_list_spinlock; /* protects bss_list operations and setting
 				     curr_bss and new_bss */
@@ -511,8 +519,9 @@ struct at76c503 {
 	int retries; /* counts backwards while re-trying to send auth/assoc_req's */
 	u16 assoc_id; /* the assoc_id for states JOINING, REASSOCIATING, CONNECTED */
 	u8  pm_mode ; /* power management mode: ACTIVE, SAVE, SMART_SAVE */
-	u32 pm_period; /* power manag. period (in us ?) */
-
+	u32 pm_period_us; /* power manag. period (in us ?) - set by iwconfig */
+	u32 pm_period_beacon; /* power manag. period (in beacon intervals
+				 of the curr_bss) */
 	int board_type; /* 0 = Intersil, 1 = RFMD, 2 = R505 */
 
 	/* iwspy support */

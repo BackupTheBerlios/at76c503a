@@ -1,4 +1,4 @@
-VERSION = 0.10beta3
+VERSION = 0.10
 
 CC=gcc
 

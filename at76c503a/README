@@ -1,4 +1,4 @@
-(* $Id: README,v 1.8 2003/05/29 10:35:09 jal2 Exp $ *)
+(* $Id: README,v 1.9 2003/06/01 19:42:28 jal2 Exp $ *)
 
 at76c503 - linux driver for Atmel at76c503 based usb wlan adapters
 ------------------------------------------------------------------
@@ -90,28 +90,44 @@ as soon as there are pending packets at the AP for the STA and put it
 back into doze state after the next beacon. This saves the need for
 sending PS_POLL packets.
 It can only be activated by
-   iwpriv wlanX set_ps 3
+   iwpriv wlanX powersave_mode 3
 I don't know if the listen_interval is used in this mode, too.
 If yes, you can only set it earlier by iwconfig, e.g.
    iwconfig wlanX power on period N
-   iwpriv wlanX set_ps 3
+   iwpriv wlanX powersave_mode 3
 
 
 Private Parameters
 ------------------
 
 In addition to the parameters of iwconfig, some can be set by iwpriv:
-- long preamble:  iwpriv wlanX set_preamble 0
-- short preamble: iwpriv wlanX set_preamble 1
-- open system authentication: iwpriv wlanX set_auth 0
-- shared key authentication:  iwpriv wlanX set_auth 1
+- long preamble:  iwpriv wlanX short_preamble 0
+- short preamble: iwpriv wlanX short_preamble 1
+- open system authentication: iwpriv wlanX auth_mode 0
+- shared key authentication:  iwpriv wlanX auth_mode 1
 - amount of debug messages:   iwpriv wlanX set_debug N
   with N a combination of bits, see DBG_* in at76c503.c
-- power save mode: iwpriv wlanX set_ps N (* N = 1,2,3 
+- power save mode: iwpriv wlanX powersave_mode N (* N = 1,2,3 
   for none, save, smart save *)
+- scan channel time: iwpriv wlanX scan_times <min_ch_time> <max_ch_time>
+  (this may be required for 0.90.x firmware, i.e. Intersil radios)
 
 Be aware that shared key authentication requires a WEP key.
 
+at76c503.o module parameters
+----------------------------
+The above private parameters can be set by module parameters (inside
+/etc/modules.conf or on the "modprobe" command line) as well (see
+at76c503a.c for a short explanation and the default values):
+
+debug
+scan_min_time
+scan_max_time
+scan_mode
+preamble_type
+auth_mode
+pm_mode
+pm_period
 
 Known Problems
 --------------
@@ -121,10 +137,14 @@ Known Problems
   chipsets):
   - active scan doesn't send ProbeReq neither in adhoc or in
     infrastructure (managed) mode
-    * If your ad-hoc peer sends the beacon in longer interval,
-      the Atmel driver may not find it. Temporary workaround: increase the
-      scan.max_channel_time in at76c503.c:start_scan() to 500 or even
-      1000. 
+
+    * If your ad-hoc peer sends the beacon in longer intervals,
+      the Atmel driver may not find it. Try to increase the max
+      channel time to 500 or 1000 (default 120) by calling
+              iwpriv wlanX scan_times 10 <max channel time>
+      If you found a working value, add the module parameter
+      scan_max_time to /etc/modules.conf .
+
     * You cannot connect to an access point which hides its SSID and
       requires the STA to probe it!
 

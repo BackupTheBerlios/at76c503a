@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.24 2003/05/29 10:35:09 jal2 Exp $
+/* $Id: at76c503.c,v 1.25 2003/06/01 19:42:28 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -120,6 +120,8 @@
 #define DBG_BSS_MATCH       0x080000 /* show why a certain bss did not match */
 #define DBG_PARAMS          0x100000 /* show the configured parameters */
 #define DBG_WAIT_COMPLETE   0x200000 /* show the wait_completion progress */
+#define DBG_RX_FRAGS_SKB    0x400000 /* show skb header for incoming rx fragments */
+#define DBG_BSS_TABLE_RM    0x800000 /* inform on removal of old bss table entries */
 
 #ifdef CONFIG_USB_DEBUG
 #define DBG_DEFAULTS (DBG_PROGRESS | DBG_PARAMS | DBG_BSS_TABLE)
@@ -182,6 +184,35 @@ MODULE_PARM_DESC(debug, "Debugging level");
 static int rx_copybreak = 200;
 MODULE_PARM(rx_copybreak, "i");
 MODULE_PARM_DESC(rx_copybreak, "rx packet copy threshold");
+
+static int scan_min_time = 10;
+MODULE_PARM(scan_min_time, "i");
+MODULE_PARM_DESC(scan_min_time, "scan min channel time (default: 10)");
+
+static int scan_max_time = 120;
+MODULE_PARM(scan_max_time, "i");
+MODULE_PARM_DESC(scan_max_time, "scan max channel time (default: 120)");
+
+static int scan_mode = SCAN_TYPE_ACTIVE;
+MODULE_PARM(scan_mode, "i");
+MODULE_PARM_DESC(scan_mode, "scan mode: 0 active (with ProbeReq, default), 1 passive");
+
+static int preamble_type = PREAMBLE_TYPE_LONG;
+MODULE_PARM(preamble_type, "i");
+MODULE_PARM_DESC(preamble_type, "preamble type: 0 long (default), 1 short");
+
+static int auth_mode = 0;
+MODULE_PARM(auth_mode, "i");
+MODULE_PARM_DESC(auth_mode, "authentication mode: 0 open system (default), "
+		 "1 shared secret");
+
+static int pm_mode = PM_ACTIVE;
+MODULE_PARM(pm_mode, "i");
+MODULE_PARM_DESC(pm_mode, "power management mode: 1 active (def.), 2 powersave, 3 smart save");
+
+static int pm_period = 0;
+MODULE_PARM(pm_period, "i");
+MODULE_PARM_DESC(pm_period, "period of waking up the device in usec");
 
 struct header_struct {
         /* 802.3 */
@@ -352,7 +383,7 @@ static int disassoc_req(struct at76c503 *dev, struct bss_info *bss);
 static int assoc_req(struct at76c503 *dev, struct bss_info *bss);
 static int reassoc_req(struct at76c503 *dev, struct bss_info *curr,
 		       struct bss_info *new);
-static void dump_bss_table(struct at76c503 *dev);
+static void dump_bss_table(struct at76c503 *dev, int force_output);
 static int submit_rx_urb(struct at76c503 *dev);
 static int startup_device(struct at76c503 *dev);
 
@@ -1143,9 +1174,9 @@ int start_scan(struct at76c503 *dev, int use_essid)
 
 	/* atmelwlandriver differs between scan type 0 and 1 (active/passive)
 	   For ad-hoc mode, it uses type 0 only.*/
-
-	scan.min_channel_time = 10;
-	scan.max_channel_time = 120;
+	scan.scan_type = dev->scan_mode;
+	scan.min_channel_time = dev->scan_min_time;
+	scan.max_channel_time = dev->scan_max_time;
 	/* other values are set to 0 for type 0 */
 
 	return set_card_command(dev->udev, CMD_SCAN,
@@ -1215,7 +1246,8 @@ void bss_list_timeout(unsigned long par)
 
 		if (ptr != dev->curr_bss && ptr != dev->new_bss &&
 		    time_after(jiffies, ptr->last_rx+BSS_LIST_TIMEOUT)) {
-			dbg(DBG_BSS_TABLE, "%s: bss_list: removing old BSS %s ch %d",
+			dbg(DBG_BSS_TABLE_RM,
+			    "%s: bss_list: removing old BSS %s ch %d",
 			    dev->netdev->name, mac2str(ptr->bssid), ptr->channel);
 			list_del(&ptr->list);
 			kfree(ptr);
@@ -1238,8 +1270,10 @@ void mgmt_timeout(unsigned long par)
 void handle_mgmt_timeout(struct at76c503 *dev)
 {
 
-	dbg(DBG_PROGRESS, "%s: timeout, state %d", dev->netdev->name,
-	    dev->istate);
+	if (dev->istate != SCANNING)
+		/* this is normal behaviour in state SCANNING ... */
+		dbg(DBG_PROGRESS, "%s: timeout, state %d", dev->netdev->name,
+		    dev->istate);
 
 	switch(dev->istate) {
 
@@ -1919,7 +1953,7 @@ end_join:
 		}
 
 		/* dump the results of the scan with ANY ssid */
-		dump_bss_table(dev);
+		dump_bss_table(dev, 0);
 		if ((ret=start_scan(dev, 1)) < 0) {
 			err("%s: 2.start_scan failed with %d",
 			    dev->netdev->name, ret);
@@ -1933,7 +1967,7 @@ end_join:
 		}
 
 		/* dump the results of the scan with real ssid */
-		dump_bss_table(dev);
+		dump_bss_table(dev, 0);
 		NEW_STATE(dev,JOINING);
 		assert(dev->curr_bss == NULL); /* done in free_bss_list, 
 						  find_bss will start with first bss */
@@ -1969,7 +2003,7 @@ end_scan:
 			    dev->pm_mode != PM_ACTIVE) {
 				/* calc the listen interval in units of
 				   beacon intervals of the curr_bss */
-				u32 li = (dev->pm_period >> 10) / 
+			       dev->pm_period_beacon = (dev->pm_period_us >> 10) / 
 					dev->curr_bss->beacon_interval;
 
 #if 0 /* only to check if we need to set the listen interval here
@@ -1977,15 +2011,18 @@ end_scan:
 				dump_mib_mac(dev);
 #endif
 
-				if (li < 2) li = 2;
-				else if (li > 0xffff) li = 0xffff;
+				if (dev->pm_period_beacon < 2)
+					dev->pm_period_beacon = 2;
+				else
+					if ( dev->pm_period_beacon > 0xffff)
+						dev->pm_period_beacon = 0xffff;
 
 				dbg(DBG_PM, "%s: pm_mode %d assoc id x%x listen int %d",
 				    dev->netdev->name, dev->pm_mode,
-				    dev->curr_bss->assoc_id, li);
+				    dev->curr_bss->assoc_id, dev->pm_period_beacon);
 
 				set_associd(dev, dev->curr_bss->assoc_id);
-				set_listen_interval(dev, (u16)li);
+				set_listen_interval(dev, (u16)dev->pm_period_beacon);
 				set_pm_mode(dev, dev->pm_mode);
 #if 0
 				dump_mib_mac(dev);
@@ -2078,7 +2115,7 @@ int wep_matched(struct at76c503 *dev, struct bss_info *ptr)
 	return 1;
 }
 
-static void dump_bss_table(struct at76c503 *dev)
+static void dump_bss_table(struct at76c503 *dev, int force_output)
 {
 	struct bss_info *ptr;
 	/* hex dump output buffer for debug */
@@ -2087,7 +2124,7 @@ static void dump_bss_table(struct at76c503 *dev)
 	unsigned long flags;
 	struct list_head *lptr;
 
-	if (debug & DBG_BSS_TABLE) {
+	if ((debug & DBG_BSS_TABLE) || (force_output)) {
 		spin_lock_irqsave(&dev->bss_list_spinlock, flags);
 
 		dbg_uc("%s BSS table (curr=%p, new=%p):", dev->netdev->name,
@@ -2764,21 +2801,19 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 	int i;
 	struct rx_data_buf *bptr, *optr;
 	unsigned long oldest = ~0UL;
+	char dbuf[2*32+1] __attribute__ ((unused));
 
-	if (debug & DBG_RX_FRAGS) {
-		char dbuf[2*32+1] __attribute__ ((unused));
-		dbg_uc("%s: rx data frame_ctl %04x addr2 %s seq/frag %d/%d "
-		    "length %d data %d: %s ...",
-		    dev->netdev->name, i802_11_hdr->frame_ctl,
-		    mac2str(i802_11_hdr->addr2),
-		    seqnr, fragnr, length, data_len,
-		    hex2str(dbuf, data, sizeof(dbuf)/2, '\0'));
+	dbg(DBG_RX_FRAGS, "%s: rx data frame_ctl %04x addr2 %s seq/frag %d/%d "
+	    "length %d data %d: %s ...",
+	    dev->netdev->name, i802_11_hdr->frame_ctl,
+	    mac2str(i802_11_hdr->addr2),
+	    seqnr, fragnr, length, data_len,
+	    hex2str(dbuf, data, sizeof(dbuf)/2, '\0'));
 
-		//just to understand skb's ???
-		dbg_uc("%s: incoming skb: head %p data %p tail %p end %p len %d",
-		    dev->netdev->name, skb->head, skb->data, skb->tail,
-		    skb->end, skb->len);
-	}
+	dbg(DBG_RX_FRAGS_SKB, "%s: incoming skb: head %p data %p "
+	    "tail %p end %p len %d",
+	    dev->netdev->name, skb->head, skb->data, skb->tail,
+	    skb->end, skb->len);
 
 	if (data_len <= 0) {
 		/* buffers contains no data */
@@ -2798,8 +2833,7 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 			dev->rx_skb = NULL;
 		}
 
-		if (debug & DBG_RX_FRAGS)
-			dbg_uc("%s: unfragmented", dev->netdev->name);
+		dbg(DBG_RX_FRAGS, "%s: unfragmented", dev->netdev->name);
 
 		return skb;
 	}
@@ -2814,12 +2848,10 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 	/* remove FCS at end */
 	skb_trim(skb, length - 4);
 
-	if (debug & DBG_RX_FRAGS)
-		//just to understand skb's ???
-		dbg_uc("%s: trimmed skb: head %p data %p tail %p "
-		       "end %p len %d data %p data_len %d",
-		    dev->netdev->name, skb->head, skb->data, skb->tail,
-		    skb->end, skb->len, data, data_len);
+	dbg(DBG_RX_FRAGS_SKB, "%s: trimmed skb: head %p data %p tail %p "
+	    "end %p len %d data %p data_len %d",
+	    dev->netdev->name, skb->head, skb->data, skb->tail,
+	    skb->end, skb->len, data, data_len);
 
 	/* look if we've got a chain for the sender address.
 	   afterwards optr points to first free or the oldest entry,
@@ -2848,9 +2880,9 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 	
 	if (i < NR_RX_DATA_BUF) {
 
-		if (debug & DBG_RX_FRAGS)
-			dbg_uc("%s: %d. cacheentry (seq/frag=%d/%d) matched",
-			    dev->netdev->name, i, bptr->seqnr, bptr->fragnr);
+		dbg(DBG_RX_FRAGS, "%s: %d. cacheentry (seq/frag=%d/%d) "
+		    "matched sender addr",
+		    dev->netdev->name, i, bptr->seqnr, bptr->fragnr);
 
 		/* bptr points to an entry for the sender address */
 		if (bptr->seqnr == seqnr) {
@@ -2875,11 +2907,15 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 					/* this was the last fragment - send it */
 					skb = bptr->skb;
 					bptr->skb = NULL; /* free the entry */
+					dbg(DBG_RX_FRAGS, "%s: last frag of seq %d",
+					    dev->netdev->name, seqnr);
 					return skb;
 				} else
 					return NULL;
 			} else {
 				/* wrong fragment number -> ignore it */
+				dbg(DBG_RX_FRAGS, "%s: frag nr does not match: %d+1 != %d",
+				    dev->netdev->name, bptr->fragnr, fragnr);
 				return NULL;
 			}
 		} else {
@@ -2888,6 +2924,9 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 				/* it's the start of a new chain - replace the
 				   old one by this */
 				/* bptr->sender has the correct value already */
+				dbg(DBG_RX_FRAGS, "%s: start of new seq %d, "
+				    "removing old seq %d", dev->netdev->name,
+				    seqnr, bptr->seqnr);
 				bptr->seqnr = seqnr;
 				bptr->fragnr = 0;
 				bptr->last_rx = jiffies;
@@ -2898,6 +2937,9 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 			} else {
 				/* it from the middle of a new chain ->
 				   delete the old entry and skip the new one */
+				dbg(DBG_RX_FRAGS, "%s: middle of new seq %d (%d) "
+				    "removing old seq %d", dev->netdev->name,
+				    seqnr, fragnr, bptr->seqnr);
 				dev_kfree_skb(bptr->skb);
 				bptr->skb = NULL;
 			}
@@ -2909,10 +2951,8 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 
 		if (fragnr != 0) {
 			/* this is not the begin of a fragment chain ... */
-			if (debug & DBG_RX_FRAGS)
-				dbg_uc("%s: no chain for this non-first fragment (%d)",
-				    dev->netdev->name, fragnr);
-
+			dbg(DBG_RX_FRAGS, "%s: no chain for non-first fragment (%d)",
+			    dev->netdev->name, fragnr);
 			return NULL;
 		}
 		assert(optr != NULL);
@@ -2925,18 +2965,16 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 			optr->skb = dev->rx_skb;
 			dev->rx_skb = skb;
 
-			if (debug & DBG_RX_FRAGS)
-				dbg_uc("%s: free old contents: sender %s seq/frag %d/%d",
-				    dev->netdev->name, mac2str(optr->sender),
-				    optr->seqnr, optr->fragnr); 
+			dbg(DBG_RX_FRAGS, "%s: free old contents: sender %s seq/frag %d/%d",
+			    dev->netdev->name, mac2str(optr->sender),
+			    optr->seqnr, optr->fragnr); 
 
 		} else {
 			/* take the skb from dev->rx_skb */
 			optr->skb = dev->rx_skb;
 			dev->rx_skb = NULL; /* let submit_rx_urb() allocate a new skb */
 
-			if (debug & DBG_RX_FRAGS)
-				dbg_uc("%s: use a free entry", dev->netdev->name);
+			dbg(DBG_RX_FRAGS, "%s: use a free entry", dev->netdev->name);
 		}
 		memcpy(optr->sender, i802_11_hdr->addr2, ETH_ALEN);
 		optr->seqnr = seqnr;
@@ -3300,7 +3338,8 @@ int startup_device(struct at76c503 *dev)
 		ossid[dev->essid_size] = '\0';
 
 		dbg_uc("%s params: ssid %s (%s) mode %s wep %s key %d keylen %d "
-		       "preamble %s rts %d frag %d txrate %d excl %d pm_mode %d",
+		       "preamble %s rts %d frag %d txrate %d excl %d pm_mode %d "
+		       "pm_period %d",
 		       dev->netdev->name, ossid, 
 		       hex2str(hexssid,dev->essid,dev->essid_size,'\0'),
 		       dev->iw_mode == IW_MODE_ADHOC ? "adhoc" : "infra",
@@ -3308,7 +3347,7 @@ int startup_device(struct at76c503 *dev)
 		       dev->wep_key_id, dev->wep_keys_len[dev->wep_key_id],
 		       dev->preamble_type == PREAMBLE_TYPE_SHORT ? "short" : "long",
 		       dev->rts_threshold, dev->frag_threshold, dev->txrate,
-		       dev->wep_excl_unencr, dev->pm_mode);
+		       dev->wep_excl_unencr, dev->pm_mode, dev->pm_period_us);
 	}
 
 	memset(ccfg, 0, sizeof(struct at76c503_card_config));
@@ -3908,7 +3947,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 			/* we set the listen_interval based on the period given */
 			/* no idea how to handle the timeout of iwconfig ??? */
 			if (wrq->u.power.flags & IW_POWER_PERIOD) {
-				dev->pm_period = wrq->u.power.value;
+				dev->pm_period_us = wrq->u.power.value;
 			}
 			dev->pm_mode = PM_SAVE; /* use iw_priv to select SMART_SAVE */
 		}
@@ -3922,8 +3961,20 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 			wrq->u.power.flags = IW_POWER_TIMEOUT;
 			wrq->u.power.value = 0;
 		} else {
+			unsigned long flags;
+			u16 beacon_int; /* of the current bss */
 			wrq->u.power.flags = IW_POWER_PERIOD;
-			wrq->u.power.value = dev->pm_period;
+
+			spin_lock_irqsave(&dev->bss_list_spinlock, flags);
+			beacon_int = dev->curr_bss != NULL ?
+				dev->curr_bss->beacon_interval : 0;
+			spin_unlock_irqrestore(&dev->bss_list_spinlock, flags);
+			
+			if (beacon_int != 0) {
+				wrq->u.power.value =
+					(beacon_int * dev->pm_period_beacon) << 10;
+			} else
+				wrq->u.power.value = dev->pm_period_us;
 		}
 		wrq->u.power.flags |= IW_POWER_ALL_R; /* ??? */
 		break;
@@ -3933,7 +3984,7 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 			const struct iw_priv_args priv[] = {
 				{ PRIV_IOCTL_SET_SHORT_PREAMBLE,
 				  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0,
-				  "set_preamble" }, /* 0 - long, 1 -short */
+				  "short_preamble" }, /* 0 - long, 1 -short */
 
 				{ PRIV_IOCTL_SET_DEBUG, 
 				  /* we must pass the new debug mask as a string,
@@ -3942,17 +3993,24 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 				  IW_PRIV_TYPE_CHAR | 10, 0,
 				  "set_debug"}, /* set debug value */
 
-				{ PRIV_IOCTL_SET_AUTH, 
+				{ PRIV_IOCTL_SET_AUTH_MODE, 
 				  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0,
-				  "set_auth"}, /* 0 - open , 1 - shared secret */
+				  "auth_mode"}, /* 0 - open , 1 - shared secret */
 
 				{ PRIV_IOCTL_LIST_BSS, 
 				  0, 0, "list_bss"}, /* dump current bss table */
 
-				{ PRIV_IOCTL_SET_PS_MODE, 
+				{ PRIV_IOCTL_SET_POWERSAVE_MODE, 
 				  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0,
-				  "set_ps"}, /* 0 -  active, 1 - power save,
-						2 - smart power save */
+				  "powersave_mode"}, /* 1 -  active, 2 - power save,
+						3 - smart power save */
+				{ PRIV_IOCTL_SET_SCAN_TIMES, 
+				  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 2, 0,
+				  "scan_times"}, /* min_channel_time,
+						      max_channel_time */
+				{ PRIV_IOCTL_SET_SCAN_MODE, 
+				  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0,
+				  "scan_mode"}, /* 0 - active, 1 - passive scan */
 			};
 
 			wrq->u.data.length = sizeof(priv) / sizeof(priv[0]);
@@ -4010,37 +4068,68 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
         set_debug_end:
 	break;
 
-	case PRIV_IOCTL_SET_AUTH:
+	case PRIV_IOCTL_SET_AUTH_MODE:
 	{
 		int val = *((int *)wrq->u.name);
-		dbg(DBG_IOCTL, "%s: PRIV_IOCTL_SET_AUTH, %d (%s)",
+		dbg(DBG_IOCTL, "%s: PRIV_IOCTL_SET_AUTH_MODE, %d (%s)",
 		    dev->netdev->name, val,
-		    val == 0 ? "open" : val == 1 ? "shared secret" : 
+		    val == 0 ? "open system" : val == 1 ? "shared secret" : 
 		    "<invalid>");
 		if (val < 0 || val > 1)
 			ret = -EINVAL;
 		else {
-			dev->auth_mode = val;
+			dev->auth_mode = val ? IEEE802_11_AUTH_ALG_SHARED_SECRET :
+			  IEEE802_11_AUTH_ALG_OPEN_SYSTEM;
 			changed = 1;
 		}
 	}
 	break;
 
 	case PRIV_IOCTL_LIST_BSS:
-		dump_bss_table(dev);
+		dump_bss_table(dev, 1);
 		break;
 
-	case PRIV_IOCTL_SET_PS_MODE:
+	case PRIV_IOCTL_SET_POWERSAVE_MODE:
 	{
 		int val = *((int *)wrq->u.name);
-		dbg(DBG_IOCTL, "%s: PRIV_IOCTL_SET_PS_MODE, %d (%s)",
+		dbg(DBG_IOCTL, "%s: PRIV_IOCTL_SET_POWERSAVE_MODE, %d (%s)",
 		    dev->netdev->name, val,
-		    val == PM_ACTIVE ? "active" : val == PM_SAVE ? "save" : val == PM_SMART_SAVE ?
-		    "smart save" : "<invalid>");
+		    val == PM_ACTIVE ? "active" : val == PM_SAVE ? "save" :
+		    val == PM_SMART_SAVE ? "smart save" : "<invalid>");
 		if (val < PM_ACTIVE || val > PM_SMART_SAVE)
 			ret = -EINVAL;
 		else {
 			dev->pm_mode = val;
+			changed = 1;
+		}
+	}
+	break;
+
+	case PRIV_IOCTL_SET_SCAN_TIMES:
+	{
+		int mint = *((int *)wrq->u.name);
+		int maxt = *((int *)wrq->u.name + 1);
+		dbg(DBG_IOCTL, "%s: PRIV_IOCTL_SET_SCAN_TIMES, %d %d",
+		    dev->netdev->name, mint, maxt);
+		if (mint <= 0 || maxt <= 0 || mint > maxt)
+			ret = -EINVAL;
+		else {
+			dev->scan_min_time = mint;
+			dev->scan_max_time = maxt;
+			changed = 1;
+		}
+	}
+	break;
+
+	case PRIV_IOCTL_SET_SCAN_MODE:
+	{
+		int val = *((int *)wrq->u.name);
+		dbg(DBG_IOCTL, "%s: PRIV_IOCTL_SET_SCAN_MODE, %d",
+		    dev->netdev->name, val);
+		if (val != SCAN_TYPE_ACTIVE && val != SCAN_TYPE_PASSIVE)
+			ret = -EINVAL;
+		else {
+			dev->scan_mode = val;
 			changed = 1;
 		}
 	}
@@ -4253,8 +4342,8 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 
 	dev->board_type = board_type;
 
-	dev->pm_mode = PM_ACTIVE;
-	dev->pm_period = 0; /* this defaults to a listen interval of two beacon */
+	dev->pm_mode = pm_mode;
+	dev->pm_period_us = pm_period;
 
 	/* set up the endpoint information */
 	/* check out the endpoints */
@@ -4275,7 +4364,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.24 2003/05/29 10:35:09 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.25 2003/06/01 19:42:28 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
@@ -4300,8 +4389,12 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 	dev->rts_threshold = DEF_RTS_THRESHOLD;
 	dev->frag_threshold = DEF_FRAG_THRESHOLD;
 	dev->txrate = TX_RATE_AUTO;
-	dev->preamble_type = PREAMBLE_TYPE_LONG;
-	dev->auth_mode = IEEE802_11_AUTH_ALG_OPEN_SYSTEM;
+	dev->preamble_type = preamble_type;
+	dev->auth_mode = auth_mode ? IEEE802_11_AUTH_ALG_SHARED_SECRET :
+	  IEEE802_11_AUTH_ALG_OPEN_SYSTEM;
+	dev->scan_min_time = scan_min_time;
+	dev->scan_max_time = scan_max_time;
+	dev->scan_mode = scan_mode;
 
 	netdev->flags &= ~IFF_MULTICAST; /* not yet or never */
 	netdev->open = at76c503_open;
