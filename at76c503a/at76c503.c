@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.59 2004/06/14 00:05:04 jal2 Exp $
+/* $Id: at76c503.c,v 1.60 2004/06/15 18:20:37 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -5792,8 +5792,14 @@ static const iw_handler	at76c503_handlers[] =
 	(iw_handler) at76c503_iw_handler_get_wap,	// SIOCGIWAP
 	(iw_handler) NULL,				// -- hole --
 	(iw_handler) NULL,				// SIOCGIWAPLIST
+
+#if WIRELESS_EXT > 13
 	(iw_handler) at76c503_iw_handler_set_scan,	// SIOCSIWSCAN
 	(iw_handler) at76c503_iw_handler_get_scan,	// SIOCGIWSCAN
+#else
+	(iw_handler) NULL,				// SIOCSIWSCAN
+	(iw_handler) NULL,				// SIOCGIWSCAN
+#endif
 	(iw_handler) at76c503_iw_handler_set_essid,	// SIOCSIWESSID
 	(iw_handler) at76c503_iw_handler_get_essid,	// SIOCGIWESSID
 	(iw_handler) at76c503_iw_handler_set_nickname,	// SIOCSIWNICKN
@@ -6531,7 +6537,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.59 2004/06/14 00:05:04 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.60 2004/06/15 18:20:37 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
