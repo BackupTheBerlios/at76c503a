@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.34 2004/06/15 19:53:42 jal2 Exp $
+#$Id: Makefile,v 1.35 2004/07/23 23:28:18 jal2 Exp $
 
 VERSION = 0.12beta14
 
@@ -23,7 +23,7 @@ MODULES = at76c503.o usbdfu.o at76c503-i3861.o at76c503-rfmd.o at76c503-rfmd-acc
           at76c505-rfmd.o at76c503-i3863.o at76c505-rfmd2958.o at76c505a-rfmd2958.o
 
 SRCS = at76c503.c usbdfu.c at76c503-rfmd.c at76c505-rfmd.c at76c503-rfmd-acc.c \
-       at76c503-i3861.c at76c503-i3863.c at76c505-rfmd2958.c at76c505a-rfmd2958.o
+       at76c503-i3861.c at76c503-i3863.c at76c505-rfmd2958.c at76c505a-rfmd2958.c
 
 HDRS = at76c503.h ieee802_11.h usbdfu.h at76c503-fw_skel.c fw-empty.h
 FW_HDRS= fw-pkg-505-rfmd2958-1.101.0-86.h  fw-pkg-i3863.h  \
