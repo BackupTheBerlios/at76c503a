@@ -269,7 +269,7 @@ struct ieee802_11_auth_frame {
 	u16 algorithm;
 	u16 seq_nr;
 	u16 status;
-	/* no challenge text (yet) */
+	u8 challenge[0];
 } __attribute__ ((packed));
 
 /* deauth frame in ieee802_11_mgmt.data */
@@ -280,7 +280,7 @@ struct ieee802_11_deauth_frame {
   (IEEE802_11_MGMT_HEADER_SIZE +\
    sizeof(struct ieee802_11_disauth_frame))
 
-/* for shared key, add the challenge text size */
+/* for shared secret auth, add the challenge text size */
 #define AUTH_FRAME_SIZE \
   (IEEE802_11_MGMT_HEADER_SIZE +\
    sizeof(struct ieee802_11_auth_frame))
@@ -310,7 +310,7 @@ static void at76c503_read_bulk_callback (struct urb *urb);
 static void at76c503_write_bulk_callback(struct urb *urb);
 static void defer_kevent (struct at76c503 *dev, int flag);
 static int find_matching_bss(struct at76c503 *dev, int start);
-static int auth_req(struct at76c503 *dev, int idx);
+static int auth_req(struct at76c503 *dev, int idx, int seq_nr, u8 *challenge);
 static int disassoc_req(struct at76c503 *dev, int idx);
 static int assoc_req(struct at76c503 *dev, int idx);
 static int reassoc_req(struct at76c503 *dev, int curr, int new);
@@ -966,7 +966,7 @@ void handle_mgmt_timeout(struct at76c503 *dev)
 
 	case AUTHENTICATING:
 		if (dev->retries-- >= 0) {
-			auth_req(dev,dev->curr_bss);
+			auth_req(dev, dev->curr_bss, 1, NULL);
 			mod_timer(&dev->mgmt_timer, jiffies+HZ);
 		} else {
 			/* try to get next matching BSS */
@@ -1157,17 +1157,24 @@ int disassoc_req(struct at76c503 *dev, int idx)
 
 } /* disassoc_req */
 
+/* challenge is the challenge string (in TLV format) 
+   we got with seq_nr 2 for shared secret authentication only and
+   send in seq_nr 3 WEP encrypted to prove we have the correct WEP key;
+   otherwise it is NULL */
 static
-int auth_req(struct at76c503 *dev, int idx)
+int auth_req(struct at76c503 *dev, int idx, int seq_nr, u8 *challenge)
 {
 	struct at76c503_tx_buffer *tx_buffer;
 	struct ieee802_11_mgmt *mgmt;
 	struct ieee802_11_auth_frame *req;
 	struct bss_info *bss = dev->bss+idx;
+	int buf_len = (seq_nr != 3 ? AUTH_FRAME_SIZE : 
+		       AUTH_FRAME_SIZE + 1 + 1 + challenge[1]);
 
 	assert(idx >= 0 && idx < dev->bss_nr);
-
-	tx_buffer = kmalloc(AUTH_FRAME_SIZE, GFP_ATOMIC);
+	assert(seq_nr != 3 || challenge != NULL);
+	
+	tx_buffer = kmalloc(buf_len, GFP_ATOMIC);
 	if (!tx_buffer)
 		return -ENOMEM;
 
@@ -1178,24 +1185,36 @@ int auth_req(struct at76c503 *dev, int idx)
 	/* no need to care about endianness of constants - is taken care
 	   of in ieee802_11.h */
 	/* first auth msg is not encrypted */
-	mgmt->frame_ctl = IEEE802_11_FTYPE_MGMT|IEEE802_11_STYPE_AUTH;
+	mgmt->frame_ctl = IEEE802_11_FTYPE_MGMT | IEEE802_11_STYPE_AUTH;
+	if (seq_nr == 3)
+		mgmt->frame_ctl |= IEEE802_11_FCTL_WEP;
+
 	mgmt->duration_id = cpu_to_le16(0x8000);
 	memcpy(mgmt->addr1, bss->bssid, ETH_ALEN);
 	memcpy(mgmt->addr2, dev->netdev->dev_addr, ETH_ALEN);
 	memcpy(mgmt->addr3, bss->bssid, ETH_ALEN);
 	mgmt->seq_ctl = 0;
 
-	req->algorithm = IEEE802_11_AUTH_ALG_OPEN_SYSTEM;
-	req->seq_nr = cpu_to_le16(1);
+	req->algorithm = dev->auth_mode;
+	req->seq_nr = cpu_to_le16(seq_nr);
 	req->status = 0;
 
+	if (seq_nr == 3)
+		memcpy(req->challenge, challenge, 1+1+challenge[1]);
+
 	/* init. at76c503 tx header */
-	tx_buffer->wlength = cpu_to_le16(AUTH_FRAME_SIZE -
+	tx_buffer->wlength = cpu_to_le16(buf_len -
 		offsetof(struct at76c503_tx_buffer, packet));
 	
-	dbg("%s: AuthReq bssid %s algorithm %d trans_seq %d",
+	dbg("%s: AuthReq bssid %s alg %d seq_nr %d",
 	    dev->netdev->name, mac2str(mgmt->addr3),
 	    req->algorithm, req->seq_nr);
+	if (seq_nr == 3) {
+		char obuf[18*3];
+		dbg("%s: AuthReq challenge: %s ...",
+		    dev->netdev->name,
+		    hex2str(obuf, req->challenge, sizeof(obuf)/3,' '));
+	}
 
 	/* either send immediately (if no data tx is pending
 	   or put it in pending list */
@@ -1537,7 +1556,7 @@ end_startibss:
 			} else {
 				/* send auth req */
 				NEW_STATE(dev,AUTHENTICATING);
-				auth_req(dev,dev->curr_bss);
+				auth_req(dev, dev->curr_bss, 1, NULL);
 				mod_timer(&dev->mgmt_timer, jiffies+HZ);
 			}
 			goto end_join;
@@ -1650,7 +1669,9 @@ int rates_matched(struct at76c503 *dev, struct bss_info *ptr)
 				return 0;
 			}
 		}
-	return 1;
+	/* if we use short preamble, the bss must support it */
+	return (dev->preamble_type != PREAMBLE_TYPE_SHORT ||
+		ptr->capa & IEEE802_11_CAPA_SHORT_PREAMBLE);
 }
 
 static inline
@@ -1717,12 +1738,14 @@ static int find_matching_bss(struct at76c503 *dev, int start)
 	memcpy(ossid, dev->essid, dev->essid_size);
 	ossid[dev->essid_size] = '\0';
 
-	dbg("%s %s: try to match ssid %s (%s) mode %s wep %s, start at %d,"
+	dbg("%s %s: try to match ssid %s (%s) mode %s wep %s, preamble %s, start at %d,"
 	    " return %d",
 	    dev->netdev->name, __FUNCTION__, ossid, 
 	    hex2str(hexssid,dev->essid,dev->essid_size,'\0'),
 	    dev->iw_mode == IW_MODE_ADHOC ? "adhoc" : "infra",
-	    dev->wep_enabled ? "enabled" : "disabled", start, ret);
+	    dev->wep_enabled ? "enabled" : "disabled", 
+	    dev->preamble_type == PREAMBLE_TYPE_SHORT ? "short" : "long",
+	    start, ret);
 
 	return ret;
 } /* find_matching_bss */
@@ -1852,18 +1875,29 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 	struct ieee802_11_mgmt *mgmt = (struct ieee802_11_mgmt *)buf->packet;
 	struct ieee802_11_auth_frame *resp = 
 		(struct ieee802_11_auth_frame *)mgmt->data;
-	char obuf[ETH_ALEN*3+1] __attribute__ ((unused));
+	char obuf[18*3] __attribute__ ((unused));
+	int seq_nr = le16_to_cpu(resp->seq_nr);
+	int alg = le16_to_cpu(resp->algorithm);
+	int status = le16_to_cpu(resp->status);
 
 	dbg("%s: rx AuthFrame bssid %s alg %d seq_nr %d status %d " 
 	    "destination %s",
 	    dev->netdev->name, mac2str(mgmt->addr3),
-	    le16_to_cpu(resp->algorithm),
-	    le16_to_cpu(resp->seq_nr),
-	    le16_to_cpu(resp->status),
+	    alg, seq_nr, status,
 	    hex2str(obuf, mgmt->addr1, ETH_ALEN, ':'));
+
+	if (alg == IEEE802_11_AUTH_ALG_SHARED_SECRET &&
+	    seq_nr == 2) {
+		dbg("%s: AuthFrame challenge %s ...",
+		    dev->netdev->name,
+		    hex2str(obuf, resp->challenge, sizeof(obuf)/3, ' '));
+	}
 
 	if (dev->istate != AUTHENTICATING)
 		return;
+	if (dev->auth_mode != resp->algorithm)
+		return;
+
 	if (!memcmp(mgmt->addr3,dev->bss[dev->curr_bss].bssid, ETH_ALEN) &&
 	    !memcmp(dev->netdev->dev_addr, mgmt->addr1, ETH_ALEN)) {
 		/* this is a AuthFrame from the BSS we are connected or
@@ -1873,12 +1907,21 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 			/* try to join next bss */
 			NEW_STATE(dev,JOINING);
 			defer_kevent(dev,KEVENT_JOIN);
-		} else {
+			return;
+		}
+
+		if (dev->auth_mode == IEEE802_11_AUTH_ALG_OPEN_SYSTEM ||
+			resp->seq_nr == 4) {
 			dev->retries = ASSOC_RETRIES;
 			NEW_STATE(dev,ASSOCIATING);
 			assoc_req(dev, dev->curr_bss);
 			mod_timer(&dev->mgmt_timer,jiffies+HZ);
+			return;
 		}
+
+		assert(resp->seq_nr == 2);
+		auth_req(dev, dev->curr_bss, resp->seq_nr+1, resp->challenge);
+		mod_timer(&dev->mgmt_timer,jiffies+HZ);
 	}
 	/* else: ignore AuthFrames to other receipients */
 } /* rx_mgmt_auth */
@@ -3000,6 +3043,68 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		}
 		break;
 
+	case SIOCGIWPRIV:
+		if (wrq->u.data.pointer) {
+			const struct iw_priv_args priv[] = {
+				{ PRIV_IOCTL_SET_SHORT_PREAMBLE,
+				  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0,
+				  "set_preamble" }, /* 0 - long, 1 -short */
+
+				{ PRIV_IOCTL_SET_DEBUG, 
+				  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0,
+				  "set_debug"}, /* set debug value */
+
+				{ PRIV_IOCTL_SET_AUTH, 
+				  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0,
+				  "set_auth"}, /* 0 - open , 1 - shared secret */
+			};
+
+			wrq->u.data.length = sizeof(priv) / sizeof(priv[0]);
+			if (copy_to_user(wrq->u.data.pointer, priv, 
+					 sizeof(priv)))
+			  ret = -EFAULT;
+		}
+		break;
+
+	case PRIV_IOCTL_SET_SHORT_PREAMBLE:
+	{
+		int val = *((int *)wrq->u.name);
+		dbg("%s: PRIV_IOCTL_SET_SHORT_PREAMBLE, %d",
+		    dev->netdev->name, val);
+		if (val < 0 || val > 2)
+			//allow value of 2 - in the win98 driver it stands
+			//for "auto preamble" ...?
+			ret = -EINVAL;
+		else {
+			dev->preamble_type = val;
+		}
+	}
+	break;
+
+	case PRIV_IOCTL_SET_DEBUG:
+	{
+		int val = *((int *)wrq->u.name);
+		dbg("%s: PRIV_IOCTL_SET_DEBUG, %d",
+		    dev->netdev->name, val);
+		debug = val;
+	}
+	break;
+
+	case PRIV_IOCTL_SET_AUTH:
+	{
+		int val = *((int *)wrq->u.name);
+		dbg("%s: PRIV_IOCTL_SET_AUTH, %d (%s)",
+		    dev->netdev->name, val,
+		    val == 0 ? "open" : val == 1 ? "shared secret" : 
+		    "<invalid>");
+		if (val < 0 || val > 1)
+			ret = -EINVAL;
+		else {
+			dev->auth_mode = val;
+		}
+	}
+	break;
+
 	default:
 		dbg("%s: ioctl not supported (0x%x)", netdev->name, cmd);
 		ret = -EOPNOTSUPP;
@@ -3171,6 +3276,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type, co
 	dev->frag_threshold = DEF_FRAG_THRESHOLD;
 	dev->txrate = TX_RATE_AUTO;
 	dev->preamble_type = PREAMBLE_TYPE_LONG;
+	dev->auth_mode = IEEE802_11_AUTH_ALG_OPEN_SYSTEM;
 
 	netdev->flags &= ~IFF_MULTICAST; /* not yet or never */
 	netdev->open = at76c503_open;

@@ -18,6 +18,19 @@
 #include <linux/etherdevice.h>
 #include <linux/wireless.h>
 
+/* this wasn't even defined in early 2.4.x kernels ... */
+#ifndef SIOCIWFIRSTPRIV
+#  define SIOCIWFIRSTPRIV SIOCDEVPRIVATE
+#endif
+
+/* our private ioctl's */
+/* set preamble length*/
+#define PRIV_IOCTL_SET_SHORT_PREAMBLE  (SIOCIWFIRSTPRIV + 0x0)
+/* set debug parameter */
+#define PRIV_IOCTL_SET_DEBUG           (SIOCIWFIRSTPRIV + 0x1)
+/* set authentication mode: 0 - open, 1 - shared key */
+#define PRIV_IOCTL_SET_AUTH            (SIOCIWFIRSTPRIV + 0x2)
+
 #define DEVICE_VENDOR_REQUEST_OUT    0x40
 #define DEVICE_VENDOR_REQUEST_IN     0xc0
 #define INTERFACE_VENDOR_REQUEST_OUT 0x41
@@ -416,6 +429,7 @@ struct at76c503 {
 	int promisc;
 
 	int preamble_type; /* 0 - long preamble, 1 - short preamble */
+	int auth_mode; /* authentication type: 0 open, 1 shared key */
 	int txrate; /* 0,1,2,3 = 1,2,5.5,11 MBit, 4 is auto-fallback */
         int frag_threshold; /* threshold for fragmentation of tx packets */
         int rts_threshold; /* threshold for RTS mechanism */

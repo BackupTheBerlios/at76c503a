@@ -85,6 +85,18 @@ unplugging the device.
 If you get problems:
 Look with dmesg, if there are error messages
 
+Private Parameters
+------------------
+
+In addition to the parameters of iwconfig, some can be set by iwpriv:
+- long preamble:  iwpriv wlanX set_preamble 0
+- short preamble: iwpriv wlanX set_preamble 1
+- open system authentication: iwpriv wlanX set_auth 0
+- shared key authentication:  iwpriv wlanX set_auth 1
+
+Be aware that shared key authentication requires a WEP key.
+
+
 Thanks to:
 - the authors of the usbvnet driver (atmelwlandriver.sourceforge.net)
 - Joerg Albert for lots of patches
