@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.33 2003/07/15 19:57:05 jal2 Exp $
+/* $Id: at76c503.c,v 1.34 2003/07/26 17:06:26 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -4469,6 +4469,8 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 	dev->curr_bss = dev->new_bss = NULL;
 	INIT_LIST_HEAD(&dev->bss_list);
 	dev->bss_list_spinlock = SPIN_LOCK_UNLOCKED;
+
+	init_timer(&dev->bss_list_timer);
 	dev->bss_list_timer.data = (unsigned long)dev;
 	dev->bss_list_timer.function = bss_list_timeout;
 	/* we let this timer run the whole time this driver instance lives */
@@ -4515,7 +4517,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.33 2003/07/15 19:57:05 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.34 2003/07/26 17:06:26 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,

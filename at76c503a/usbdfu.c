@@ -128,6 +128,14 @@ static void * usbdfu_probe(struct usb_device *dev,
 			   unsigned int ifnum, const struct usb_device_id *id);
 static void usbdfu_disconnect(struct usb_device *dev, void *ptr);
 
+static struct usb_device_id dev_table[] = {
+	{ .match_flags = (USB_DEVICE_ID_MATCH_INT_CLASS | USB_DEVICE_ID_MATCH_INT_SUBCLASS),
+	  .bInterfaceClass = DFU_USB_CLASS, .bInterfaceSubClass = DFU_USB_SUBCLASS},
+	{ }
+};
+
+MODULE_DEVICE_TABLE (usb, dev_table);
+
 /* usb specific object needed to register this driver with the usb subsystem */
 static struct usb_driver usbdfu_driver = {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,20)
@@ -136,7 +144,7 @@ static struct usb_driver usbdfu_driver = {
 	name:       "usbdfu",
 	probe:      usbdfu_probe,
 	disconnect: usbdfu_disconnect,
-	id_table:   NULL,
+	id_table:   dev_table,
 };
 
 /**
