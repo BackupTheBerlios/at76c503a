@@ -1476,8 +1476,8 @@ kevent(void *data)
 		}
 
 		netif_start_queue(dev->netdev);
-	end_startibss:
 	}
+end_startibss:
 
 	/* check this _before_ KEVENT_SCAN, 'cause _SCAN sets _JOIN bit */
 	if (test_bit(KEVENT_JOIN, &dev->kevent_flags)) {
@@ -1537,8 +1537,8 @@ kevent(void *data)
 		   in infra mode - use timer to try again in 10 seconds */
 		NEW_STATE(dev,SCANNING);
 		mod_timer(&dev->mgmt_timer, jiffies+RESCAN_TIME*HZ);
-	end_join:
 	} /* if (test_bit(KEVENT_JOIN, &dev->kevent_flags)) */
+end_join:
 
 	if (test_bit(KEVENT_SCAN, &dev->kevent_flags)) {
 		clear_bit(KEVENT_SCAN, &dev->kevent_flags);
@@ -1563,8 +1563,8 @@ kevent(void *data)
 		/* call join_bss immediately after
 		   re-run of all other threads in kevent */
 		defer_kevent(dev,KEVENT_JOIN);
-	end_scan:
 	} /* if (test_bit(KEVENT_SCAN, &dev->kevent_flags)) */
+end_scan:
 
 	up(&dev->sem);
 
