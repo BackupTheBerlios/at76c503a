@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c505-rfmd.c,v 1.8 2003/12/25 22:40:26 jal2 Exp $
+ * $Id: at76c505-rfmd.c,v 1.9 2003/12/27 00:03:35 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using at76c505 with RFMD radio chips
@@ -45,7 +45,7 @@
 "Oliver Kurth <oku@masqmail.cx>, Joerg Albert <joerg.albert@gmx.de>, Alex <alex@foogod.com>"
 #define DRIVER_DESC "Atmel at76c505 (RFMD radio) Wireless LAN Driver"
 
-#define BOARDTYPE BOARDTYPE_R505
+#define BOARDTYPE BOARDTYPE_505_RFMD
 
 /* firmware name to load if above include file contains empty fw only */
 #define FW_NAME DRIVER_NAME "-fw"

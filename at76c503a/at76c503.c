@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.37 2003/12/26 00:16:33 jal2 Exp $
+/* $Id: at76c503.c,v 1.38 2003/12/27 00:03:35 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -828,7 +828,9 @@ static int get_hw_config(struct at76c503 *dev)
 		return -ENOMEM;
 
 	switch (dev->board_type) {
-	  case BOARDTYPE_INTERSIL:
+
+	  case BOARDTYPE_503_INTERSIL_3861:
+	  case BOARDTYPE_503_INTERSIL_3863:
 		ret = get_hw_cfg_intersil(dev->udev, (unsigned char *)&hwcfg->i, sizeof(hwcfg->i));
 		if (ret < 0) break;
 		memcpy(dev->mac_addr, hwcfg->i.mac_addr, ETH_ALEN);
@@ -837,8 +839,9 @@ static int get_hw_config(struct at76c503 *dev)
 		memcpy(dev->pidvid, hwcfg->i.pidvid, 4);
 		dev->regulatory_domain = hwcfg->i.regulatory_domain;
 		break;
-	  case BOARDTYPE_RFMD:
-	  case BOARDTYPE_RFMD_ACC:
+
+	  case BOARDTYPE_503_RFMD:
+	  case BOARDTYPE_503_RFMD_ACC:
 		ret = get_hw_cfg_rfmd(dev->udev, (unsigned char *)&hwcfg->r3, sizeof(hwcfg->r3));
 		if (ret < 0) break;
 		memcpy(dev->cr20_values, hwcfg->r3.cr20_values, 14);
@@ -850,7 +853,9 @@ static int get_hw_config(struct at76c503 *dev)
 		memcpy(dev->low_power_values, hwcfg->r3.low_power_values, 14);
 		memcpy(dev->normal_power_values, hwcfg->r3.normal_power_values, 14);
 		break;
-	  case BOARDTYPE_R505:
+
+	  case BOARDTYPE_505_RFMD:
+	  case BOARDTYPE_505_RFMD_2958:
 		ret = get_hw_cfg_rfmd(dev->udev, (unsigned char *)&hwcfg->r5, sizeof(hwcfg->r5));
 		if (ret < 0) break;
 		memcpy(dev->cr39_values, hwcfg->r5.cr39_values, 14);
@@ -860,6 +865,7 @@ static int get_hw_config(struct at76c503 *dev)
 		dev->regulatory_domain = hwcfg->r5.regulatory_domain;
 		memcpy(dev->cr15_values, hwcfg->r5.cr15_values, 14);
 		break;
+
 	  default:
 		err("Bad board type set (%d).  Unable to get hardware config.", dev->board_type);
 		ret = -EINVAL;
@@ -5038,7 +5044,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.37 2003/12/26 00:16:33 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.38 2003/12/27 00:03:35 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,

@@ -1,4 +1,4 @@
-/* $Id: gen_fw.c,v 1.3 2003/12/26 00:08:31 jal2 Exp $ */
+/* $Id: gen_fw.c,v 1.4 2003/12/27 00:03:35 jal2 Exp $ */
 
 /* This file includes the old style firmwares and outputs new, binary files. */
 
@@ -8,6 +8,12 @@
 typedef unsigned char u8;
 typedef unsigned int u32;
 
+#define BOARDTYPE_503_INTERSIL_3861 1
+#define BOARDTYPE_503_INTERSIL_3863 2
+#define BOARDTYPE_503_RFMD          3
+#define BOARDTYPE_503_RFMD_ACC      4
+#define BOARDTYPE_505_RFMD          5
+#define BOARDTYPE_505_RFMD_2958     6
 
 #include "fw-rfmd-0.90.2-140.h"
 u8 intfw_503rfmd_0_90_2[] = FW_503RFMD_INTERNAL;
@@ -61,35 +67,47 @@ struct fw {
 	u8 *extfw;
 	u32 extfw_sz;
 } fws[] = {
-	{ "at76c503-rfmd-0.90.2-140-fw", 1, 0x01650054, "0.90.2-140 503 RFMD "
+	{ "at76c503-rfmd-0.90.2-140-fw", BOARDTYPE_503_RFMD,
+	  0x01650054, "0.90.2-140 503 RFMD "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
 	  intfw_503rfmd_0_90_2, sizeof(intfw_503rfmd_0_90_2),
           extfw_503rfmd_0_90_2, sizeof(extfw_503rfmd_0_90_2)},
 
-	{ "at76c503-rfmd-fw", 1, 0x01650054, "1.101.0-84 503 RFMD "
+	{ "at76c503-rfmd-fw", BOARDTYPE_503_RFMD,
+	  0x01650054, "1.101.0-84 503 RFMD "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
-	  intfw_503rfmd, sizeof(intfw_503rfmd), extfw_503rfmd, sizeof(extfw_503rfmd)},
+	  intfw_503rfmd, sizeof(intfw_503rfmd),
+	  extfw_503rfmd, sizeof(extfw_503rfmd)},
 
-	{ "at76c503-rfmd-acc-fw", 3, 0x01650054, "1.101.0-84 503 RFMD Accton design "
+	{ "at76c503-rfmd-acc-fw", BOARDTYPE_503_RFMD_ACC,
+	  0x01650054, "1.101.0-84 503 RFMD Accton design "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
-	  intfw_503rfmd_acc, sizeof(intfw_503rfmd_acc), extfw_503rfmd_acc, sizeof(extfw_503rfmd_acc)},
+	  intfw_503rfmd_acc, sizeof(intfw_503rfmd_acc),
+	  extfw_503rfmd_acc, sizeof(extfw_503rfmd_acc)},
 
-	{ "at76c503-i3861-fw", 0, 0x005a002c, "0.90.0-44 Intersil 3861 "
+	{ "at76c503-i3861-fw", BOARDTYPE_503_INTERSIL_3861,
+	  0x005a002c, "0.90.0-44 Intersil 3861 "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
-	  intfw_i3861, sizeof(intfw_i3861), extfw_i3861, sizeof(extfw_i3861)},
+	  intfw_i3861, sizeof(intfw_i3861),
+	  extfw_i3861, sizeof(extfw_i3861)},
 
-	{ "at76c503-i3863-fw", 0, 0x005a002c, "0.90.0-44 Intersil 3863 "
+	{ "at76c503-i3863-fw", BOARDTYPE_503_INTERSIL_3863,
+	  0x005a002c, "0.90.0-44 Intersil 3863 "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
-	  intfw_i3863, sizeof(intfw_i3863), extfw_i3863, sizeof(extfw_i3863)},
+	  intfw_i3863, sizeof(intfw_i3863),
+	  extfw_i3863, sizeof(extfw_i3863)},
 
-	{ "at76c505-rfmd-fw", 2, 0x005b0004, "0.91.0-4 505 RFMD "
+	{ "at76c505-rfmd-fw", BOARDTYPE_505_RFMD,
+	  0x005b0004, "0.91.0-4 505 RFMD "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
-	  intfw_505rfmd, sizeof(intfw_505rfmd), extfw_505rfmd, sizeof(extfw_505rfmd)},
+	  intfw_505rfmd, sizeof(intfw_505rfmd),
+	  extfw_505rfmd, sizeof(extfw_505rfmd)},
 
-	{ "at76c505-rfmd2958-fw", 2, 0x01650056, "1.101.0-86 505 RFMD2958 "
+	{ "at76c505-rfmd2958-fw", BOARDTYPE_505_RFMD_2958,
+	  0x01650056, "1.101.0-86 505 RFMD2958 "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
-	  intfw_505rfmd2958, sizeof(intfw_505rfmd2958), extfw_505rfmd2958, sizeof(extfw_505rfmd2958)},
-
+	  intfw_505rfmd2958, sizeof(intfw_505rfmd2958),
+	  extfw_505rfmd2958, sizeof(extfw_505rfmd2958)},
 };
 
 int nr_fws = sizeof(fws) / sizeof(struct fw);

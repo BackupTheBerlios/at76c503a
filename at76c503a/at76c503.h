@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.16 2003/12/25 22:40:26 jal2 Exp $
+/* $Id: at76c503.h,v 1.17 2003/12/27 00:03:35 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -137,10 +137,12 @@
 #define POWER_MGMT_MODE_OFFSET      offsetof(struct mib_mac_mgmt, power_mgmt_mode)
 #define LISTEN_INTERVAL_OFFSET      offsetof(struct mib_mac, listen_interval)
 
-#define BOARDTYPE_INTERSIL 0
-#define BOARDTYPE_RFMD     1
-#define BOARDTYPE_R505     2
-#define BOARDTYPE_RFMD_ACC 3
+#define BOARDTYPE_503_INTERSIL_3861 1
+#define BOARDTYPE_503_INTERSIL_3863 2
+#define BOARDTYPE_503_RFMD          3
+#define BOARDTYPE_503_RFMD_ACC      4
+#define BOARDTYPE_505_RFMD          5
+#define BOARDTYPE_505_RFMD_2958     6
 
 struct hwcfg_r505 {
 	u8 cr39_values[14];

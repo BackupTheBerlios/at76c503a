@@ -48,7 +48,7 @@
 /* firmware name to load if above include file contains empty fw only */
 #define FW_NAME DRIVER_NAME "-fw"
 
-#define BOARDTYPE BOARDTYPE_R505
+#define BOARDTYPE BOARDTYPE_505_RFMD_2958
 
 /* USB Device IDs supported by this driver */
 
