@@ -27,7 +27,9 @@
 #include <linux/module.h>
 #include <linux/usb.h>
 #include <linux/init.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,23)
 #include <linux/firmware.h>
+#endif
 
 #include "at76c503.h"
 

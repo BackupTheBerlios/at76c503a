@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-i3863.c,v 1.7 2003/12/27 00:03:34 jal2 Exp $
+ * $Id: at76c503-i3863.c,v 1.8 2004/01/17 11:14:11 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using a Intersil 3863 radio chip
@@ -27,7 +27,9 @@
 #include <linux/module.h>
 #include <linux/usb.h>
 #include <linux/init.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,23)
 #include <linux/firmware.h>
+#endif
 
 #include "at76c503.h"
 
