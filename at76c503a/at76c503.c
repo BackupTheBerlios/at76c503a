@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.39 2004/01/03 23:24:30 jal2 Exp $
+/* $Id: at76c503.c,v 1.40 2004/01/04 20:01:27 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -5058,7 +5058,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.39 2004/01/03 23:24:30 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.40 2004/01/04 20:01:27 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -5213,9 +5213,17 @@ int at76c503_do_probe(struct module *mod, struct usb_device *udev,
 
 	dbg(DBG_DEVSTART, "opmode %d", op_mode);
 
-	/* we get OPMODE_NONE with 2.4.23 ??? */
-	if (op_mode < 0 || op_mode == OPMODE_NONE || 
-	    op_mode == OPMODE_DFU_MODE_WITH_FLASH) {
+	/* we get OPMODE_NONE with 2.4.23, SMC2662W-AR ???
+	   we get 204 with 2.4.23, Fiberline FL-WL240u (505A+RFMD2958) ??? */
+
+	if (op_mode == OPMODE_HW_CONFIG_MODE) {
+	  err("cannot handle a device in HW_CONFIG_MODE (opmode %d)", op_mode);
+	  ret = -ENODEV;
+	  goto error;
+	}
+
+	if (op_mode != OPMODE_NORMAL_NIC_WITH_FLASH &&
+	    op_mode != OPMODE_NORMAL_NIC_WITHOUT_FLASH) {
 
 		dbg(DBG_DEVSTART, "need to download firmware");
 
