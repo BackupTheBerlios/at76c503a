@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-rfmd-acc.c,v 1.6 2003/12/27 00:03:34 jal2 Exp $
+ * $Id: at76c503-rfmd-acc.c,v 1.7 2003/12/27 00:33:47 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using RFMD radio chips in the Accton OEM layout.
@@ -53,11 +53,15 @@
 
 /* USB Device IDs supported by this driver */
 
+#define VENDOR_ID_BELKIN              0x0d5c
+#define PRODUCT_ID_BELKIN_F5D6050     0xa002 /* Belkin F5D6050 / SMC 2662W v2 / SMC 2662W-AR */
+
 #define VENDOR_ID_SMC                 0x083a
 #define PRODUCT_ID_SMC_2664W          0x3501
 
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_SMC, PRODUCT_ID_SMC_2664W) },
+	{ USB_DEVICE(VENDOR_ID_BELKIN,   PRODUCT_ID_BELKIN_F5D6050    ) },
 	{ }
 };
 /*---------------------------------------------------------------------------*/

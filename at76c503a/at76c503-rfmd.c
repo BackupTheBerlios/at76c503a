@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-rfmd.c,v 1.18 2003/12/27 00:03:34 jal2 Exp $
+ * $Id: at76c503-rfmd.c,v 1.19 2003/12/27 00:33:48 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using RFMD radio chips
@@ -66,9 +66,6 @@
 #define PRODUCT_ID_ATMEL_503R         0x7605 /* Generic AT76C503/RFMD device */
 #define PRODUCT_ID_W_BUDDIE_WN210     0x4102 /* AirVast W-Buddie WN210 */
 
-#define VENDOR_ID_BELKIN              0x0d5c
-#define PRODUCT_ID_BELKIN_F5D6050     0xa002 /* Belkin F5D6050 / SMC 2662W v2 */
-
 #define VENDOR_ID_DYNALINK            0x069a
 #define PRODUCT_ID_DYNALINK_WLL013_R  0x0321 /* Dynalink/Askey WLL013 (rfmd) */
 
@@ -106,7 +103,6 @@
 
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_503R        ) },
-	{ USB_DEVICE(VENDOR_ID_BELKIN,   PRODUCT_ID_BELKIN_F5D6050    ) },
 	{ USB_DEVICE(VENDOR_ID_DYNALINK, PRODUCT_ID_DYNALINK_WLL013_R ) },
 	{ USB_DEVICE(VENDOR_ID_LINKSYS,  PRODUCT_ID_LINKSYS_WUSB11_V26) },
 	{ USB_DEVICE(VENDOR_ID_LINKSYS,  PRODUCT_ID_NE_NWU11B         ) },
