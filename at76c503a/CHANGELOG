@@ -1,5 +1,16 @@
-$Id: CHANGELOG,v 1.1 2003/06/01 20:04:32 jal2 Exp $
+$Id: CHANGELOG,v 1.2 2003/07/07 22:02:13 jal2 Exp $
 
+
+- new module at76c503-rfmd-acc.o for SMC2664W, which got RMFD radio,
+  but need a special firmware (Accton OEM products).
+- added regulatory domains MKK1 and Israel
+- added rudimentary ethtool support for SuSE's future hotplug
+- added nickname ioctl for iwconfig
+- added test of valid channel in reg. domain
+- added big endian patch (by Kevin Cernekee), changed defines in
+  ieee802_11.h
+- supress unsupported iwconfig modes (monitor, master) - patch by
+  Pavel Roskin
 
 version 0.10 (2003-06-01)
 ------------
