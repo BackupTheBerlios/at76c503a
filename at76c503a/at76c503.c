@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.72 2004/10/19 20:45:25 jal2 Exp $
+/* $Id: at76c503.c,v 1.73 2005/03/08 00:07:55 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -121,6 +121,12 @@
 #endif
  
 #include <linux/rtnetlink.h>  /* for rtnl_lock() */
+#include <net/iw_handler.h>
+
+#ifdef CONFIG_IPAQ_HANDHELD
+#include <asm/mach-types.h>
+#include <asm/arch-sa1100/h3600.h>
+#endif
 
 #include "at76c503.h"
 #include "at76_ieee802_11.h"
@@ -263,8 +269,23 @@ static const u8 zeros[32];
 #define ASSOC_RETRIES 3
 #define DISASSOC_RETRIES 3
 
+#ifdef CONFIG_IPAQ_HANDHELD
+#define scan_hook(x)						\
+	do {							\
+		if (machine_is_h5400()) {			\
+			if (x)					\
+				ipaq_led_blink (RED_LED, 1, 2);	\
+			else					\
+				ipaq_led_off (RED_LED);		\
+		}						\
+	} while (0)
+#else
+#define scan_hook(x)
+#endif
+
 #define NEW_STATE(dev,newstate) \
   do {\
+    scan_hook(newstate == SCANNING);		\
     dbg(DBG_PROGRESS, "%s: state %d -> %d (" #newstate ")",\
         dev->netdev->name, dev->istate, newstate);\
     dev->istate = newstate;\
@@ -4605,6 +4626,34 @@ static void at76c503_write_bulk_callback (struct urb *urb)
 
 }
 
+#ifdef CONFIG_IPAQ_HANDHELD
+
+static struct timer_list led_timer;
+
+static void
+ipaq_clear_led (unsigned long time)
+{
+	ipaq_led_off (RED_LED_2);
+}
+
+static void
+ipaq_blink_led (void)
+{
+	ipaq_led_on (RED_LED_2);
+
+	mod_timer (&led_timer, jiffies + (HZ / 25));
+}
+
+static void
+ipaq_init_led (void)
+{
+	led_timer.function = ipaq_clear_led;
+
+	init_timer (&led_timer);
+}
+
+#endif
+
 static int
 at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 {
@@ -4641,6 +4690,11 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 			dev_kfree_skb(skb);
 			return 0;
 	}
+
+#ifdef CONFIG_IPAQ_HANDHELD
+	if (machine_is_h5400 ())
+		ipaq_blink_led ();
+#endif
 
 	/* we can get rid of memcpy, if we set netdev->hard_header_len
 	   to 8 + sizeof(struct ieee802_11_hdr), because then we have
@@ -7141,6 +7195,12 @@ void at76c503_delete_device(struct at76c503 *dev)
 		}
 	dbg(DBG_PROC_ENTRY, "%s: before freeing dev/netdev", __FUNCTION__);
 	free_netdev(dev->netdev); /* dev is in net_dev */ 
+#ifdef CONFIG_IPAQ_HANDHELD
+	if (machine_is_h5400()) {
+		ipaq_led_off (RED_LED);
+		ipaq_led_off (RED_LED_2);
+	}
+#endif
 	dbg(DBG_PROC_ENTRY, "%s: EXIT", __FUNCTION__);
 }
 
@@ -7319,6 +7379,11 @@ int init_new_device(struct at76c503 *dev)
 	/* we let this timer run the whole time this driver instance lives */
 	mod_timer(&dev->bss_list_timer, jiffies+BSS_LIST_TIMEOUT);
 
+#ifdef CONFIG_IPAQ_HANDHELD
+	if (machine_is_h5400 ())
+		ipaq_init_led ();
+#endif
+
 	if(at76c503_alloc_urbs(dev) < 0)
 		goto error;
 
@@ -7339,7 +7404,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.72 2004/10/19 20:45:25 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.73 2005/03/08 00:07:55 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -7407,7 +7472,7 @@ int init_new_device(struct at76c503 *dev)
 	if (ret) {
 		err("unable to register netdevice %s (status %d)!",
 		    dev->netdev->name, ret);
-		goto error;
+		return -1;
 	}
 	info("registered %s", dev->netdev->name);
 	dev->flags |= AT76C503A_NETDEV_REGISTERED;

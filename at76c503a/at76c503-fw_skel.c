@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-fw_skel.c,v 1.7 2004/08/18 22:01:45 jal2 Exp $
+ * $Id: at76c503-fw_skel.c,v 1.8 2005/03/08 00:07:55 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  *
@@ -25,6 +25,12 @@
  * struct usb_device_id dev_table
  *
  */
+
+#ifdef CONFIG_IPAQ_HANDHELD
+#include <asm/mach-types.h>
+#include <asm/arch/ipaq.h>
+#include <asm/arch-pxa/h5400-asic.h>
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 5, 0)
 extern inline char *fw_dev_param(struct usb_device *udev, char *buf)
@@ -176,6 +182,15 @@ static int __init mod_init(void)
 
 	info(DRIVER_DESC " " DRIVER_VERSION " loading");
 
+#ifdef CONFIG_IPAQ_HANDHELD
+	if (machine_is_h5400()) {
+		/* turn WLAN power on */
+		/* both needed? */
+		SET_H5400_ASIC_GPIO (GPB, RF_POWER_ON, 1);
+		SET_H5400_ASIC_GPIO (GPB, WLAN_POWER_ON, 1);
+	}
+#endif
+
 	/* register this driver with the USB subsystem */
 	result = usb_register(&module_usb);
 	if (result < 0) {
@@ -195,6 +210,14 @@ static void __exit mod_exit(void)
 	if (static_fw.size == 0 && fw != NULL)
 		/* we had loaded and allocated the buffer before */
 		release_firmware(fw);
+#endif
+
+#ifdef CONFIG_IPAQ_HANDHELD
+	if (machine_is_h5400()) {
+		/* turn WLAN power off */
+		SET_H5400_ASIC_GPIO (GPB, RF_POWER_ON, 0);
+		SET_H5400_ASIC_GPIO (GPB, WLAN_POWER_ON, 0);
+	}
 #endif
 }
 

@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c505a-rfmd2958.c,v 1.2 2004/08/18 22:01:45 jal2 Exp $
+ * $Id: at76c505a-rfmd2958.c,v 1.3 2005/03/08 00:07:56 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using a at76c505a (with RFMD radio chips ?)
@@ -71,10 +71,14 @@ static struct firmware static_fw = {0,NULL};
 #define VENDOR_ID_ATMEL               0x03eb
 #define PRODUCT_ID_ATMEL_505A         0x7614 /* Generic AT76C505A device */
 #define PRODUCT_ID_ATMEL_505AS        0x7617 /* Generic AT76C505AS device */
+#define VENDOR_ID_GIGASET             0x1690
+#define PRODUCT_ID_GIGASET_11         0x0701
+
 
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_505A       ) },
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_505AS      ) },
+        { USB_DEVICE(VENDOR_ID_GIGASET,  PRODUCT_ID_GIGASET_11       ) },
 	{ }
 };
 
