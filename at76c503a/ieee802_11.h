@@ -8,17 +8,16 @@ struct ieee802_11_hdr {
 	u8 addr2[ETH_ALEN];
 	u8 addr3[ETH_ALEN];
 	u16 seq_ctl;
-	u8 addr4[ETH_ALEN];
 } __attribute__ ((packed));
 
 /* max. length of frame body, incl. IV and ICV fields)
    see 802.11(1999), section 7.1.2 */
 #define IEEE802_11_MAX_DATA_LEN		(4+2304+4)
 
-/* we include addr4 here althrough we'll never handle any packet containing it.
-   + 4 at the end for the FCS (Do we get it from the device ???) */
+/* + 4 at the end for the FCS (Do we get it from the device ???) */
 #define IEEE802_11_MAX_FRAME_LEN  \
       (sizeof(struct ieee802_11_hdr) + IEEE802_11_MAX_DATA_LEN + 4)
+
 //#define IEEE802_11_HLEN			30
 //#define IEEE802_11_FRAME_LEN		(IEEE802_11_DATA_LEN + IEEE802_11_HLEN)
 

@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.55 2004/05/31 13:59:27 jal2 Exp $
+/* $Id: at76c503.c,v 1.56 2004/06/12 10:59:59 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -293,20 +293,6 @@ static int pm_period = 0;
 MODULE_PARM(pm_period, "i");
 MODULE_PARM_DESC(pm_period, "period of waking up the device in usec");
 
-struct header_struct {
-        /* 802.3 */
-        u8 dest[ETH_ALEN];
-        u8 src[ETH_ALEN];
-        u16 len;
-        /* 802.2 */
-        u8 dsap;
-        u8 ssap;
-        u8 ctrl;
-        /* SNAP */
-        u8 oui[3];
-        u16 ethertype;
-} __attribute__ ((packed));
-
 #define DEF_RTS_THRESHOLD 1536
 #define DEF_FRAG_THRESHOLD 1536
 #define DEF_SHORT_RETRY_LIMIT 8
@@ -446,11 +432,11 @@ struct ieee802_11_deauth_frame {
 static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 
 static u8 snapsig[] = {0xaa, 0xaa, 0x03};
-#ifdef COLLAPSE_RFC1042
+//#ifdef COLLAPSE_RFC1042
 /* RFC 1042 encapsulates Ethernet frames in 802.2 SNAP (0xaa, 0xaa, 0x03) with
  * a SNAP OID of 0 (0x00, 0x00, 0x00) */
 static u8 rfc1042sig[] = {0xaa, 0xaa, 0x03, 0x00, 0x00, 0x00};
-#endif /* COLLAPSE_RFC1042 */
+//#endif /* COLLAPSE_RFC1042 */
 
 /* local function prototypes */
 static void iwspy_update(struct at76c503 *dev, struct at76c503_rx_buffer *buf);
@@ -3332,11 +3318,55 @@ static void dbg_dumpbuf(const char *tag, const u8 *buf, int size)
 	printk("\n");
 }
 
+/* A short overview on Ethernet-II, 802.2, 802.3 and SNAP
+   (taken from http://www.geocities.com/billalexander/ethernet.html):
+
+Ethernet Frame Formats:
+
+Ethernet (a.k.a. Ethernet II)
+
+        +---------+---------+---------+----------
+        |   Dst   |   Src   |  Type   |  Data... 
+        +---------+---------+---------+----------
+
+         <-- 6 --> <-- 6 --> <-- 2 --> <-46-1500->
+
+         Type 0x80 0x00 = TCP/IP
+         Type 0x06 0x00 = XNS
+         Type 0x81 0x37 = Novell NetWare
+         
+
+802.3
+
+        +---------+---------+---------+----------
+        |   Dst   |   Src   | Length  | Data...  
+        +---------+---------+---------+----------
+
+         <-- 6 --> <-- 6 --> <-- 2 --> <-46-1500->
+
+802.2 (802.3 with 802.2 header)
+
+        +---------+---------+---------+-------+-------+-------+----------
+        |   Dst   |   Src   | Length  | DSAP  | SSAP  |Control| Data...  
+        +---------+---------+---------+-------+-------+-------+----------
+
+                                       <- 1 -> <- 1 -> <- 1 -> <-43-1497->
+
+SNAP (802.3 with 802.2 and SNAP headers) 
+
+        +---------+---------+---------+-------+-------+-------+-----------+---------+-----------
+        |   Dst   |   Src   | Length  | 0xAA  | 0xAA  | 0x03  |  Org Code |   Type  | Data...   
+        +---------+---------+---------+-------+-------+-------+-----------+---------+-----------
+
+                                                               <--  3  --> <-- 2 --> <-38-1492->
+
+*/
+
 /* Convert the 802.11 header on a packet into an ethernet-style header
  * (basically, pretend we're an ethernet card receiving ethernet packets)
  *
  * This routine returns with the skbuff pointing to the actual data (just past
- * the end of the newly-created ethernet header), and the CRC trimmed off.
+ * the end of the newly-created ethernet header).
  */
 static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 {
@@ -3348,6 +3378,15 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 	int build_ethhdr = 1;
 
 	i802_11_hdr = (struct ieee802_11_hdr *)skb->data;
+
+#if 0
+	{
+		char dbuf[3*64];
+		dbg_uc("%s: ENTRY skb len %d data %s", __FUNCTION__,
+		       skb->len, hex2str(dbuf, skb->data, sizeof(dbuf)/3, ' '));
+	}
+#endif
+
 	skb_pull(skb, sizeof(struct ieee802_11_hdr));
 //	skb_trim(skb, skb->len - 4); /* Trim CRC */
 
@@ -3363,19 +3402,11 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 		skb_pull(skb, sizeof(struct ethhdr));
 		build_ethhdr = 0;
 	} else if (!memcmp(skb->data, snapsig, sizeof(snapsig))) {
-		/* SNAP frame. */
-#ifdef COLLAPSE_RFC1042
-		if (!memcmp(skb->data, rfc1042sig, sizeof(rfc1042sig))) {
-			/* RFC1042 encapsulated packet.  Collapse it to a
-			 * simple Ethernet-II or 802.3 frame */
-			/* NOTE: prism2 doesn't collapse Appletalk frames (why?). */
-			skb_pull(skb, sizeof(rfc1042sig)+2);
-			proto = *(unsigned short *)(skb->data - 2);
-		} else
-#endif /* COLLAPSE_RFC1042 */
-		proto = htons(skb->len);
+		/* SNAP frame - collapse it */
+		skb_pull(skb, sizeof(rfc1042sig)+2);
+		proto = *(unsigned short *)(skb->data - 2);
 	} else {
-#if IEEE_STANDARD
+#ifdef IEEE_STANDARD
 		/* According to all standards, we should assume the data
 		 * portion contains 802.2 LLC information, so we should give it
 		 * an 802.3 header (which has the same implications) */
@@ -3387,6 +3418,10 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 		 * that value and make it into an Ethernet-II packet. */
 		/* Note that this means we can never support non-SNAP 802.2
 		 * frames (because we can't tell when we get one) */
+
+		/* jal: This isn't true. My WRT54G happily sends SNAP.
+		   Difficult to speak for all APs, so I don't dare to define
+		   IEEE_STANDARD ... */
 		proto = *(unsigned short *)(skb->data);
 		skb_pull(skb, 2);
 #endif /* IEEE_STANDARD */
@@ -3403,8 +3438,7 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 		eth_hdr->h_proto = proto;
 	}
 
-	/* TODO: check this max length */
-	if (ntohs(eth_hdr->h_proto) >= 1536) {
+	if (ntohs(eth_hdr->h_proto) > 1518) {
 		skb->protocol = eth_hdr->h_proto;
 	} else if (*(unsigned short *)skb->data == 0xFFFF) {
 		/* Magic hack for Novell IPX-in-802.3 packets */
@@ -3414,6 +3448,18 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 		 * good way to tell if it isn't) */
 		skb->protocol = htons(ETH_P_802_2);
 	}
+
+#if 0
+	{
+		char dbuf[3*64], da[3*ETH_ALEN], sa[3*ETH_ALEN];
+		dbg_uc("%s: EXIT skb da %s sa %s proto x%04x len %d data %s", __FUNCTION__,
+		       hex2str(da, skb->mac.ethernet->h_dest, ETH_ALEN, ':'),
+		       hex2str(sa, skb->mac.ethernet->h_source, ETH_ALEN, ':'),
+		       ntohs(skb->protocol), skb->len,
+		       hex2str(dbuf, skb->data, sizeof(dbuf)/3, ' '));
+	}
+#endif
+
 }
 
 /* Adjust the skb to trim the hardware header and CRC, and set up skb->mac,
@@ -3445,21 +3491,15 @@ static void ieee80211_fixup(struct sk_buff *skb, int iw_mode)
 		skb_pull(skb, sizeof(struct ethhdr));
 		proto = eth_hdr->h_proto;
 	} else if (!memcmp(skb->data, snapsig, sizeof(snapsig))) {
-		/* SNAP frame */
-#ifdef COLLAPSE_RFC1042
-		if (!memcmp(skb->data, rfc1042sig, sizeof(rfc1042sig))) {
-			/* RFC1042 encapsulated packet.  Treat the SNAP header
-			 * as part of the HW header and note the protocol. */
-			/* NOTE: prism2 doesn't collapse Appletalk frames (why?). */
-			skb_pull(skb, sizeof(rfc1042sig) + 2);
-			proto = *(unsigned short *)(skb->data - 2);
-		} else
-#endif /* COLLAPSE_RFC1042 */
-		proto = htons(ETH_P_802_2);
+		/* SNAP frame - collapse it */
+		/* RFC1042/802.1h encapsulated packet.  Treat the SNAP header
+		 * as part of the HW header and note the protocol. */
+		/* NOTE: prism2 doesn't collapse Appletalk frames (why?). */
+		skb_pull(skb, sizeof(rfc1042sig) + 2);
+		proto = *(unsigned short *)(skb->data - 2);
 	}
 
-	/* TODO: check this max length */
-	if (ntohs(proto) >= 1536) {
+	if (ntohs(proto) > 1518) {
 		skb->protocol = proto;
 	} else {
 #ifdef IEEE_STANDARD
@@ -3473,7 +3513,7 @@ static void ieee80211_fixup(struct sk_buff *skb, int iw_mode)
 		 * use that (and consider it part of the hardware header). */
 		/* Note that this means we can never support non-SNAP 802.2
 		 * frames (because we can't tell when we get one) */
-		skb->protocol = *(unsigned short *)(skb->data - 2);
+		skb->protocol = *(unsigned short *)skb->data;
 		skb_pull(skb, 2);
 #endif /* IEEE_STANDARD */
 	}
@@ -3502,13 +3542,9 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 	   excl. the struct at76c503_rx_buffer */
 	int length = le16_to_cpu(buf->wlength) - dev->rx_data_fcs_len;
 	
-	/* where does the data payload start in skb->data ? 
-	 This depends on if addr4 is present or not. */
-	u8 *data = ((frame_ctl &
-		       (IEEE802_11_FCTL_TODS|IEEE802_11_FCTL_FROMDS)) ==
-		      (IEEE802_11_FCTL_TODS|IEEE802_11_FCTL_FROMDS) ?
-		    (u8 *)i802_11_hdr + sizeof(struct ieee802_11_hdr) :
-		    (u8 *)&i802_11_hdr->addr4);
+	/* where does the data payload start in skb->data ? */
+	u8 *data = (u8 *)i802_11_hdr + sizeof(struct ieee802_11_hdr);
+
 	/* length of payload, excl. the trailing FCS */
 	int data_len = length - (data - (u8 *)i802_11_hdr);
 
@@ -3964,23 +4000,51 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	struct at76c503 *dev = (struct at76c503 *)(netdev->priv);
 	struct net_device_stats *stats = &dev->stats;
 	int ret;
-	int len = skb->len < ETH_ZLEN ? ETH_ZLEN : skb->len;
-	int wlen = len + 18;
+	int wlen;
 	int submit_len;
 	struct at76c503_tx_buffer *tx_buffer =
 		(struct at76c503_tx_buffer *)dev->bulk_out_buffer;
 	struct ieee802_11_hdr *i802_11_hdr =
 		(struct ieee802_11_hdr *)&(tx_buffer->packet);
+	u8 *payload = tx_buffer->packet + sizeof(struct ieee802_11_hdr);
+
+	if (skb->len < 2*ETH_ALEN) {
+		err("%s: %s: skb too short (%d)", dev->netdev->name,
+		    __FUNCTION__, skb->len);
+			dev_kfree_skb(skb);
+			return 0;
+	}
 
 	/* we can get rid of memcpy, if we set netdev->hard_header_len
 	   to 8 + sizeof(struct ieee802_11_hdr), because then we have
 	   enough space */
 	//  dbg(DBG_TX, "skb->data - skb->head = %d", skb->data - skb->head);
 
-	/* 18 = sizeof(ieee802_11_hdr) - 2 * ETH_ALEN */
-	/* ssap and dsap stay in the data */
-	memcpy(&(tx_buffer->packet[18]), skb->data, len);
-  
+	if (ntohs(*(u16 *)(skb->data + 2*ETH_ALEN)) <= 1518) {
+		/* this is a 802.3 packet */
+		if (skb->data[2*ETH_ALEN+2] == rfc1042sig[0] &&
+		    skb->data[2*ETH_ALEN+2+1] == rfc1042sig[1]) {
+			/* higher layer delivered SNAP header - keep it */
+			memcpy(payload, skb->data + 2*ETH_ALEN+2, skb->len - 2*ETH_ALEN -2);
+			wlen = sizeof(struct ieee802_11_hdr) + skb->len - 2*ETH_ALEN -2;
+		} else {
+			err("%s: %s: no support for non-SNAP 802.2 packets "
+			    "(DSAP x%02x SSAP x%02x cntrl x%02x)",
+			    dev->netdev->name, __FUNCTION__,
+			    skb->data[2*ETH_ALEN+2], skb->data[2*ETH_ALEN+2+1],
+			    skb->data[2*ETH_ALEN+2+2]);
+			dev_kfree_skb(skb);
+			return 0;
+		}
+	} else {
+		/* add RFC 1042 header in front */
+		memcpy(payload, rfc1042sig, sizeof(rfc1042sig));
+		memcpy(payload + sizeof(rfc1042sig),
+		       skb->data + 2*ETH_ALEN, skb->len - 2*ETH_ALEN);
+		wlen = sizeof(struct ieee802_11_hdr) + sizeof(rfc1042sig) + 
+			skb->len - 2*ETH_ALEN;
+	}
+
 	/* make wireless header */
 	i802_11_hdr->frame_ctl =
 		cpu_to_le16(IEEE802_11_FTYPE_DATA |
@@ -3989,14 +4053,13 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 
 	if(dev->iw_mode == IW_MODE_ADHOC){
 		memcpy(i802_11_hdr->addr1, skb->data, ETH_ALEN); /* destination */
-		memcpy(i802_11_hdr->addr2, netdev->dev_addr, ETH_ALEN); /* source */
+		memcpy(i802_11_hdr->addr2, skb->data+ETH_ALEN, ETH_ALEN); /* source */
 		memcpy(i802_11_hdr->addr3, dev->bssid, ETH_ALEN);
 	}else if(dev->iw_mode == IW_MODE_INFRA){
 		memcpy(i802_11_hdr->addr1, dev->bssid, ETH_ALEN);
-		memcpy(i802_11_hdr->addr2, netdev->dev_addr, ETH_ALEN); /* source */
+		memcpy(i802_11_hdr->addr2, skb->data+ETH_ALEN, ETH_ALEN); /* source */
 		memcpy(i802_11_hdr->addr3, skb->data, ETH_ALEN); /* destination */
 	}
-	memset(i802_11_hdr->addr4, 0, ETH_ALEN);
 
 	i802_11_hdr->duration_id = cpu_to_le16(0);
 	i802_11_hdr->seq_ctl = cpu_to_le16(0);
@@ -4015,14 +4078,17 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 		le16_to_cpu(tx_buffer->padding);
 
 	{
-		char hbuf[2*24+1], dbuf[2*16]  __attribute__((unused));
+		char dbuf[2*48+1] __attribute__((unused));
+		dbg(DBG_TX_DATA_CONTENT, "%s skb->data %s", dev->netdev->name,
+		    hex2str(dbuf, skb->data, min(sizeof(dbuf)/2,(size_t)32),'\0'));
 		dbg(DBG_TX_DATA, "%s tx  wlen x%x pad x%x rate %d hdr %s",
 		    dev->netdev->name,
 		    le16_to_cpu(tx_buffer->wlength),
 		    le16_to_cpu(tx_buffer->padding), tx_buffer->tx_rate, 
-		    hex2str(hbuf, (u8 *)i802_11_hdr,sizeof(hbuf)/2,'\0'));
-		dbg(DBG_TX_DATA_CONTENT, "%s data %s", dev->netdev->name,
-		    hex2str(dbuf, (u8 *)i802_11_hdr+24,sizeof(dbuf)/2,'\0'));
+		    hex2str(dbuf, (u8 *)i802_11_hdr, 
+			    min(sizeof(dbuf)/2, sizeof(struct ieee802_11_hdr)),'\0'));
+		dbg(DBG_TX_DATA_CONTENT, "%s payload %s", dev->netdev->name,
+		    hex2str(dbuf, payload, sizeof(dbuf)/2,'\0'));
 	}
 
 	/* send stuff */
@@ -4040,7 +4106,7 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 		goto err;
 	}
 
-	stats->tx_bytes += len;
+	stats->tx_bytes += skb->len;
 
 	dev_kfree_skb(skb);
 	return 0;
@@ -6471,7 +6537,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.55 2004/05/31 13:59:27 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.56 2004/06/12 10:59:59 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
