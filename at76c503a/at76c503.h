@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.13 2003/06/16 20:20:44 jal2 Exp $
+/* $Id: at76c503.h,v 1.14 2003/06/17 21:37:25 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -485,6 +485,7 @@ struct at76c503 {
 	int curr_ap;
 	u8 bssid[ETH_ALEN];
 	u8 essid[IW_ESSID_MAX_SIZE];
+	char nickn[IW_ESSID_MAX_SIZE+1]; /* nickname, only used in the iwconfig i/f */
 	int essid_size;
 	int radio_on;
 	int promisc;

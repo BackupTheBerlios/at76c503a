@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.28 2003/06/16 20:20:43 jal2 Exp $
+/* $Id: at76c503.c,v 1.29 2003/06/17 21:37:25 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -91,6 +91,8 @@
 #include <linux/netdevice.h>
 #include <linux/if_arp.h>
 #include <linux/etherdevice.h>
+#include <linux/ethtool.h>
+#include <asm/uaccess.h>
 #include <linux/wireless.h>
 #include <linux/rtnetlink.h>  /* for rtnl_lock() */
 
@@ -3657,6 +3659,53 @@ static int ioctl_getspy(struct at76c503 *dev, struct iw_point *srq)
 } /* ioctl_getspy */
 #endif /* #if IW_MAX_SPY > 0 */
 
+static int ethtool_ioctl(struct at76c503 *dev, void *useraddr)
+{
+	u32 ethcmd;
+
+	if (get_user(ethcmd, (u32 *)useraddr))
+		return -EFAULT;
+
+#if 0
+	{
+		char obuf[32*2+1];
+		dbg_uc("%s: %s: ethcmd=x%x buf: %s",
+		       dev->netdev->name, __FUNCTION__, ethcmd,
+		       hex2str(obuf,useraddr,sizeof(obuf)/2,'\0'));
+	}
+#endif	
+
+	switch (ethcmd) {
+	case ETHTOOL_GDRVINFO:
+	{
+		struct ethtool_drvinfo info = { ETHTOOL_GDRVINFO };
+		strncpy(info.driver, dev->netdev->owner->name, 
+			sizeof(info.driver)-1);
+		
+		strncpy(info.version, DRIVER_VERSION, sizeof(info.version));
+		info.version[sizeof(info.version)-1] = '\0';
+
+		snprintf(info.bus_info, sizeof(info.bus_info)-1,
+			 "usb%d:%d", dev->udev->bus->busnum,
+			 dev->udev->devnum);
+
+		snprintf(info.fw_version, sizeof(info.fw_version)-1,
+			 "%d.%d.%d-%d",
+			 dev->fw_version.major, dev->fw_version.minor,
+			 dev->fw_version.patch, dev->fw_version.build);
+		if (copy_to_user (useraddr, &info, sizeof (info)))
+			return -EFAULT;
+		return 0;
+	}
+	break;
+
+	default:
+		break;
+	}
+
+	return -EOPNOTSUPP;
+}
+
 static
 int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 {
@@ -3672,6 +3721,12 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
                 return -EINTR;
 
 	switch (cmd) {
+
+		/* rudimentary ethtool support for hotplug of SuSE 8.3 */
+	case SIOCETHTOOL:
+		ret = ethtool_ioctl(dev,rq->ifr_data);
+		break;
+
 	case SIOCGIWNAME:
 		dbg(DBG_IOCTL, "%s: SIOCGIWNAME", netdev->name);
 		strcpy(wrq->u.name, "IEEE 802.11-DS");
@@ -3684,6 +3739,44 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		memcpy(wrq->u.ap_addr.sa_data, dev->bssid, ETH_ALEN);
 
 		break;
+
+	case SIOCSIWNICKN:
+	{
+		struct iw_point *erq = &wrq->u.data;
+		char nickn[IW_ESSID_MAX_SIZE+1];
+
+		memset(nickn, 0, sizeof(nickn));
+
+		if (erq->flags) {
+			if (erq->length > IW_ESSID_MAX_SIZE){
+				ret = -E2BIG;
+				goto csiwnickn_error;
+			}
+			
+			if (copy_from_user(nickn, erq->pointer, erq->length)){
+				ret = -EFAULT;
+				goto csiwessid_error;
+			}
+			
+			dbg(DBG_IOCTL, "%s: SIOCSIWNICKN %s", netdev->name,
+			    nickn);
+			strcpy(dev->nickn, nickn);
+		}
+	}
+	csiwnickn_error:
+	break;
+
+	case SIOCGIWNICKN:
+	{
+		struct iw_point *erq = &wrq->u.data;
+
+		erq->length = strlen(dev->nickn);
+		if(copy_to_user(erq->pointer, dev->nickn, 
+				erq->length)){
+			ret = -EFAULT;
+		}
+	}
+	break;
 
 	case SIOCSIWRTS:
 		{
@@ -4409,7 +4502,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.28 2003/06/16 20:20:43 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.29 2003/06/17 21:37:25 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
@@ -4434,6 +4527,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 	memset(dev->essid, 0, IW_ESSID_MAX_SIZE);
 	memcpy(dev->essid, DEF_ESSID, DEF_ESSID_LEN);
 	dev->essid_size = DEF_ESSID_LEN;
+	strncpy(dev->nickn, DEF_ESSID, sizeof(dev->nickn));
 	dev->rts_threshold = DEF_RTS_THRESHOLD;
 	dev->frag_threshold = DEF_FRAG_THRESHOLD;
 	dev->txrate = TX_RATE_AUTO;
