@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.17 2003/05/01 22:16:56 jal2 Exp $
+/* $Id: at76c503.c,v 1.18 2003/05/14 00:46:44 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -293,6 +293,8 @@ struct ieee802_11_deauth_frame {
 #define KEVENT_STARTIBSS 7
 #define KEVENT_SUBMIT_RX 8
 #define KEVENT_RESTART 9 /* restart the device */
+#define KEVENT_ASSOC_DONE  10 /* execute the power save settings:
+			     listen interval, pm mode, assoc id */
 
 static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 
@@ -688,6 +690,76 @@ int set_radio(struct at76c503 *dev, int on_off)
 }
 
 
+/* == PROC set_pm_mode ==
+   sets power save modi (PM_ACTIVE/PM_SAVE/PM_SMART_SAVE) */
+static int set_pm_mode(struct at76c503 *dev, u8 mode) __attribute__ ((unused));
+static int set_pm_mode(struct at76c503 *dev, u8 mode)
+{
+	int ret = 0;
+	struct set_mib_buffer mib_buf;
+
+	memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
+	mib_buf.type = MIB_MAC_MGMT;
+	mib_buf.size = 1;
+	mib_buf.index = POWER_MGMT_MODE_OFFSET;
+
+	mib_buf.data[0] = mode;
+
+	ret = set_mib(dev->udev, &mib_buf);
+	if(ret < 0){
+		err("%s: set_mib (pm_mode) failed: %d", dev->netdev->name, ret);
+	}
+	return ret;
+}
+
+/* == PROC set_associd ==
+   sets the assoc id for power save mode */
+static int set_associd(struct at76c503 *dev, u16 id) __attribute__ ((unused));
+static int set_associd(struct at76c503 *dev, u16 id)
+{
+	int ret = 0;
+	struct set_mib_buffer mib_buf;
+
+	memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
+	mib_buf.type = MIB_MAC_MGMT;
+	mib_buf.size = 2;
+	mib_buf.index = STATION_ID_OFFSET;
+
+	mib_buf.data[0] = id & 0xff;
+	mib_buf.data[1] = id >> 8;
+
+	ret = set_mib(dev->udev, &mib_buf);
+	if(ret < 0){
+		err("%s: set_mib (associd) failed: %d", dev->netdev->name, ret);
+	}
+	return ret;
+}
+
+/* == PROC set_listen_interval ==
+   sets the listen interval for power save mode.
+   really needed, as we have a similar parameter in the assocreq ??? */
+static int set_listen_interval(struct at76c503 *dev, u16 interval) __attribute__ ((unused));
+static int set_listen_interval(struct at76c503 *dev, u16 interval)
+{
+	int ret = 0;
+	struct set_mib_buffer mib_buf;
+
+	memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
+	mib_buf.type = MIB_MAC;
+	mib_buf.size = 2;
+	mib_buf.index = STATION_ID_OFFSET;
+
+	mib_buf.data[0] = interval & 0xff;
+	mib_buf.data[1] = interval >> 8;
+
+	ret = set_mib(dev->udev, &mib_buf);
+	if(ret < 0){
+		err("%s: set_mib (listen_interval) failed: %d",
+		    dev->netdev->name, ret);
+	}
+	return ret;
+}
+
 static
 int set_preamble(struct at76c503 *dev, u8 type)
 {
@@ -831,6 +903,61 @@ int set_promisc(struct at76c503 *dev, int onoff)
 	if(ret < 0){
 		err("%s: set_mib (promiscous_mode) failed: %d", dev->netdev->name, ret);
 	}
+	return ret;
+}
+
+static int dump_mib_mac_mgmt(struct at76c503 *dev) __attribute__ ((unused));
+static int dump_mib_mac_mgmt(struct at76c503 *dev)
+{
+	int ret = 0;
+	struct mib_mac_mgmt *mac_mgmt =
+		kmalloc(sizeof(struct mib_mac_mgmt), GFP_KERNEL);
+
+	if(!mac_mgmt){
+		ret = -ENOMEM;
+		goto exit;
+	}
+	
+	ret = get_mib(dev->udev, MIB_MAC_MGMT,
+		      (u8*)mac_mgmt, sizeof(struct mib_mac_mgmt));
+	if(ret < 0){
+		err("%s: get_mib failed: %d", dev->netdev->name, ret);
+		goto err;
+	}
+
+	dbg("%s: MIB MAC_MGMT: station_id x%x pm_mode %d\n",
+	    dev->netdev->name, le16_to_cpu(mac_mgmt->station_id),
+	    mac_mgmt->power_mgmt_mode);
+ err:
+	kfree(mac_mgmt);
+ exit:
+	return ret;
+}
+
+static int dump_mib_mac(struct at76c503 *dev) __attribute__ ((unused));
+static int dump_mib_mac(struct at76c503 *dev)
+{
+	int ret = 0;
+	struct mib_mac *mac =
+		kmalloc(sizeof(struct mib_mac), GFP_KERNEL);
+
+	if(!mac){
+		ret = -ENOMEM;
+		goto exit;
+	}
+	
+	ret = get_mib(dev->udev, MIB_MAC,
+		      (u8*)mac, sizeof(struct mib_mac));
+	if(ret < 0){
+		err("%s: get_mib failed: %d", dev->netdev->name, ret);
+		goto err;
+	}
+
+	dbg("%s: MIB MAC: listen_int %d",
+	    dev->netdev->name, le16_to_cpu(mac->listen_interval));
+ err:
+	kfree(mac);
+ exit:
 	return ret;
 }
 
@@ -1717,6 +1844,51 @@ end_scan:
 		mod_timer(&dev->mgmt_timer, jiffies+HZ);
 	}
 
+	if (test_bit(KEVENT_ASSOC_DONE, &dev->kevent_flags)) {
+		clear_bit(KEVENT_ASSOC_DONE, &dev->kevent_flags);
+		assert(dev->istate == ASSOCIATING ||
+		       dev->istate == REASSOCIATING);
+
+		if (dev->iw_mode == IW_MODE_INFRA) {
+			assert(dev->curr_bss != NULL);
+			if (dev->curr_bss != NULL && 
+			    dev->pm_mode != PM_ACTIVE) {
+				/* calc the listen interval in units of
+				   beacon intervals of the curr_bss */
+				u32 li = (dev->pm_period >> 10) / 
+					dev->curr_bss->beacon_interval;
+
+#if 0 /* only to check if we need to set the listen interval here
+         or could do it in the (re)assoc_req parameter */
+				dump_mib_mac(dev);
+#endif
+
+				if (li < 2) li = 2;
+				else if (li > 0xffff) li = 0xffff;
+
+				dbg("%s: pm_mode %d assoc id x%x listen int %d",
+				    dev->netdev->name, dev->pm_mode,
+				    dev->curr_bss->assoc_id, li);
+
+				set_associd(dev, dev->curr_bss->assoc_id);
+				wait_completion(dev, CMD_SET_MIB);
+				set_listen_interval(dev, (u16)li);
+				wait_completion(dev, CMD_SET_MIB);
+				set_pm_mode(dev, dev->pm_mode);
+				wait_completion(dev, CMD_SET_MIB);
+#if 0
+				dump_mib_mac(dev);
+				dump_mib_mac_mgmt(dev);
+#endif
+			}
+		}
+		netif_carrier_on(dev->netdev);
+		netif_wake_queue(dev->netdev); /* _start_queue ??? */
+		NEW_STATE(dev,CONNECTED);
+		dbg("%s: connected to BSSID %s",
+		    dev->netdev->name, mac2str(dev->curr_bss->bssid));
+	}
+
 	up(&dev->sem);
 
 	return;
@@ -1876,17 +2048,13 @@ static void rx_mgmt_assoc(struct at76c503 *dev,
 
 		if (resp->status == IEEE802_11_STATUS_SUCCESS) {
 			struct bss_info *ptr = dev->curr_bss;
-			dev->assoc_id = le16_to_cpu(resp->assoc_id);
-			netif_carrier_on(dev->netdev);
-			netif_wake_queue(dev->netdev); /* _start_queue ??? */
-			NEW_STATE(dev,CONNECTED);
-			dbg("%s: connected to BSSID %s",
-			    dev->netdev->name, mac2str(dev->curr_bss->bssid));
+			ptr->assoc_id = le16_to_cpu(resp->assoc_id) & 0x3fff;
 			/* update iwconfig params */
 			memcpy(dev->bssid, ptr->bssid, ETH_ALEN);
 			memcpy(dev->essid, ptr->ssid, ptr->ssid_len);
 			dev->essid_size = ptr->ssid_len;
 			dev->channel = ptr->channel;
+			defer_kevent(dev,KEVENT_ASSOC_DONE);
 		} else {
 			NEW_STATE(dev,JOINING);
 			defer_kevent(dev,KEVENT_JOIN);
@@ -1904,6 +2072,7 @@ static void rx_mgmt_reassoc(struct at76c503 *dev,
 	struct ieee802_11_assoc_resp *resp = 
 		(struct ieee802_11_assoc_resp *)mgmt->data;
 	char orates[2*8+1] __attribute__((unused));
+	unsigned long flags;
 
 	dbg("%s: rx ReAssocResp bssid %s capa x%04x status x%04x "
 	    "assoc_id x%04x rates %s",
@@ -1921,9 +2090,14 @@ static void rx_mgmt_reassoc(struct at76c503 *dev,
 
 		if (resp->status == IEEE802_11_STATUS_SUCCESS) {
 			struct bss_info *bptr = dev->new_bss;
-			dev->assoc_id = le16_to_cpu(resp->assoc_id);
+			bptr->assoc_id = le16_to_cpu(resp->assoc_id);
 			NEW_STATE(dev,CONNECTED);
+
+			spin_lock_irqsave(&dev->bss_list_spinlock, flags);
 			dev->curr_bss = dev->new_bss;
+			dev->new_bss = NULL;
+			spin_unlock_irqrestore(&dev->bss_list_spinlock, flags);
+
 			/* get ESSID, BSSID and channel for dev->curr_bss */
 			dev->essid_size = bptr->ssid_len;
 			memcpy(dev->essid, bptr->ssid, bptr->ssid_len);
@@ -1931,9 +2105,7 @@ static void rx_mgmt_reassoc(struct at76c503 *dev,
 			dev->channel = bptr->channel;
 			dbg("%s: reassociated to BSSID %s",
 			    dev->netdev->name, mac2str(dev->bssid));
-			
-			netif_carrier_on(dev->netdev);
-			netif_wake_queue(dev->netdev);
+			defer_kevent(dev, KEVENT_ASSOC_DONE);
 		} else {
 			del_timer_sync(&dev->mgmt_timer);
 			NEW_STATE(dev,JOINING);
@@ -2849,6 +3021,9 @@ int startup_device(struct at76c503 *dev)
 	if ((ret=set_autorate_fallback(dev, dev->txrate == 4 ? 1 : 0)) < 0)
 		return ret;
 
+	if ((ret=set_pm_mode(dev, dev->pm_mode)) < 0)
+		return ret;
+	
 	return 0;
 }
 
@@ -3383,6 +3558,35 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		break;
 #endif /* #if IW_MAX_SPY > 0 */
 
+	case SIOCSIWPOWER:
+		dbg("%s: SIOCSIWPOWER disabled %d flags x%x value x%x", netdev->name,
+		    wrq->u.power.disabled, wrq->u.power.flags, wrq->u.power.value);
+		if (wrq->u.power.disabled)
+			dev->pm_mode = PM_ACTIVE;
+		else {
+			/* we set the listen_interval based on the period given */
+			/* no idea how to handle the timeout of iwconfig ??? */
+			if (wrq->u.power.flags & IW_POWER_PERIOD) {
+				dev->pm_period = wrq->u.power.value;
+			}
+			dev->pm_mode = PM_SAVE; /* use iw_priv to select SMART_SAVE */
+		}
+		changed = 1;
+		break;
+
+	case SIOCGIWPOWER:
+		dbg("%s: SIOCGIWPOWER", netdev->name);
+		wrq->u.power.disabled = dev->pm_mode == PM_ACTIVE;
+		if ((wrq->u.power.flags & IW_POWER_TYPE) == IW_POWER_TIMEOUT) {
+			wrq->u.power.flags = IW_POWER_TIMEOUT;
+			wrq->u.power.value = 0;
+		} else {
+			wrq->u.power.flags = IW_POWER_PERIOD;
+			wrq->u.power.value = dev->pm_period;
+		}
+		wrq->u.power.flags |= IW_POWER_ALL_R; /* ??? */
+		break;
+
 	case SIOCGIWPRIV:
 		if (wrq->u.data.pointer) {
 			const struct iw_priv_args priv[] = {
@@ -3400,6 +3604,11 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 
 				{ PRIV_IOCTL_LIST_BSS, 
 				  0, 0, "list_bss"}, /* dump current bss table */
+
+				{ PRIV_IOCTL_SET_PS_MODE, 
+				  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0,
+				  "set_ps"}, /* 0 -  active, 1 - power save,
+						2 - smart power save */
 			};
 
 			wrq->u.data.length = sizeof(priv) / sizeof(priv[0]);
@@ -3459,6 +3668,22 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	case PRIV_IOCTL_LIST_BSS:
 		dump_bss_table(dev);
 		break;
+
+	case PRIV_IOCTL_SET_PS_MODE:
+	{
+		int val = *((int *)wrq->u.name);
+		dbg("%s: PRIV_IOCTL_SET_PS_MODE, %d (%s)",
+		    dev->netdev->name, val,
+		    val == PM_ACTIVE ? "active" : val == PM_SAVE ? "save" : val == PM_SMART_SAVE ?
+		    "smart save" : "<invalid>");
+		if (val < PM_ACTIVE || val > PM_SMART_SAVE)
+			ret = -EINVAL;
+		else {
+			dev->pm_mode = val;
+			changed = 1;
+		}
+	}
+	break;
 
 	default:
 		dbg("%s: ioctl not supported (0x%x)", netdev->name, cmd);
@@ -3654,6 +3879,9 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 
 	dev->board_type = board_type;
 
+	dev->pm_mode = PM_ACTIVE;
+	dev->pm_period = 0; /* this defaults to a listen interval of two beacon */
+
 	/* set up the endpoint information */
 	/* check out the endpoints */
 	interface = &udev->actconfig->interface[0];
@@ -3673,7 +3901,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.17 2003/05/01 22:16:56 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.18 2003/05/14 00:46:44 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);

@@ -1,4 +1,4 @@
-(* $Id: README,v 1.5 2003/05/01 19:48:29 jal2 Exp $ *)
+(* $Id: README,v 1.6 2003/05/14 00:46:44 jal2 Exp $ *)
 
 at76c503 - linux driver for Atmel at76c503 based usb wlan adapters
 ------------------------------------------------------------------
@@ -75,6 +75,28 @@ unplugging the device.
 If you get problems:
 Look with dmesg, if there are error messages.
 
+Power Save Modes in Infrastructure Mode
+---------------------------------------
+You can activate 802.11 power save mode by executing
+    iwconfig wlanX power on period N
+The default period value is 0 and the smallest possible period
+of power save (listen interval) is two beacon intervals.
+This should lower power consumption, but decrease data throughput and
+increase delays.
+
+There is an Atmel specific power save mode called "smart power save"
+which switches the device into active state (by a NULL packet to the AP)
+as soon as there are pending packets at the AP for the STA and put it
+back into doze state after the next beacon. This saves the need for
+sending PS_POLL packets.
+It can only be activated by
+   iwpriv wlanX set_ps 3
+I don't know if the listen_interval is used in this mode, too.
+If yes, you can only set it earlier by iwconfig, e.g.
+   iwconfig wlanX power on period N
+   iwpriv wlanX set_ps 3
+
+
 Private Parameters
 ------------------
 
@@ -84,6 +106,8 @@ In addition to the parameters of iwconfig, some can be set by iwpriv:
 - open system authentication: iwpriv wlanX set_auth 0
 - shared key authentication:  iwpriv wlanX set_auth 1
 - amount of debug messages:   iwpriv wlanX set_debug N  (* N = 0,1,2,3 *)
+- power save mode: iwpriv wlanX set_ps N (* N = 1,2,3 
+  for none, save, smart save *)
 
 Be aware that shared key authentication requires a WEP key.
 

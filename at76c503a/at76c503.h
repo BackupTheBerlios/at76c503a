@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.8 2003/05/01 19:48:29 jal2 Exp $
+/* $Id: at76c503.h,v 1.9 2003/05/14 00:46:44 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -40,6 +40,8 @@
 #define PRIV_IOCTL_SET_AUTH            (SIOCIWFIRSTPRIV + 0x2)
 /* dump bss table */
 #define PRIV_IOCTL_LIST_BSS            (SIOCIWFIRSTPRIV + 0x3)
+/* set power save mode (incl. the Atmel proprietary smart save mode */
+#define PRIV_IOCTL_SET_PS_MODE         (SIOCIWFIRSTPRIV + 0x4)
 
 #define DEVICE_VENDOR_REQUEST_OUT    0x40
 #define DEVICE_VENDOR_REQUEST_IN     0xc0
@@ -96,6 +98,11 @@
 #define TX_RATE_11MBIT 3
 #define TX_RATE_AUTO 4
 
+/* power management modi */
+#define PM_ACTIVE     1
+#define PM_SAVE       2
+#define PM_SMART_SAVE 3
+
 /* offsets into the MIBs we use to configure the device */
 #define TX_AUTORATE_FALLBACK_OFFSET offsetof(struct mib_local,txautorate_fallback)
 #define FRAGMENTATION_OFFSET        offsetof(struct mib_mac,frag_threshold)
@@ -106,6 +113,10 @@
 #define IBSS_CHANGE_OK_OFFSET       offsetof(struct mib_mac_mgmt, ibss_change)
 #define IROAMING_OFFSET \
   offsetof(struct mib_mac_mgmt, multi_domain_capability_enabled)
+/* the AssocID */
+#define STATION_ID_OFFSET           offsetof(struct mib_mac_mgmt, station_id)
+#define POWER_MGMT_MODE_OFFSET      offsetof(struct mib_mac_mgmt, power_mgmt_mode)
+#define LISTEN_INTERVAL_OFFSET      offsetof(struct mib_mac, listen_interval)
 
 #define BOARDTYPE_INTERSIL 0
 #define BOARDTYPE_RFMD     1
@@ -284,7 +295,7 @@ struct mib_mac_mgmt {
 	u16 beacon_period;
 	u16 CFP_max_duration;
 	u16 medium_occupancy_limit;
-	u16 station_id;
+	u16 station_id;  /* assoc id */
 	u16 ATIM_window;
 	u8  CFP_mode;
 	u8  privacy_option_implemented;
@@ -377,8 +388,8 @@ struct bss_info{
 	u8 channel;
 	u16 capa; /* the capabilities of the BSS (in original endianess -
 		     we only check IEEE802_11 bits in it) */
-	u16 beacon_interval; /* the beacon interval (in cpu endianess -
-				we must calc. values from it */
+	u16 beacon_interval; /* the beacon interval in units of TU (1.024 ms)
+				(in cpu endianess - we must calc. values from it) */
 	u8 rates[BSS_LIST_MAX_RATE_LEN]; /* supported rates (list of bytes: 
 				   (basic_rate ? 0x80 : 0) + rate/(500 Kbit/s); e.g. 
 				   x82,x84,x8b,x96 for basic rates 1,2,5.5,11 MBit/s) */
@@ -390,6 +401,8 @@ struct bss_info{
 	u8 noise_level;
 
 	unsigned long last_rx; /* time (jiffies) of last beacon received */
+	u16 assoc_id;          /* if this is dev->curr_bss this is the assoc id we got
+				  in a successful AssocResponse */
 };
 
 /* how often do we try to submit a rx urb until giving up */
@@ -481,6 +494,8 @@ struct at76c503 {
 	struct timer_list mgmt_timer; /* the timer we use to repeat auth_req etc. */
 	int retries; /* counts backwards while re-trying to send auth/assoc_req's */
 	u16 assoc_id; /* the assoc_id for states JOINING, REASSOCIATING, CONNECTED */
+	u8  pm_mode ; /* power management mode: ACTIVE, SAVE, SMART_SAVE */
+	u32 pm_period; /* power manag. period (in us ?) */
 
 	int board_type; /* 0 = Intersil, 1 = RFMD, 2 = R505 */
 
