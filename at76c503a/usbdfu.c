@@ -24,6 +24,7 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/usb.h>
+#include <linux/tqueue.h>
 #include <linux/init.h>
 #include "usbdfu.h"
 

@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.34 2003/07/26 17:06:26 jal2 Exp $
+/* $Id: at76c503.c,v 1.35 2003/07/30 06:31:51 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -3692,6 +3692,7 @@ static int ethtool_ioctl(struct at76c503 *dev, void *useraddr)
 		strncpy(info.version, DRIVER_VERSION, sizeof(info.version));
 		info.version[sizeof(info.version)-1] = '\0';
 
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 4, 7))
 		snprintf(info.bus_info, sizeof(info.bus_info)-1,
 			 "usb%d:%d", dev->udev->bus->busnum,
 			 dev->udev->devnum);
@@ -3700,6 +3701,15 @@ static int ethtool_ioctl(struct at76c503 *dev, void *useraddr)
 			 "%d.%d.%d-%d",
 			 dev->fw_version.major, dev->fw_version.minor,
 			 dev->fw_version.patch, dev->fw_version.build);
+#else
+                /* Take the risk of a buffer overflow: no snprintf... */
+		sprintf(info.bus_info, "usb%d:%d", dev->udev->bus->busnum,
+                        dev->udev->devnum);
+
+		sprintf(info.fw_version, "%d.%d.%d-%d",
+                        dev->fw_version.major, dev->fw_version.minor,
+                        dev->fw_version.patch, dev->fw_version.build);
+#endif
 		if (copy_to_user (useraddr, &info, sizeof (info)))
 			return -EFAULT;
 		return 0;
@@ -4517,7 +4527,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.34 2003/07/26 17:06:26 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.35 2003/07/30 06:31:51 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
