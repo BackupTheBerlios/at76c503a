@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.53 2004/04/16 19:06:02 jal2 Exp $
+/* $Id: at76c503.c,v 1.54 2004/05/29 22:16:17 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -142,7 +142,11 @@ static inline struct urb *alloc_urb(int iso_pk, int mem_flags) {
 #define GET_DEV(udev) usb_inc_dev_use((udev))
 #define PUT_DEV(udev) usb_dec_dev_use((udev))
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 4, 25)
+// this macro is defined from 2.4.25 onward
 #define SET_NETDEV_DEV(x,y)
+#endif
+
 #define SET_NETDEV_OWNER(ndev,owner) ndev->owner = owner
 
 static inline int submit_urb(struct urb *urb, int mem_flags) {
@@ -684,9 +688,9 @@ static int update_usb_intf_descr(struct usb_device *dev)
 	}
 	memset(ifp->endpoint, 0, 2 * sizeof(struct usb_host_endpoint));
 	memcpy(&ifp->endpoint[0].desc, buffer+ep0, USB_DT_ENDPOINT_SIZE);
-	le16_to_cpus(&ifp->endpoint[0].desc.wMaxPacketSize);
+	le16_to_cpus(&ifp->endpoint[0].wMaxPacketSize);
 	memcpy(&ifp->endpoint[1].desc, buffer+ep1, USB_DT_ENDPOINT_SIZE);
-	le16_to_cpus(&ifp->endpoint[1].desc.wMaxPacketSize);
+	le16_to_cpus(&ifp->endpoint[1].wMaxPacketSize);
 
 	/* we must set the max packet for the new ep (see usb_set_maxpacket() ) */
 
@@ -6417,7 +6421,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.53 2004/04/16 19:06:02 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.54 2004/05/29 22:16:17 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
