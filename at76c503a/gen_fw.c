@@ -1,4 +1,4 @@
-/* $Id: gen_fw.c,v 1.4 2003/12/27 00:03:35 jal2 Exp $ */
+/* $Id: gen_fw.c,v 1.5 2004/01/17 12:15:45 jal2 Exp $ */
 
 /* This file includes the old style firmwares and outputs new, binary files. */
 
@@ -67,43 +67,43 @@ struct fw {
 	u8 *extfw;
 	u32 extfw_sz;
 } fws[] = {
-	{ "at76c503-rfmd-0.90.2-140-fw", BOARDTYPE_503_RFMD,
+	{ "atmel_at76c503-rfmd-0.90.2-140.bin", BOARDTYPE_503_RFMD,
 	  0x01650054, "0.90.2-140 503 RFMD "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
 	  intfw_503rfmd_0_90_2, sizeof(intfw_503rfmd_0_90_2),
           extfw_503rfmd_0_90_2, sizeof(extfw_503rfmd_0_90_2)},
 
-	{ "at76c503-rfmd-fw", BOARDTYPE_503_RFMD,
+	{ "atmel_at76c503-rfmd.bin", BOARDTYPE_503_RFMD,
 	  0x01650054, "1.101.0-84 503 RFMD "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
 	  intfw_503rfmd, sizeof(intfw_503rfmd),
 	  extfw_503rfmd, sizeof(extfw_503rfmd)},
 
-	{ "at76c503-rfmd-acc-fw", BOARDTYPE_503_RFMD_ACC,
+	{ "atmel_at76c503-rfmd-acc.bin", BOARDTYPE_503_RFMD_ACC,
 	  0x01650054, "1.101.0-84 503 RFMD Accton design "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
 	  intfw_503rfmd_acc, sizeof(intfw_503rfmd_acc),
 	  extfw_503rfmd_acc, sizeof(extfw_503rfmd_acc)},
 
-	{ "at76c503-i3861-fw", BOARDTYPE_503_INTERSIL_3861,
+	{ "atmel_at76c503-i3861.bin", BOARDTYPE_503_INTERSIL_3861,
 	  0x005a002c, "0.90.0-44 Intersil 3861 "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
 	  intfw_i3861, sizeof(intfw_i3861),
 	  extfw_i3861, sizeof(extfw_i3861)},
 
-	{ "at76c503-i3863-fw", BOARDTYPE_503_INTERSIL_3863,
+	{ "atmel_at76c503-i3863.bin", BOARDTYPE_503_INTERSIL_3863,
 	  0x005a002c, "0.90.0-44 Intersil 3863 "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
 	  intfw_i3863, sizeof(intfw_i3863),
 	  extfw_i3863, sizeof(extfw_i3863)},
 
-	{ "at76c505-rfmd-fw", BOARDTYPE_505_RFMD,
+	{ "atmel_at76c505-rfmd.bin", BOARDTYPE_505_RFMD,
 	  0x005b0004, "0.91.0-4 505 RFMD "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
 	  intfw_505rfmd, sizeof(intfw_505rfmd),
 	  extfw_505rfmd, sizeof(extfw_505rfmd)},
 
-	{ "at76c505-rfmd2958-fw", BOARDTYPE_505_RFMD_2958,
+	{ "atmel_at76c505-rfmd2958.bin", BOARDTYPE_505_RFMD_2958,
 	  0x01650056, "1.101.0-86 505 RFMD2958 "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
 	  intfw_505rfmd2958, sizeof(intfw_505rfmd2958),

@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-i3861.c,v 1.16 2004/01/17 11:14:11 jal2 Exp $
+ * $Id: at76c503-i3861.c,v 1.17 2004/01/17 12:15:44 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using Intersil 3861 radio chips
@@ -24,6 +24,7 @@
  *
  */
 
+#include <linux/version.h>
 #include <linux/config.h>
 #include <linux/module.h>
 #include <linux/usb.h>
@@ -49,7 +50,7 @@
 #define DRIVER_DESC "Atmel at76c503 (i3861) Wireless LAN Driver"
 
 /* firmware name to load if above include file contains empty fw only */
-#define FW_NAME DRIVER_NAME "-fw"
+#define FW_NAME "atmel_" DRIVER_NAME ".bin"
 
 #define BOARDTYPE BOARDTYPE_503_INTERSIL_3861
 

@@ -23,6 +23,7 @@
  * firmware to the device before handing it off to at76c503.
  */
 
+#include <linux/version.h>
 #include <linux/config.h>
 #include <linux/module.h>
 #include <linux/usb.h>
@@ -48,7 +49,7 @@
 #define DRIVER_DESC "Atmel at76c505 (RFMD 2958) Wireless LAN Driver"
 
 /* firmware name to load if above include file contains empty fw only */
-#define FW_NAME DRIVER_NAME "-fw"
+#define FW_NAME "atmel_" DRIVER_NAME ".bin"
 
 #define BOARDTYPE BOARDTYPE_505_RFMD_2958
 

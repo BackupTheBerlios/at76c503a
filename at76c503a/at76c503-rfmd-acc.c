@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-rfmd-acc.c,v 1.8 2004/01/17 11:14:11 jal2 Exp $
+ * $Id: at76c503-rfmd-acc.c,v 1.9 2004/01/17 12:15:44 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using RFMD radio chips in the Accton OEM layout.
@@ -24,6 +24,7 @@
  *
  */
 
+#include <linux/version.h>
 #include <linux/config.h>
 #include <linux/module.h>
 #include <linux/usb.h>
@@ -49,7 +50,7 @@
 #define DRIVER_DESC "Atmel at76c503 (RFMD/Accton) Wireless LAN Driver"
 
 /* firmware name to load if above include file contains empty fw only */
-#define FW_NAME DRIVER_NAME "-fw"
+#define FW_NAME "atmel_" DRIVER_NAME ".bin"
 
 #define BOARDTYPE BOARDTYPE_503_RFMD_ACC
 

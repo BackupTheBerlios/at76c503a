@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-fw_skel.c,v 1.3 2004/01/10 20:31:17 jal2 Exp $
+ * $Id: at76c503-fw_skel.c,v 1.4 2004/01/17 12:15:44 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  *
@@ -120,6 +120,9 @@ static int at76c50x_probe(struct usb_interface *interface,
 				dbg("got it.");
 			} else {
 				err("firmware " FW_NAME " not found.");
+				err("You may need to download the firmware from "
+				    "http://www.thekelleys.org.uk/atmel or"
+				    "ftp://ftp.berlios.de/pub/at76c503a/firmware/");
 				RETERR(-EFAULT);
 			}
 		} else

@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-i3863.c,v 1.8 2004/01/17 11:14:11 jal2 Exp $
+ * $Id: at76c503-i3863.c,v 1.9 2004/01/17 12:15:44 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using a Intersil 3863 radio chip
@@ -23,6 +23,7 @@
  * at76c503.
  */
 
+#include <linux/version.h>
 #include <linux/config.h>
 #include <linux/module.h>
 #include <linux/usb.h>
@@ -50,7 +51,7 @@
 #define BOARDTYPE BOARDTYPE_503_INTERSIL_3863
 
 /* firmware name to load if above include file contains empty fw only */
-#define FW_NAME DRIVER_NAME "-fw"
+#define FW_NAME "atmel_" DRIVER_NAME ".bin"
 
 #define VENDOR_ID_ATMEL               0x03eb
 #define PRODUCT_ID_ATMEL_503_I3863    0x7604 /* Generic AT76C503/3863 device */

@@ -1,6 +1,6 @@
-#$Id: Makefile,v 1.21 2004/01/10 20:31:17 jal2 Exp $
+#$Id: Makefile,v 1.22 2004/01/17 12:15:44 jal2 Exp $
 
-VERSION = 0.12beta5
+VERSION = 0.12beta6
 
 CC=gcc
 
@@ -8,6 +8,10 @@ KERNEL_VERSION = $(shell uname -r)
 
 KERNEL_SRC = /lib/modules/$(KERNEL_VERSION)/build
 KERNEL_HEADERS = $(KERNEL_SRC)/include
+FW_DL=
+
+# uncomment to compile for firmware download from user space
+#FW_DL += -DCONFIG_AT76C503_FIRMWARE_DOWNLOAD
 
 MODULES = at76c503.o usbdfu.o at76c503-i3861.o at76c503-rfmd.o at76c503-rfmd-acc.o \
           at76c505-rfmd.o at76c503-i3863.o at76c505-rfmd2958.o
@@ -49,7 +53,7 @@ modules:
 	mkdir -p .tmp_versions
 	-cp $(KERNEL_SRC)/.tmp_versions/*.mod $(MODVERDIR)
 	$(MAKE) -C $(KERNEL_SRC) SUBDIRS=$(SRCDIR) MODVERDIR=$(MODVERDIR) \
-		EXTRA_CFLAGS="-g -DDRIVER_VERSION=\\\"v$(VERSION)\\\"" modules
+		EXTRA_CFLAGS="-g -DDRIVER_VERSION=\\\"v$(VERSION)\\\" $(FW_DL)" modules
 
 install: all
 	mkdir -p $(MODULE_DIR)
@@ -67,6 +71,7 @@ CPPFLAGS = -D__KERNEL__ \
 	-DDRIVER_VERSION=\"v$(VERSION)\" \
 	-I$(KERNEL_HEADERS)
 CFLAGS = -O2 -Wall -Wstrict-prototypes -pipe -fno-strict-aliasing \
+	 $(FW_DL) \
          -fno-common -Wno-sign-compare -Wno-unused
 
 MODVER = $(shell if cat $(KERNEL_HEADERS)/linux/autoconf.h 2>/dev/null | \
