@@ -1,6 +1,6 @@
-#$Id: Makefile,v 1.19 2004/01/03 23:24:30 jal2 Exp $
+#$Id: Makefile,v 1.20 2004/01/04 22:31:30 jal2 Exp $
 
-VERSION = 0.12beta3
+VERSION = 0.12beta4
 
 CC=gcc
 
@@ -21,7 +21,9 @@ HDRS = at76c503.h ieee802_11.h usbdfu.h at76c503-fw_skel.c \
 	fw-pkg-rfmd-0.90.2-140.h \
 	fw-pkg-r505.h fw-pkg-rfmd-acc-1.101.0-84.h
 
-DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING CHANGELOG scripts
+SCRIPTS = fwbin2h fwbin2pkg.sh fwconvert fwversion
+
+DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING CHANGELOG 
 TOPDISTFILES = 
 DISTNAME = at76c503-$(VERSION)
 DISTDIR = ../dist
@@ -118,6 +120,8 @@ dist:
 	[ -d $(DISTNAME) ] && rm -rf $(DISTNAME) || true
 	mkdir $(DISTNAME)
 	cp -aR $(DISTFILES) $(DISTNAME)
+	mkdir $(DISTNAME)/scripts
+	(cd scripts ; cp -aR $(SCRIPTS) ../$(DISTNAME)/scripts)
 	tar zcvf $(DISTNAME).tar.gz $(DISTNAME)
 	rm -rf $(DISTNAME)
 

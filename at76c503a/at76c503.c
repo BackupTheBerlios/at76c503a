@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.40 2004/01/04 20:01:27 jal2 Exp $
+/* $Id: at76c503.c,v 1.41 2004/01/04 22:31:30 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -449,7 +449,7 @@ static void dump_bss_table(struct at76c503 *dev, int force_output);
 static int submit_rx_urb(struct at76c503 *dev);
 static int startup_device(struct at76c503 *dev);
 
-int update_usb_intf_descr(struct usb_device *dev);
+static int update_usb_intf_descr(struct usb_device *dev);
 
 /* disassemble the firmware image */
 static int at76c503_get_fw_info(u8 *fw_data, int fw_size,
@@ -508,6 +508,68 @@ static inline char *mac2str(u8 *mac)
 }
 
 
+/* == PROC analyze_usb_config == 
+   This procedure analyzes the configuration after the
+   USB device got reset and find the start of the interface and the
+   two endpoint descriptors.
+   Returns < 0 if the descriptors seems to be wrong. */
+static int analyze_usb_config(u8 *cfgd, int cfgd_len,
+				int *intf_idx, int *ep0_idx, int *ep1_idx)
+{
+	u8 *cfgd_start = cfgd;
+	u8 *cfgd_end = cfgd + cfgd_len; /* first byte after config descriptor */
+	int nr_intf=0, nr_ep=0; /* number of interface, number of endpoint descr.
+			       found */
+
+	assert(cfgd_len >= 2);
+	if (cfgd_len < 2)
+		return -1;
+
+	if (*(cfgd+1) != USB_DT_CONFIG) {
+		err("not a config descriptor");
+		return -2;
+	}
+
+	if (*cfgd != USB_DT_CONFIG_SIZE) {
+		err("invalid length for config descriptor: %d", *cfgd);
+		return -3;
+	}
+
+	/* scan the config descr */
+	while ((cfgd+1) < cfgd_end) {
+
+		switch (*(cfgd+1)) {
+
+		case USB_DT_INTERFACE:
+			nr_intf++;
+			if (nr_intf == 1)
+				*intf_idx = cfgd - cfgd_start;
+			break;
+
+		case USB_DT_ENDPOINT:
+			nr_ep++;
+			if (nr_ep == 1)
+				*ep0_idx = cfgd - cfgd_start;
+			else
+				if (nr_ep == 2)
+					*ep1_idx = cfgd - cfgd_start;
+			break;
+		default:
+			;
+		}
+		cfgd += *cfgd;
+	} /* while ((cfgd+1) < cfgd_end) */
+
+	if (nr_ep != 2 || nr_intf != 1) {
+		err("unexpected nr of intf (%d) or endpoints (%d)",
+		    nr_intf, nr_ep);
+		return -4;
+	}
+
+	return 0;
+} /* end of analyze_usb_config */
+
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
 /* == PROC update_usb_intf_descr ==
    currently (2.6.0-test2) usb_reset_device() does not recognize that
@@ -524,23 +586,10 @@ static inline char *mac2str(u8 *mac)
 /* the short configuration descriptor before reset */
 //#define AT76C503A_USB_SHORT_CONFDESCR_LEN 0x19
 
-int update_usb_intf_descr(struct usb_device *dev)
+static int update_usb_intf_descr(struct usb_device *dev)
 {
-	/* the expected config descr. (two endpoints (bulk in/out) in one interface) */
-	static const u8 expected_cfg_descr[] = 
-#if defined(__LITTLE_ENDIAN)
-		{0x09, 0x02, 0x20, 0x00, 0x01, 0x01, 0x00, 0x80,
-		 0xFA, 0x09, 0x04, 0x00, 0x00, 0x02, 0xFF, 0x00,
-		 0xFF, 0x00, 0x07, 0x05, 0x85, 0x02, 0x40, 0x00,
-		 0x00, 0x07, 0x05, 0x02, 0x02, 0x40, 0x00, 0x00};
-#else
-		{0x09, 0x02, 0x00, 0x20, 0x01, 0x01, 0x00, 0x80,
-		 0xFA, 0x09, 0x04, 0x00, 0x00, 0x02, 0xFF, 0x00,
-		 0xFF, 0x00, 0x07, 0x05, 0x85, 0x02, 0x40, 0x00,
-		 0x00, 0x07, 0x05, 0x02, 0x02, 0x40, 0x00, 0x00};
-#endif
-	static const u8 intf0 = 9; /* begin of intf desc in above field */ 
-	static const u8 ep0 = 18, ep1 = 25; /* offsets of endpoint descriptors in the above array */
+	int intf0; /* begin of intf descriptor in configuration */ 
+	int ep0, ep1; /* begin of endpoint descriptors */
 
 	struct usb_config_descriptor *cfg_desc;
 	int result = 0, size;
@@ -582,10 +631,11 @@ int update_usb_intf_descr(struct usb_device *dev)
 		goto err;
 	}
 
-	if (memcmp(buffer,expected_cfg_descr, sizeof(expected_cfg_descr))) {
-		err("got unexp. config desc %s",
+	if ((result=analyze_usb_config(buffer, size, &intf0, &ep0, &ep1))) {
+		err("analyze_usb_config returned %d for config desc %s",
+		    result,
 		    hex2str(obuf, (u8 *)cfg_desc, size, '\0'));
-		result = - EINVAL;
+		result=-EINVAL;
 		goto err;
 	}
 
@@ -595,16 +645,17 @@ int update_usb_intf_descr(struct usb_device *dev)
 	if (ifp->endpoint)
 		kfree(ifp->endpoint);
 
-	memcpy(&ifp->desc, expected_cfg_descr+intf0, USB_DT_INTERFACE_SIZE);
+	memcpy(&ifp->desc, buffer+intf0, USB_DT_INTERFACE_SIZE);
 
-	if (!(ifp->endpoint = kmalloc(2 * sizeof(struct usb_host_endpoint), GFP_KERNEL))) {
+	if (!(ifp->endpoint = kmalloc(2 * sizeof(struct usb_host_endpoint), 
+				      GFP_KERNEL))) {
 		result = -ENOMEM;
 		goto err;
 	}
 	memset(ifp->endpoint, 0, 2 * sizeof(struct usb_host_endpoint));
-	memcpy(&ifp->endpoint[0].desc, expected_cfg_descr+ep0, USB_DT_ENDPOINT_SIZE);
+	memcpy(&ifp->endpoint[0].desc, buffer+ep0, USB_DT_ENDPOINT_SIZE);
 	le16_to_cpus(&ifp->endpoint[0].desc.wMaxPacketSize);
-	memcpy(&ifp->endpoint[1].desc, expected_cfg_descr+ep1, USB_DT_ENDPOINT_SIZE);
+	memcpy(&ifp->endpoint[1].desc, buffer+ep1, USB_DT_ENDPOINT_SIZE);
 	le16_to_cpus(&ifp->endpoint[1].desc.wMaxPacketSize);
 
 	/* we must set the max packet for the new ep (see usb_set_maxpacket() ) */
@@ -622,7 +673,8 @@ int update_usb_intf_descr(struct usb_device *dev)
 		}
 	}
 			     
-	dbg(DBG_DEVSTART, "%s: ifp %p num_altsetting %d endpoint addr x%x, x%x", __FUNCTION__,
+	dbg(DBG_DEVSTART, "%s: ifp %p num_altsetting %d "
+	    "endpoint addr x%x, x%x", __FUNCTION__,
 	    ifp, dev->actconfig->interface[0]->num_altsetting,
 	    ifp->endpoint[0].desc.bEndpointAddress,
 	    ifp->endpoint[1].desc.bEndpointAddress);
@@ -653,21 +705,8 @@ err:
 
 int update_usb_intf_descr(struct usb_device *dev)
 {
-	/* the expected config descr. (two endpoints (bulk in/out) in one interface) */
-	static const u8 expected_cfg_descr[] = 
-#if defined(__LITTLE_ENDIAN)
-		{0x09, 0x02, 0x20, 0x00, 0x01, 0x01, 0x00, 0x80,
-		 0xFA, 0x09, 0x04, 0x00, 0x00, 0x02, 0xFF, 0x00,
-		 0xFF, 0x00, 0x07, 0x05, 0x85, 0x02, 0x40, 0x00,
-		 0x00, 0x07, 0x05, 0x02, 0x02, 0x40, 0x00, 0x00};
-#else
-		{0x09, 0x02, 0x00, 0x20, 0x01, 0x01, 0x00, 0x80,
-		 0xFA, 0x09, 0x04, 0x00, 0x00, 0x02, 0xFF, 0x00,
-		 0xFF, 0x00, 0x07, 0x05, 0x85, 0x02, 0x40, 0x00,
-		 0x00, 0x07, 0x05, 0x02, 0x02, 0x40, 0x00, 0x00};
-#endif
-	static const u8 intf0 = 9; /* begin of intf desc in above field */ 
-	static const u8 ep0 = 18, ep1 = 25; /* offsets of endpoint descriptors in the above array */
+	int intf0; /* begin of intf descriptor in configuration */ 
+	int ep0, ep1; /* begin of endpoint descriptors */
 
 	struct usb_config_descriptor *cfg_desc;
 	int result = 0, size;
@@ -709,10 +748,11 @@ int update_usb_intf_descr(struct usb_device *dev)
 		goto err;
 	}
 
-	if (memcmp(buffer,expected_cfg_descr, sizeof(expected_cfg_descr))) {
-		err("got unexp. config desc %s",
+	if ((result=analyze_usb_config(buffer, size, &intf0, &ep0, &ep1))) {
+		err("analyze_usb_config returned %d for config desc %s",
+		    result,
 		    hex2str(obuf, (u8 *)cfg_desc, size, '\0'));
-		result = - EINVAL;
+		result=-EINVAL;
 		goto err;
 	}
 
@@ -724,19 +764,20 @@ int update_usb_intf_descr(struct usb_device *dev)
 
 	//memcpy(&ifp->desc, expected_cfg_descr+intf0, USB_DT_INTERFACE_SIZE);
 
-	if (!(ifp->endpoint = kmalloc(2 * sizeof(struct usb_endpoint_descriptor), GFP_KERNEL))) {
+	if (!(ifp->endpoint = kmalloc(2 * sizeof(struct usb_endpoint_descriptor), 
+				      GFP_KERNEL))) {
 		result = -ENOMEM;
 		goto err;
 	}
 
 	memset(ifp->endpoint, 0, 2 * sizeof(struct usb_endpoint_descriptor));
-	memcpy(&ifp->endpoint[0], expected_cfg_descr+ep0, USB_DT_ENDPOINT_SIZE);
+	memcpy(&ifp->endpoint[0], buffer+ep0, USB_DT_ENDPOINT_SIZE);
 	le16_to_cpus(&ifp->endpoint[0].desc.wMaxPacketSize);
-	memcpy(&ifp->endpoint[1], expected_cfg_descr+ep1, USB_DT_ENDPOINT_SIZE);
+	memcpy(&ifp->endpoint[1], buffer+ep1, USB_DT_ENDPOINT_SIZE);
 	le16_to_cpus(&ifp->endpoint[1].desc.wMaxPacketSize);
 
 	/* fill the interface data */
-	memcpy(ifp,expected_cfg_descr+intf0, USB_DT_INTERFACE_SIZE);
+	memcpy(ifp, buffer+intf0, USB_DT_INTERFACE_SIZE);
 
 	/* we must set the max packet for the new ep (see usb_set_maxpacket() ) */
 
@@ -752,7 +793,8 @@ int update_usb_intf_descr(struct usb_device *dev)
 		}
 	}
 			     
-	dbg(DBG_DEVSTART, "%s: ifp %p num_altsetting %d endpoint addr x%x, x%x", __FUNCTION__,
+	dbg(DBG_DEVSTART, "%s: ifp %p num_altsetting %d "
+	    "endpoint addr x%x, x%x", __FUNCTION__,
 	    ifp, dev->actconfig->interface[0].num_altsetting,
 	    ifp->endpoint[0].bEndpointAddress,
 	    ifp->endpoint[1].bEndpointAddress);
@@ -5058,7 +5100,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.40 2004/01/04 20:01:27 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.41 2004/01/04 22:31:30 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
