@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.63 2004/08/10 23:10:32 jal2 Exp $
+/* $Id: at76c503.c,v 1.64 2004/08/13 00:17:22 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -433,8 +433,9 @@ struct ieee802_11_deauth_frame {
 #define KEVENT_ASSOC_DONE  10 /* execute the power save settings:
 			     listen interval, pm mode, assoc id */
 
-#define KEVENT_EXTERNAL_FW 11
-#define KEVENT_INTERNAL_FW 12
+#define KEVENT_EXTERNAL_FW  11
+#define KEVENT_INTERNAL_FW  12
+#define KEVENT_RESET_DEVICE 13
 
 static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 
@@ -463,7 +464,9 @@ static void dump_bss_table(struct at76c503 *dev, int force_output);
 static int submit_rx_urb(struct at76c503 *dev);
 static int startup_device(struct at76c503 *dev);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
 static int update_usb_intf_descr(struct at76c503 *dev);
+#endif
 
 /* disassemble the firmware image */
 static int at76c503_get_fw_info(u8 *fw_data, int fw_size,
@@ -632,6 +635,7 @@ static int analyze_usb_config(u8 *cfgd, int cfgd_len,
 } /* end of analyze_usb_config */
 
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
 /* == PROC update_usb_intf_descr ==
    currently (2.6.0-test2) usb_reset_device() does not recognize that
@@ -869,7 +873,8 @@ err:
 	dbg(DBG_DEVSTART, "%s: EXIT with %d", __FUNCTION__, result);
 	return result;
 } /* update_usb_intf_descr */
-#endif //#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
+# endif /* #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0) ... #else ... */
+#endif	/* #if  LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8) */
 
 
 int at76c503_remap(struct usb_device *udev)
@@ -1659,7 +1664,7 @@ int join_bss(struct at76c503 *dev, struct bss_info *ptr)
 void fw_dl_timeout(unsigned long par)
 {
 	struct at76c503 *dev = (struct at76c503 *)par;
-	defer_kevent(dev, KEVENT_EXTERNAL_FW);
+	defer_kevent(dev, KEVENT_RESET_DEVICE);
 }
 
 
@@ -2528,28 +2533,42 @@ end_scan:
 		    dev->netdev->name, mac2str(dev->curr_bss->bssid));
 	}
 
-	/* must come _before_ KEVENT_INTERNAL_FW, because it got its bit
-	   set there ! */
-	if (test_bit(KEVENT_EXTERNAL_FW, &dev->kevent_flags)) {
-		u8 op_mode;
 
-		clear_bit(KEVENT_EXTERNAL_FW, &dev->kevent_flags);
+	if (test_bit(KEVENT_RESET_DEVICE, &dev->kevent_flags)) {
+
+		clear_bit(KEVENT_RESET_DEVICE, &dev->kevent_flags);
 
 		dbg(DBG_DEVSTART, "resetting the device");
 
 		usb_reset_device(dev->udev);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
+/* with 2.6.8 the reset above will cause a disconnect as the USB subsys
+   recognizes the change in the config descriptors. Subsequently the device
+   will be registered again. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
+#  if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
 		//jal: patch the state (patch by Dmitri)
 		dev->udev->state = USB_STATE_CONFIGURED;
 #endif
-
 		/* jal: currently (2.6.0-test2 and 2.4.23) 
 		   usb_reset_device() does not recognize that
 		   the interface descr. are changed.
 		   This procedure reads the configuration and does a limited parsing of
 		   the interface and endpoint descriptors */
 		update_usb_intf_descr(dev);
+
+		/* continue immediately with external fw download */
+		set_bit (KEVENT_EXTERNAL_FW, &dev->kevent_flags);
+#else
+		/* kernel >= 2.6.8 */
+		NEW_STATE(dev, WAIT_FOR_DISCONNECT);
+#endif
+	}
+
+	if (test_bit(KEVENT_EXTERNAL_FW, &dev->kevent_flags)) {
+		u8 op_mode;
+
+		clear_bit(KEVENT_EXTERNAL_FW, &dev->kevent_flags);
 
 		op_mode = get_op_mode(dev->udev);
 		dbg(DBG_DEVSTART, "opmode %d", op_mode);
@@ -6566,7 +6585,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.63 2004/08/10 23:10:32 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.64 2004/08/13 00:17:22 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -6773,11 +6792,48 @@ int at76c503_do_probe(struct module *mod, struct usb_device *udev,
 		defer_kevent(dev,KEVENT_INTERNAL_FW);
 
 	} else {
-		/* firmware already inside the device */
-		NEW_STATE(dev,INIT);
-		if (init_new_device(dev) < 0) {
-			ret = -ENODEV;
-			goto error;
+		/* internal firmware already inside the device */
+		/* get firmware version to test if external firmware is loaded */
+		ret = get_mib(udev, MIB_FW_VERSION, (u8*)&dev->fw_version, 
+			      sizeof(dev->fw_version));
+		if ((ret < 0) || ((dev->fw_version.major == 0) && 
+				  (dev->fw_version.minor == 0) && 
+				  (dev->fw_version.patch == 0) && 
+				  (dev->fw_version.build == 0))) {
+			dbg(DBG_DEVSTART, "cannot get firmware (ret %d) or all zeros "
+			    "- download external firmware", ret);
+			/* disassem. the firmware */
+			if ((ret=at76c503_get_fw_info(fw_data, fw_size, &dev->board_type,
+						      &version, &id_str,
+						      &dev->intfw, &dev->intfw_size,
+						      &dev->extfw, &dev->extfw_size))) {
+				goto error;
+			}
+
+			dbg(DBG_DEVSTART, "firmware board %u version %u.%u.%u#%u "
+			    "(int %x:%x, ext %x:%x)",
+			    dev->board_type, version>>24,(version>>16)&0xff,
+			    (version>>8)&0xff, version&0xff,
+			    dev->intfw_size, dev->intfw-fw_data,
+			    dev->extfw_size, dev->extfw-fw_data);
+			if (*id_str)
+				dbg(DBG_DEVSTART, "firmware id %s",id_str);
+
+			if (dev->board_type != board_type) {
+				err("inconsistent board types %u != %u",
+				    board_type, dev->board_type);
+				at76c503_delete_device(dev);
+				goto error;
+			}
+
+			NEW_STATE(dev,EXTFW_DOWNLOAD);
+			defer_kevent(dev,KEVENT_EXTERNAL_FW);
+		} else {
+			NEW_STATE(dev,INIT);
+			if (init_new_device(dev) < 0) {
+				ret = -ENODEV;
+				goto error;
+			}
 		}
 	}
 

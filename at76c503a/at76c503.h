@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.24 2004/06/15 19:53:42 jal2 Exp $
+/* $Id: at76c503.h,v 1.25 2004/08/13 00:17:23 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -399,6 +399,7 @@ enum infra_state {
 	STARTIBSS,
 	INTFW_DOWNLOAD,
 	EXTFW_DOWNLOAD,
+	WAIT_FOR_DISCONNECT,
 };
 
 /* a description of a regulatory domain and the allowed channels */
