@@ -1,11 +1,11 @@
-(* $Id: README,v 1.10 2003/06/16 19:49:16 jal2 Exp $ *)
+(* $Id: README,v 1.11 2003/07/20 09:48:17 jal2 Exp $ *)
 
 at76c503 - linux driver for Atmel at76c503 based usb wlan adapters
 ------------------------------------------------------------------
 
-This is a another driver for the Atmel based USB WLAN adaptors. I am
-developing this driver in private. I am not associated with Atmel, or
-any cooperation that builds devices with this chip. My only
+This is another driver for the Atmel based USB WLAN adaptors. I am
+developing this driver in private. I am not associated with Atmel or
+any corporation that builds devices with this chip. My only
 information source is the driver from
 http://atmelwlandriver.sourceforge.net.
 
@@ -171,7 +171,7 @@ Known Problems
 Thanks to:
 - the authors of the usbvnet driver (atmelwlandriver.sourceforge.net)
 - Joerg Albert for lots of patches
-- Brad Hards and Bas Vermeulen for the firmeware code, which I ported to kernel space
+- Brad Hards and Bas Vermeulen for the firmware code, which I ported to kernel space
 - David Gibson, I used his orinoco driver for learning
 - the author(s) of the usbnet driver
 - the author(s) of the rtl8150 driver

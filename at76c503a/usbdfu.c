@@ -48,7 +48,7 @@ static int debug;
 /* Version Information */
 #define DRIVER_AUTHOR \
 "Oliver Kurth <oku@masqmail.cx>, Joerg Albert <joerg.albert@gmx.de>, Alex <alex@foogod.com>"
-#define DRIVER_DESC "USB Device Fimware Upgrade (DFU) handler"
+#define DRIVER_DESC "USB Device Firmware Upgrade (DFU) handler"
 
 /* Module paramaters */
 MODULE_PARM(debug, "i");
