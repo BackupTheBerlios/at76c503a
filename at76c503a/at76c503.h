@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.19 2004/02/20 22:14:42 jal2 Exp $
+/* $Id: at76c503.h,v 1.20 2004/03/17 22:35:07 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -31,6 +31,13 @@
 #define INIT_WORK(a,b,c) INIT_TQUEUE(a,b,c)
 #define schedule_work(w) schedule_task(w)
 #define flush_scheduled_work() flush_scheduled_tasks()
+#endif
+
+/* Backward compatibility for free_netdev() */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
+#ifndef HAVE_FREE_NETDEV
+#define free_netdev(dev) kfree(dev)
+#endif
 #endif
 
 /* this wasn't even defined in early 2.4.x kernels ... */

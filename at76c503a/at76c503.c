@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.44 2004/03/16 20:15:44 jal2 Exp $
+/* $Id: at76c503.c,v 1.45 2004/03/17 22:35:07 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -4923,7 +4923,7 @@ void at76c503_delete_device(struct at76c503 *dev)
 			dev->rx_data[i].skb = NULL;
 		}
 	dbg(DBG_PROC_ENTRY, "%s: before freeing dev/netdev", __FUNCTION__);
-	kfree (dev->netdev); /* dev is in net_dev */ 
+	free_netdev(dev->netdev); /* dev is in net_dev */ 
 	dbg(DBG_PROC_ENTRY, "%s: EXIT", __FUNCTION__);
 }
 
@@ -5119,7 +5119,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.44 2004/03/16 20:15:44 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.45 2004/03/17 22:35:07 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
