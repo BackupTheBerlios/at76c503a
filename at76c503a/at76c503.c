@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.70 2004/10/13 23:58:23 jal2 Exp $
+/* $Id: at76c503.c,v 1.71 2004/10/14 01:21:21 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -222,6 +222,7 @@ static inline void usb_set_intfdata(struct usb_interface *intf, void *data) {}
 #define DBG_MONITOR_MODE    0x01000000 /* debugs from monitor mode */
 #define DBG_MIB             0x02000000 /* dump all MIBs in startup_device */
 #define DBG_MGMT_TIMER      0x04000000 /* dump mgmt_timer ops */
+#define DBG_WE_EVENTS       0x08000000 /* dump wireless events */
 
 #define DBG_DEFAULTS 0
 static int debug = DBG_DEFAULTS;
@@ -264,6 +265,9 @@ static const u8 zeros[32];
 
 /* the beacon timeout in infra mode when we are connected (in seconds) */
 #define BEACON_TIMEOUT 10
+
+/* the interval in ticks we poll if scan is completed */
+#define SCAN_POLL_INTERVAL (HZ/4)
 
 /* Version Information */
 #define DRIVER_DESC "Generic Atmel at76c503/at76c505 routines"
@@ -514,6 +518,7 @@ static inline void iwevent_scan_complete(struct net_device *dev)
 	wrqu.data.length = 0;
 	wrqu.data.flags = 0;
 	wireless_send_event(dev, SIOCGIWSCAN, &wrqu, NULL);
+	dbg(DBG_WE_EVENTS, "%s: SIOCGIWSCAN sent", dev->name);
 }
 static inline void iwevent_bss_connect(struct net_device *dev, u8 *bssid)
 {
@@ -523,6 +528,7 @@ static inline void iwevent_bss_connect(struct net_device *dev, u8 *bssid)
 	memcpy(wrqu.ap_addr.sa_data, bssid, ETH_ALEN);
 	wrqu.ap_addr.sa_family = ARPHRD_ETHER;
 	wireless_send_event(dev, SIOCGIWAP, &wrqu, NULL);
+	dbg(DBG_WE_EVENTS, "%s: %s: SIOCGIWAP sent", dev->name, __FUNCTION__);
 }
 
 static inline void iwevent_bss_disconnect(struct net_device *dev)
@@ -533,6 +539,7 @@ static inline void iwevent_bss_disconnect(struct net_device *dev)
 	memset(wrqu.ap_addr.sa_data, '\0', ETH_ALEN);
 	wrqu.ap_addr.sa_family = ARPHRD_ETHER;
 	wireless_send_event(dev, SIOCGIWAP, &wrqu, NULL);
+	dbg(DBG_WE_EVENTS, "%s: %s: SIOCGIWAP sent", dev->name, __FUNCTION__);
 }
 
 #else
@@ -2030,9 +2037,9 @@ void handle_mgmt_timeout_scan(struct at76c503 *dev)
 					err("%s: %s: start_scan (ANY) failed with %d", 
 					    dev->netdev->name, __FUNCTION__, ret);
 				}
-				dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
-				    __FUNCTION__, __LINE__);
-				mod_timer(&dev->mgmt_timer, jiffies + HZ);
+				dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer for %d ticks",
+				    __FUNCTION__, __LINE__, SCAN_POLL_INTERVAL);
+				mod_timer(&dev->mgmt_timer, jiffies + SCAN_POLL_INTERVAL);
 				break;
 
 			case 2:
@@ -2040,9 +2047,9 @@ void handle_mgmt_timeout_scan(struct at76c503 *dev)
 					err("%s: %s: start_scan (SSID) failed with %d", 
 					    dev->netdev->name, __FUNCTION__, ret);
 				}
-				dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
-				    __FUNCTION__, __LINE__);
-				mod_timer(&dev->mgmt_timer, jiffies + HZ);
+				dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer for %d ticks",
+				    __FUNCTION__, __LINE__, SCAN_POLL_INTERVAL);
+				mod_timer(&dev->mgmt_timer, jiffies + SCAN_POLL_INTERVAL);
 				break;
 
 			case 3:
@@ -2066,9 +2073,9 @@ void handle_mgmt_timeout_scan(struct at76c503 *dev)
 			dbg(DBG_MONITOR_MODE, "%s: MONITOR MODE: restart scan",
 			    dev->netdev->name);
 			start_scan(dev, 0, 0);
-			dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
-			    __FUNCTION__, __LINE__);
-			mod_timer(&dev->mgmt_timer, jiffies + HZ);
+			dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer for %d ticks",
+			    __FUNCTION__, __LINE__, SCAN_POLL_INTERVAL);
+			mod_timer(&dev->mgmt_timer, jiffies + SCAN_POLL_INTERVAL);
 		}
 
 	} else { 
@@ -2080,9 +2087,9 @@ void handle_mgmt_timeout_scan(struct at76c503 *dev)
 
 		/* the first cmd status after scan start is always a IDLE ->
 		   start the timer to poll again until COMPLETED */
-		dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
-		    __FUNCTION__, __LINE__);
-		mod_timer(&dev->mgmt_timer, jiffies + HZ);
+		dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer for %d ticks",
+		    __FUNCTION__, __LINE__, SCAN_POLL_INTERVAL);
+		mod_timer(&dev->mgmt_timer, jiffies + SCAN_POLL_INTERVAL);
 	}
 
 	kfree(cmd_status);
@@ -2891,9 +2898,9 @@ end_join:
 			err("%s: %s: start_scan failed with %d",
 			    dev->netdev->name, __FUNCTION__, ret);
 		} else {
-			dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
-			    __FUNCTION__, __LINE__);
-			mod_timer(&dev->mgmt_timer, jiffies + HZ);
+			dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer for %d ticks",
+			    __FUNCTION__, __LINE__, SCAN_POLL_INTERVAL);
+			mod_timer(&dev->mgmt_timer, jiffies + SCAN_POLL_INTERVAL);
 		}
 
 	} /* if (test_bit(KEVENT_SCAN, &dev->kevent_flags)) */
@@ -2925,9 +2932,9 @@ end_join:
 		} else {
 			NEW_STATE(dev,MONITORING);
 			start_scan(dev,0,0);
-			dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
-			    __FUNCTION__, __LINE__);
-			mod_timer(&dev->mgmt_timer, jiffies+HZ);
+			dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer for %d ticks",
+			    __FUNCTION__, __LINE__, SCAN_POLL_INTERVAL);
+			mod_timer(&dev->mgmt_timer, jiffies + SCAN_POLL_INTERVAL);
 		}
 	}
 
@@ -5697,6 +5704,10 @@ int at76c503_iw_handler_get_scan(struct net_device *netdev,
 	if (!iwe)
 		return -ENOMEM;
 
+	if (dev->istate == SCANNING)
+		/* scan not yet finished */
+		return -EAGAIN;
+
 	spin_lock_irqsave(&(dev->bss_list_spinlock), flags);
 	
 	list_for_each_safe(lptr, nptr, &(dev->bss_list)) {
@@ -7321,7 +7332,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.70 2004/10/13 23:58:23 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.71 2004/10/14 01:21:21 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
