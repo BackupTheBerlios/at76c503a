@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.9 2003/05/14 00:46:44 jal2 Exp $
+/* $Id: at76c503.h,v 1.10 2003/05/19 21:49:30 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -18,6 +18,8 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/wireless.h>
+
+#include "ieee802_11.h" /* we need some constants here */
 
 /* this wasn't even defined in early 2.4.x kernels ... */
 #ifndef SIOCIWFIRSTPRIV
@@ -185,8 +187,8 @@ struct at76c503_command{
 	u16 size;
 } __attribute__ ((packed));
 
-#define MAX_PACKET 1536
-#define AT76C503_RX_HDRLEN 12
+/* the length of the Atmel firmware specific header before IEEE 802.11 starts */
+#define AT76C503_RX_HDRLEN offsetof(struct at76c503_rx_buffer, packet)
 
 struct at76c503_rx_buffer {
 	u16 wlength;
@@ -197,7 +199,7 @@ struct at76c503_rx_buffer {
 	u8 link_quality;
 	u8 noise_level;
 	u8 rx_time[4];
-	u8 packet[MAX_PACKET];
+	u8 packet[IEEE802_11_MAX_FRAME_LEN];
 } __attribute__ ((packed));
 
 struct at76c503_tx_buffer {
@@ -205,7 +207,7 @@ struct at76c503_tx_buffer {
 	u8 tx_rate;
 	u8 padding;
 	u8 reserved[4];
-	u8 packet[MAX_PACKET];
+	u8 packet[IEEE802_11_MAX_FRAME_LEN];
 } __attribute__ ((packed));
 
 /* defines for scan_type below */
@@ -405,6 +407,17 @@ struct bss_info{
 				  in a successful AssocResponse */
 };
 
+/* a rx data buffer to collect rx fragments */
+struct rx_data_buf {
+	u8 sender[ETH_ALEN]; /* sender address */
+	u16 seqnr; /* sequence number */
+	u16 fragnr; /* last fragment received */
+	unsigned long last_rx; /* jiffies of last rx */
+	struct sk_buff *skb; /* == NULL if entry is free */
+};
+
+#define NR_RX_DATA_BUF 8
+
 /* how often do we try to submit a rx urb until giving up */
 #define NR_SUBMIT_RX_TRIES 8
 
@@ -523,6 +536,9 @@ struct at76c503 {
 
 	struct at76c503_card_config card_config;
 	struct mib_fw_version fw_version;
+
+	/* store rx fragments until complete */
+	struct rx_data_buf rx_data[NR_RX_DATA_BUF];
 };
 
 /* Function prototypes */

@@ -1,13 +1,6 @@
 #ifndef _IEEE802_11_H
 #define _IEEE802_11_H
 
-#define IEEE802_11_DATA_LEN		2304
-/* Actually, the standard seems to be inconsistent about what the
-   maximum frame size really is.  Section 6.2.1.1.2 says 2304 octets,
-   but the figure in Section 7.1.2 says 2312 octects. */
-#define IEEE802_11_HLEN			30
-#define IEEE802_11_FRAME_LEN		(IEEE802_11_DATA_LEN + IEEE802_11_HLEN)
-
 struct ieee802_11_hdr {
 	u16 frame_ctl;
 	u16 duration_id;
@@ -17,6 +10,17 @@ struct ieee802_11_hdr {
 	u16 seq_ctl;
 	u8 addr4[ETH_ALEN];
 } __attribute__ ((packed));
+
+/* max. length of frame body, incl. IV and ICV fields)
+   see 802.11(1999), section 7.1.2 */
+#define IEEE802_11_MAX_DATA_LEN		(4+2304+4)
+
+/* we include addr4 here althrough we'll never handle any packet containing it.
+   + 4 at the end for the FCS (Do we get it from the device ???) */
+#define IEEE802_11_MAX_FRAME_LEN  \
+      (sizeof(struct ieee802_11_hdr) + IEEE802_11_MAX_DATA_LEN + 4)
+//#define IEEE802_11_HLEN			30
+//#define IEEE802_11_FRAME_LEN		(IEEE802_11_DATA_LEN + IEEE802_11_HLEN)
 
 /* defines for information element coding:
    1 byte ID, 1 byte length of information field, n bytes information field

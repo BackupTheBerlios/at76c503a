@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.20 2003/05/18 23:26:02 jal2 Exp $
+/* $Id: at76c503.c,v 1.21 2003/05/19 21:49:30 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -906,6 +906,44 @@ int set_promisc(struct at76c503 *dev, int onoff)
 	return ret;
 }
 
+static int dump_mib_mac_wep(struct at76c503 *dev) __attribute__ ((unused));
+static int dump_mib_mac_wep(struct at76c503 *dev)
+{
+	int ret = 0;
+	struct mib_mac_wep *mac_wep =
+		kmalloc(sizeof(struct mib_mac_wep), GFP_KERNEL);
+	char kbuf[2*WEP_KEY_SIZE+1] __attribute__ ((unused));
+
+	if(!mac_wep){
+		ret = -ENOMEM;
+		goto exit;
+	}
+	
+	ret = get_mib(dev->udev, MIB_MAC_WEP,
+		      (u8*)mac_wep, sizeof(struct mib_mac_wep));
+	if(ret < 0){
+		err("%s: get_mib (MAC_WEP) failed: %d", dev->netdev->name, ret);
+		goto err;
+	}
+
+	dbg("%s: MIB MAC_WEP: priv_invoked %u def_key_id %u key_len %u "
+	    "excl_unencr %u wep_icv_err %u wep_excluded %u encr_level %u key %d: %s",
+	    dev->netdev->name, mac_wep->privacy_invoked,
+	    mac_wep->wep_default_key_id, mac_wep->wep_key_mapping_len,
+	    mac_wep->exclude_unencrypted,le32_to_cpu( mac_wep->wep_icv_error_count),
+	    le32_to_cpu(mac_wep->wep_excluded_count),
+	    mac_wep->encryption_level, mac_wep->wep_default_key_id,
+	    mac_wep->wep_default_key_id < 4 ?
+	    hex2str(kbuf, mac_wep->wep_default_keyvalue[mac_wep->wep_default_key_id],
+		    mac_wep->encryption_level == 2 ? 13 : 5, '\0') :
+	    "<invalid key id>");
+
+ err:
+	kfree(mac_wep);
+ exit:
+	return ret;
+}
+
 static int dump_mib_mac_mgmt(struct at76c503 *dev) __attribute__ ((unused));
 static int dump_mib_mac_mgmt(struct at76c503 *dev)
 {
@@ -1030,7 +1068,7 @@ int start_scan(struct at76c503 *dev, int use_essid)
 	//allowed by reg domain.
 	scan.channel = dev->channel;
 
-	/* atmelwlandriver differs between scan type 0 and 1.
+	/* atmelwlandriver differs between scan type 0 and 1 (active/passive)
 	   For ad-hoc mode, it uses type 0 only.*/
 
 	scan.min_channel_time = 10;
@@ -1882,6 +1920,7 @@ end_scan:
 #endif
 			}
 		}
+
 		netif_carrier_on(dev->netdev);
 		netif_wake_queue(dev->netdev); /* _start_queue ??? */
 		NEW_STATE(dev,CONNECTED);
@@ -2478,7 +2517,7 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 
 	i802_11_hdr = (struct ieee802_11_hdr *)skb->data;
 	skb_pull(skb, sizeof(struct ieee802_11_hdr));
-	skb_trim(skb, skb->len - 4); /* Trim CRC */
+//	skb_trim(skb, skb->len - 4); /* Trim CRC */
 
 	src_addr = iw_mode == IW_MODE_ADHOC ? i802_11_hdr->addr2
 	       				    : i802_11_hdr->addr3;
@@ -2558,7 +2597,7 @@ static void ieee80211_fixup(struct sk_buff *skb, int iw_mode)
 
 	i802_11_hdr = (struct ieee802_11_hdr *)skb->data;
 	skb_pull(skb, sizeof(struct ieee802_11_hdr));
-	skb_trim(skb, skb->len - 4); /* Trim CRC */
+//	skb_trim(skb, skb->len - 4); /* Trim CRC */
 
 	src_addr = iw_mode == IW_MODE_ADHOC ? i802_11_hdr->addr2
 	       				    : i802_11_hdr->addr3;
@@ -2608,33 +2647,256 @@ static void ieee80211_fixup(struct sk_buff *skb, int iw_mode)
 	}
 }
 
-static void rx_data(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
+/* check for fragmented data in dev->rx_skb. If the packet was no fragment
+   or it was the last of a fragment set a skb containing the whole packet
+   is returned for further processing. Otherwise we get NULL and are
+   done and the packet is either stored inside the fragment buffer
+   or thrown away. The check for rx_copybreak is moved here.
+   Every returned skb starts with the ieee802_11 header and contains
+   _no_ FCS at the end */
+/* undefine to suppress debug output for debug > 2 */
+#define DBG_RX_FRAGMENTS
+
+static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
+{	
+	struct sk_buff *skb = (struct sk_buff *)dev->rx_skb;
+	struct at76c503_rx_buffer *buf = (struct at76c503_rx_buffer *)skb->data;
+	struct ieee802_11_hdr *i802_11_hdr =
+		(struct ieee802_11_hdr *)buf->packet;
+	/* seq_ctrl, fragment_number, sequence number of new packet */
+	u16 sctl = le16_to_cpu(i802_11_hdr->seq_ctl);
+	u16 fragnr = sctl & 0xf;
+	u16 seqnr = sctl>>4;
+
+	/* length including the IEEE802.11 header and the trailing FCS,
+	   excl. the struct at76c503_rx_buffer */
+	int length = le16_to_cpu(buf->wlength);
+	
+	/* where does the data payload start in skb->data ? 
+	 This depends on if addr4 is present or not. */
+	u8 *data = ((i802_11_hdr->frame_ctl &
+		       (IEEE802_11_FCTL_TODS|IEEE802_11_FCTL_FROMDS)) ==
+		      (IEEE802_11_FCTL_TODS|IEEE802_11_FCTL_FROMDS) ?
+		    (u8 *)i802_11_hdr + sizeof(struct ieee802_11_hdr) :
+		    (u8 *)&i802_11_hdr->addr4);
+	/* length of payload, excl. the trailing FCS (-4 for this) */
+	int data_len = length - (data - (u8 *)i802_11_hdr) - 4;
+
+	int i;
+	struct rx_data_buf *bptr, *optr;
+	unsigned long oldest = ~0UL;
+
+#ifdef DBG_RX_FRAGMENTS
+	if (debug > 2) {
+		char dbuf[2*32+1] __attribute__ ((unused));
+		dbg("%s: rx data frame_ctl %04x addr2 %s seq/frag %d/%d "
+		    "length %d data %d: %s ...",
+		    dev->netdev->name, i802_11_hdr->frame_ctl,
+		    mac2str(i802_11_hdr->addr2),
+		    seqnr, fragnr, length, data_len,
+		    hex2str(dbuf, data, sizeof(dbuf)/2, '\0'));
+
+		//just to understand skb's ???
+		dbg("%s: incoming skb: head %p data %p tail %p end %p len %d",
+		    dev->netdev->name, skb->head, skb->data, skb->tail,
+		    skb->end, skb->len);
+	}
+#endif
+
+	if (data_len <= 0) {
+		/* buffers contains no data */
+		info("%s: rx skb without data", dev->netdev->name);
+		return NULL;
+	}
+
+	if (fragnr == 0 && !(i802_11_hdr->frame_ctl & IEEE802_11_FCTL_MOREFRAGS)) {
+		/* unfragmented packet received */
+		if (length < rx_copybreak && (skb = dev_alloc_skb(length)) != NULL) {
+			memcpy(skb_put(skb, length-4),
+			       dev->rx_skb->data + AT76C503_RX_HDRLEN, length-4);
+		} else {
+			skb_pull(skb, AT76C503_RX_HDRLEN);
+			skb_trim(skb, length-4);
+			/* Use a new skb for the next receive */
+			dev->rx_skb = NULL;
+		}
+#ifdef DBG_RX_FRAGMENTS
+		if (debug > 2)
+			dbg("%s: unfragmented", dev->netdev->name);
+#endif
+		return skb;
+	}
+
+	/* remove the at76c503_rx_buffer header - we don't need it anymore */
+	/* we need the IEEE802.11 header (for the addresses) if this packet
+	   is the first of a chain */
+
+	/* +4 for the FCS */
+	assert(length  > AT76C503_RX_HDRLEN + 4);
+	skb_pull(skb, AT76C503_RX_HDRLEN);
+	/* remove FCS at end */
+	skb_trim(skb, length - 4);
+
+#ifdef DBG_RX_FRAGMENTS
+	if (debug > 2)
+		//just to understand skb's ???
+		dbg("%s: trimmed skb: head %p data %p tail %p end %p len %d data %p data_len %d",
+		    dev->netdev->name, skb->head, skb->data, skb->tail,
+		    skb->end, skb->len, data, data_len);
+#endif
+
+
+	/* look if we've got a chain for the sender address.
+	   afterwards optr points to first free or the oldest entry,
+	   or, if i < NR_RX_DATA_BUF, bptr points to the entry for the
+	   sender address */
+	/* determining the oldest entry doesn't cope with jiffies wrapping
+	   but I don't care to delete a young entry at these rare moments ... */
+
+	for(i=0,bptr=dev->rx_data,optr=NULL; i < NR_RX_DATA_BUF; i++,bptr++) {
+		if (bptr->skb != NULL) {
+			if (!memcmp(i802_11_hdr->addr2, bptr->sender,ETH_ALEN))
+				break;
+			else
+				if (optr == NULL) {
+					optr = bptr;
+					oldest = bptr->last_rx;
+				} else {
+					if (bptr->last_rx < oldest)
+						optr = bptr;
+				}
+		} else {
+			optr = bptr;
+			oldest = 0UL;
+		}
+	}
+	
+	if (i < NR_RX_DATA_BUF) {
+#ifdef DBG_RX_FRAGMENTS
+		if (debug > 2)
+			dbg("%s: %d. cacheentry (seq/frag=%d/%d) matched",
+			    dev->netdev->name, i, bptr->seqnr, bptr->fragnr);
+#endif
+		/* bptr points to an entry for the sender address */
+		if (bptr->seqnr == seqnr) {
+			int left;
+			/* the fragment has the current sequence number */
+			if (((bptr->fragnr+1)&0xf) == fragnr) {
+				bptr->last_rx = jiffies;
+				/* the next following fragment number ->
+				    add the data at the end */
+				/* is & 0xf necessary above ??? */
+
+				// for test only ???
+				if ((left=skb_tailroom(bptr->skb)) < data_len) {
+					info("%s: only %d byte free (need %d)",
+					    dev->netdev->name, left, data_len);
+				} else 
+					memcpy(skb_put(bptr->skb, data_len),
+					       data, data_len);
+				bptr->fragnr = fragnr;
+				if (!(i802_11_hdr->frame_ctl &
+				      IEEE802_11_FCTL_MOREFRAGS)) {
+					/* this was the last fragment - send it */
+					skb = bptr->skb;
+					bptr->skb = NULL; /* free the entry */
+					return skb;
+				} else
+					return NULL;
+			} else {
+				/* wrong fragment number -> ignore it */
+				return NULL;
+			}
+		} else {
+			/* got another sequence number */
+			if (fragnr == 0) {
+				/* it's the start of a new chain - replace the
+				   old one by this */
+				/* bptr->sender has the correct value already */
+				bptr->seqnr = seqnr;
+				bptr->fragnr = 0;
+				bptr->last_rx = jiffies;
+				/* swap bptr->skb and dev->rx_skb */
+				skb = bptr->skb;
+				bptr->skb = dev->rx_skb;
+				dev->rx_skb = skb;
+			} else {
+				/* it from the middle of a new chain ->
+				   delete the old entry and skip the new one */
+				dev_kfree_skb(bptr->skb);
+				bptr->skb = NULL;
+			}
+			return NULL;
+		}
+	} else {
+		/* if we didn't find a chain for the sender address optr
+		   points either to the first free or the oldest entry */
+
+		if (fragnr != 0) {
+			/* this is not the begin of a fragment chain ... */
+#ifdef DBG_RX_FRAGMENTS
+			if (debug > 2)
+				dbg("%s: no chain for this non-first fragment (%d)",
+				    dev->netdev->name, fragnr);
+#endif
+			return NULL;
+		}
+		assert(optr != NULL);
+		if (optr == NULL)
+			return NULL;
+
+		if (optr->skb != NULL) {
+			/* swap the skb's */
+			skb = optr->skb;
+			optr->skb = dev->rx_skb;
+			dev->rx_skb = skb;
+#ifdef DBG_RX_FRAGMENTS
+			if (debug > 2)
+				dbg("%s: free old contents: sender %s seq/frag %d/%d",
+				    dev->netdev->name, mac2str(optr->sender),
+				    optr->seqnr, optr->fragnr); 
+#endif
+		} else {
+			/* take the skb from dev->rx_skb */
+			optr->skb = dev->rx_skb;
+			dev->rx_skb = NULL; /* let submit_rx_urb() allocate a new skb */
+#ifdef DBG_RX_FRAGMENTS
+			if (debug > 2)
+				dbg("%s: use a free entry", dev->netdev->name);
+#endif
+		}
+		memcpy(optr->sender, i802_11_hdr->addr2, ETH_ALEN);
+		optr->seqnr = seqnr;
+		optr->fragnr = 0;
+		optr->last_rx = jiffies;
+		
+		return NULL;
+	}
+} /* check_for_rx_frags */
+
+/* rx interrupt: we expect the complete data buffer in dev->rx_skb */
+static void rx_data(struct at76c503 *dev)
 {
 	struct net_device *netdev = (struct net_device *)dev->netdev;
 	struct net_device_stats *stats = &dev->stats;
-	struct ieee802_11_hdr *i802_11_hdr = (struct ieee802_11_hdr *)buf->packet;
 	struct sk_buff *skb = dev->rx_skb;
-	int length;
-
-	length = le16_to_cpu(buf->wlength);
+	struct at76c503_rx_buffer *buf = (struct at76c503_rx_buffer *)skb->data;
+	struct ieee802_11_hdr *i802_11_hdr;
+	int length = le16_to_cpu(buf->wlength);
 
 	if (debug > 1) {
 		dbg("%s received data packet:", netdev->name);
 		dbg_dumpbuf(" rxhdr", skb->data, AT76C503_RX_HDRLEN);
-		if (debug > 2)
+		if (debug > 3)
 			dbg_dumpbuf("packet", skb->data + AT76C503_RX_HDRLEN,
 				    length);
 	}
 
-	if (length < rx_copybreak && (skb = dev_alloc_skb(length)) != NULL) {
-		memcpy(skb_put(skb, length),
-			dev->rx_skb->data + AT76C503_RX_HDRLEN, length);
-	} else {
-		skb_pull(skb, AT76C503_RX_HDRLEN);
-		skb_trim(skb, length);
-		/* Use a new skb for the next receive */
-		dev->rx_skb = NULL;
-	}
+	if ((skb=check_for_rx_frags(dev)) == NULL)
+		return;
+
+	/* if an skb is returned, the at76c503a_rx_header and the FCS is already removed */
+	i802_11_hdr = (struct ieee802_11_hdr *)skb->data;
 
 	skb->dev = netdev;
 	skb->ip_summed = CHECKSUM_NONE; /* TODO: should check CRC */
@@ -2771,7 +3033,7 @@ static void rx_tasklet(unsigned long param)
 
 	if(frame_type == IEEE802_11_FTYPE_DATA){
 //		info("rx: it's a data frame");
-		rx_data(dev, buf);
+		rx_data(dev);
 	}else if(frame_type == IEEE802_11_FTYPE_MGMT){
 //		info("rx: it's a mgmt frame");
 
@@ -3736,6 +3998,8 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 
 void at76c503_delete_device(struct at76c503 *dev)
 {
+	int i;
+
 	if(dev){
 		int sem_taken;
 		if ((sem_taken=down_trylock(&rtnl_sem)) != 0)
@@ -3763,6 +4027,11 @@ void at76c503_delete_device(struct at76c503 *dev)
 
 		free_bss_list(dev);
 
+		for(i=0; i < NR_RX_DATA_BUF; i++)
+			if (dev->rx_data[i].skb != NULL) {
+				dev_kfree_skb(dev->rx_data[i].skb);
+				dev->rx_data[i].skb = NULL;
+			}
 		kfree (dev->netdev); /* dev is in net_dev */ 
 	}
 }
@@ -3834,7 +4103,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 	struct net_device *netdev;
 	struct at76c503 *dev = NULL;
 	struct usb_interface *interface;
-	int ret;
+	int i,ret;
 
 	/* allocate memory for our device state and intialize it */
 	netdev = alloc_etherdev(sizeof(struct at76c503));
@@ -3876,6 +4145,10 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 	dev->iwspy_nr = 0;
 #endif
 
+	/* mark all rx data entries as unused */
+	for(i=0; i < NR_RX_DATA_BUF; i++)
+		dev->rx_data[i].skb = NULL;
+
 	dev->tasklet.func = rx_tasklet;
 	dev->tasklet.data = (unsigned long)dev;
 
@@ -3903,7 +4176,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.20 2003/05/18 23:26:02 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.21 2003/05/19 21:49:30 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);

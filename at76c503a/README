@@ -1,4 +1,4 @@
-(* $Id: README,v 1.6 2003/05/14 00:46:44 jal2 Exp $ *)
+(* $Id: README,v 1.7 2003/05/19 21:49:30 jal2 Exp $ *)
 
 at76c503 - linux driver for Atmel at76c503 based usb wlan adapters
 ------------------------------------------------------------------
@@ -110,6 +110,41 @@ In addition to the parameters of iwconfig, some can be set by iwpriv:
   for none, save, smart save *)
 
 Be aware that shared key authentication requires a WEP key.
+
+
+Known Problems
+--------------
+
+1) Bugs of the firmware 0.90.0-44 (the latest available for device with
+  Intersil radio after Atmel stopped support for Intersil radio
+  chipsets):
+  - active scan doesn't send ProbeReq neither in adhoc or in
+    infrastructure (managed) mode
+    * If your ad-hoc peer sends the beacon in longer interval,
+      the Atmel driver may not find it. Temporary workaround: increase the
+      scan.max_channel_time in at76c503.c:start_scan() to 500 or even
+      1000. 
+    * You cannot connect to an access point which hides its SSID and
+      requires the STA to probe it!
+
+  - After joining an existing IBSS of a 2MBit card, the basic rates are
+    wrong in the beacon, e.g.
+    a 2 MBit card broadcasts a basic rate set of 1 + 2 MBit/s,
+    but the Atmel device sends out basic rates of 1,2,5.5 and 11 MBit/s
+    Subsequently it cannot connect to the 2 MBit card, because it sends
+    it's data packets to broadcast addresses with 11 MBit/s.
+
+  - power saving modes does not work
+
+2) firmware 1.101.0-84
+  - if a 2MBit card joins an IBSS (ad-hoc mode) initiated by the Atmel
+    device (which currently broadcasts 1+2 MBit/s as the basic rates
+    and 5.5 and 11 MBit/s as (additional) operational rates), the
+    Atmel device sends out broadcast packets (e.g. ARP requests) with
+    11 MBit/s. This may be fixed by changing the tx rate in iwconfig
+    from "auto" (default) to 1M or 2M.
+    I'm not sure if this is a firmware bug or a problem in the driver.
+    
 
 
 Thanks to:
