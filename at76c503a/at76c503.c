@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.13 2003/04/08 21:30:23 jal2 Exp $
+/* $Id: at76c503.c,v 1.14 2003/05/01 19:15:03 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -3556,7 +3556,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.13 2003/04/08 21:30:23 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.14 2003/05/01 19:15:03 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
@@ -3627,8 +3627,11 @@ struct at76c503 *at76c503_do_probe(struct module *mod, struct usb_device *udev, 
 	if (extfw && extfw_size) {
 		ret = at76c503_download_external_fw(udev, extfw, extfw_size);
 		if (ret < 0) {
-			err("Downloading external firmware failed: %d", ret);
-			goto error;
+			if (ret != USB_ST_STALL) {
+				err("Downloading external firmware failed: %d", ret);
+				goto error;
+			} else
+				dbg("assuming external fw was already downloaded");
 		}
 	}
 
