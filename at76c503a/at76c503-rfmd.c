@@ -40,7 +40,7 @@
 
 /* Include firmware data definition */
 
-#include "fw-rfmd-0.90.2-140.h"
+#include "fw-rfmd-1.101.0-84.h"
 
 /* Version Information */
 
