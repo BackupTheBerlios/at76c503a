@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.26 2003/06/03 22:44:14 jal2 Exp $
+/* $Id: at76c503.c,v 1.27 2003/06/16 19:49:16 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -1167,7 +1167,7 @@ int start_scan(struct at76c503 *dev, int use_essid)
 	} else
 		scan.essid_size = 0;
 
-	scan.probe_delay = 10000;
+	scan.probe_delay = cpu_to_le16(10000);
 	//jal: why should we start at a certain channel? we do scan the whole range
 	//allowed by reg domain.
 	scan.channel = dev->channel;
@@ -1175,8 +1175,8 @@ int start_scan(struct at76c503 *dev, int use_essid)
 	/* atmelwlandriver differs between scan type 0 and 1 (active/passive)
 	   For ad-hoc mode, it uses type 0 only.*/
 	scan.scan_type = dev->scan_mode;
-	scan.min_channel_time = dev->scan_min_time;
-	scan.max_channel_time = dev->scan_max_time;
+	scan.min_channel_time = cpu_to_le16(dev->scan_min_time);
+	scan.max_channel_time = cpu_to_le16(dev->scan_max_time);
 	/* other values are set to 0 for type 0 */
 
 	return set_card_command(dev->udev, CMD_SCAN,
@@ -1213,11 +1213,11 @@ int join_bss(struct at76c503 *dev, struct bss_info *ptr)
 	join.essid_size = ptr->ssid_len;
 	join.bss_type = (dev->iw_mode == IW_MODE_ADHOC ? 1 : 2);
 	join.channel = ptr->channel;
-	join.timeout = 2000;
+	join.timeout = cpu_to_le16(2000);
 
 	dbg(DBG_PROGRESS, "%s join addr %s ssid %s type %d ch %d timeout %d",
 	    dev->netdev->name, mac2str(join.bssid), 
-	    join.essid, join.bss_type, join.channel, join.timeout);
+	    join.essid, join.bss_type, join.channel, le16_to_cpu(join.timeout));
 	return set_card_command(dev->udev, CMD_JOIN,
 				(unsigned char*)&join,
 				sizeof(struct at76c503_join));
@@ -1472,14 +1472,12 @@ int disassoc_req(struct at76c503 *dev, struct bss_info *bss)
 	req  = (struct ieee802_11_disassoc_frame *)&(mgmt->data);
 
 	/* make wireless header */
-	/* no need to care about endianness of constants - is taken care
-	   of in ieee802_11.h */
-	mgmt->frame_ctl = IEEE802_11_FTYPE_MGMT|IEEE802_11_STYPE_AUTH;
+	mgmt->frame_ctl = cpu_to_le16(IEEE802_11_FTYPE_MGMT|IEEE802_11_STYPE_AUTH);
 	mgmt->duration_id = cpu_to_le16(0x8000);
 	memcpy(mgmt->addr1, bss->bssid, ETH_ALEN);
 	memcpy(mgmt->addr2, dev->netdev->dev_addr, ETH_ALEN);
 	memcpy(mgmt->addr3, bss->bssid, ETH_ALEN);
-	mgmt->seq_ctl = 0;
+	mgmt->seq_ctl = cpu_to_le16(0);
 
 	req->reason = 0;
 
@@ -1521,22 +1519,19 @@ int auth_req(struct at76c503 *dev, struct bss_info *bss, int seq_nr, u8 *challen
 	req  = (struct ieee802_11_auth_frame *)&(mgmt->data);
 
 	/* make wireless header */
-	/* no need to care about endianness of constants - is taken care
-	   of in ieee802_11.h */
-	/* first auth msg is not encrypted */
-	mgmt->frame_ctl = IEEE802_11_FTYPE_MGMT | IEEE802_11_STYPE_AUTH;
-	if (seq_nr == 3)
-		mgmt->frame_ctl |= IEEE802_11_FCTL_WEP;
+	/* first auth msg is not encrypted, only the second (seq_nr == 3) */
+	mgmt->frame_ctl = cpu_to_le16(IEEE802_11_FTYPE_MGMT | IEEE802_11_STYPE_AUTH |
+		(seq_nr == 3 ? IEEE802_11_FCTL_WEP : 0));
 
 	mgmt->duration_id = cpu_to_le16(0x8000);
 	memcpy(mgmt->addr1, bss->bssid, ETH_ALEN);
 	memcpy(mgmt->addr2, dev->netdev->dev_addr, ETH_ALEN);
 	memcpy(mgmt->addr3, bss->bssid, ETH_ALEN);
-	mgmt->seq_ctl = 0;
+	mgmt->seq_ctl = cpu_to_le16(0);
 
-	req->algorithm = dev->auth_mode;
+	req->algorithm = cpu_to_le16(dev->auth_mode);
 	req->seq_nr = cpu_to_le16(seq_nr);
-	req->status = 0;
+	req->status = cpu_to_le16(0);
 
 	if (seq_nr == 3)
 		memcpy(req->challenge, challenge, 1+1+challenge[1]);
@@ -1546,7 +1541,7 @@ int auth_req(struct at76c503 *dev, struct bss_info *bss, int seq_nr, u8 *challen
 	
 	dbg(DBG_TX_MGMT, "%s: AuthReq bssid %s alg %d seq_nr %d",
 	    dev->netdev->name, mac2str(mgmt->addr3),
-	    req->algorithm, req->seq_nr);
+	    le16_to_cpu(req->algorithm), le16_to_cpu(req->seq_nr));
 	if (seq_nr == 3) {
 		char obuf[18*3] __attribute__ ((unused));
 		dbg(DBG_TX_MGMT, "%s: AuthReq challenge: %s ...",
@@ -1580,27 +1575,23 @@ int assoc_req(struct at76c503 *dev, struct bss_info *bss)
 	tlv = req->data;
 
 	/* make wireless header */
-	/* no need to care about endianness of constants - is taken care
-	   of in ieee802_11.h */
-	mgmt->frame_ctl = IEEE802_11_FTYPE_MGMT|IEEE802_11_STYPE_ASSOC_REQ;
+	mgmt->frame_ctl = cpu_to_le16(IEEE802_11_FTYPE_MGMT|IEEE802_11_STYPE_ASSOC_REQ);
 
 	mgmt->duration_id = cpu_to_le16(0x8000);
 	memcpy(mgmt->addr1, bss->bssid, ETH_ALEN);
 	memcpy(mgmt->addr2, dev->netdev->dev_addr, ETH_ALEN);
 	memcpy(mgmt->addr3, bss->bssid, ETH_ALEN);
-	mgmt->seq_ctl = 0;
-
-	req->capability = bss->capa;
+	mgmt->seq_ctl = cpu_to_le16(0);
 
 	/* we must set the Privacy bit in the capabilites to assure an
 	   Agere-based AP with optional WEP transmits encrypted frames
 	   to us.  AP only set the Privacy bit in their capabilities
 	   if WEP is mandatory in the BSS! */
-	if (dev->wep_enabled)
-		req->capability |= IEEE802_11_CAPA_PRIVACY;
-	if (dev->preamble_type == PREAMBLE_TYPE_SHORT)
-		req->capability |= IEEE802_11_CAPA_SHORT_PREAMBLE;
-		
+	req->capability = cpu_to_le16(bss->capa | 
+				      (dev->wep_enabled ? IEEE802_11_CAPA_PRIVACY : 0) |
+				      (dev->preamble_type == PREAMBLE_TYPE_SHORT ?
+				       IEEE802_11_CAPA_SHORT_PREAMBLE : 0));
+
 	req->listen_interval = cpu_to_le16(2 * bss->beacon_interval);
 	
 	/* write TLV data elements */
@@ -1631,7 +1622,7 @@ int assoc_req(struct at76c503 *dev, struct bss_info *bss)
 		tlv += (1 + 1 + *(tlv+1)); /* points to IE of rates now */
 		dbg(DBG_TX_MGMT, "%s: AssocReq bssid %s capa x%04x ssid %s rates %s",
 		    dev->netdev->name, mac2str(mgmt->addr3),
-		    req->capability, ossid,
+		    le16_to_cpu(req->capability), ossid,
 		    hex2str(orates,tlv+2,min((sizeof(orates)-1)/2,(size_t)*(tlv+1)),
 			    '\0'));
 	}
@@ -1669,27 +1660,23 @@ int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
 	tlv = req->data;
 
 	/* make wireless header */
-	/* no need to care about endianness of constants - is taken care
-	   of in ieee802_11.h */
 	/* jal: encrypt this packet if wep_enabled is TRUE ??? */
-	mgmt->frame_ctl = IEEE802_11_FTYPE_MGMT|IEEE802_11_STYPE_REASSOC_REQ;
+	mgmt->frame_ctl = cpu_to_le16(IEEE802_11_FTYPE_MGMT|IEEE802_11_STYPE_REASSOC_REQ);
 	mgmt->duration_id = cpu_to_le16(0x8000);
 	memcpy(mgmt->addr1, new_bss->bssid, ETH_ALEN);
 	memcpy(mgmt->addr2, dev->netdev->dev_addr, ETH_ALEN);
 	memcpy(mgmt->addr3, new_bss->bssid, ETH_ALEN);
-	mgmt->seq_ctl = 0;
-
-	req->capability = new_bss->capa;
+	mgmt->seq_ctl = cpu_to_le16(0);
 
 	/* we must set the Privacy bit in the capabilites to assure an
 	   Agere-based AP with optional WEP transmits encrypted frames
 	   to us.  AP only set the Privacy bit in their capabilities
 	   if WEP is mandatory in the BSS! */
-	if (dev->wep_enabled)
-		req->capability |= IEEE802_11_CAPA_PRIVACY;
-	if (dev->preamble_type == PREAMBLE_TYPE_SHORT)
-		req->capability |= IEEE802_11_CAPA_SHORT_PREAMBLE;
-		
+	req->capability = cpu_to_le16(new_bss->capa | 
+				      (dev->wep_enabled ? IEEE802_11_CAPA_PRIVACY : 0) |
+				      (dev->preamble_type == PREAMBLE_TYPE_SHORT ?
+				       IEEE802_11_CAPA_SHORT_PREAMBLE : 0));
+
 	req->listen_interval = cpu_to_le16(2 * new_bss->beacon_interval);
 	
 	memcpy(req->curr_ap, curr_bss->bssid, ETH_ALEN);
@@ -1721,7 +1708,7 @@ int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
 		dbg(DBG_TX_MGMT, "%s: ReAssocReq curr %s new %s capa x%04x ssid %s rates %s",
 		    dev->netdev->name,
 		    hex2str(ocurr, req->curr_ap, ETH_ALEN, ':'),
-		    mac2str(mgmt->addr3), req->capability, ossid,
+		    mac2str(mgmt->addr3), le16_to_cpu(req->capability), ossid,
 		    hex2str(orates,tlv+2,min((sizeof(orates)-1)/2,(size_t)*(tlv+1)),
 			    '\0'));
 	}
@@ -2190,12 +2177,12 @@ static void rx_mgmt_assoc(struct at76c503 *dev,
 	struct ieee802_11_assoc_resp *resp = 
 		(struct ieee802_11_assoc_resp *)mgmt->data;
 	char orates[2*8+1] __attribute__((unused));
-
+	u16 assoc_id = le16_to_cpu(resp->assoc_id);
+	u16 status = le16_to_cpu(resp->status);
+	u16 capa = le16_to_cpu(resp->capability); 
 	dbg(DBG_RX_MGMT, "%s: rx AssocResp bssid %s capa x%04x status x%04x "
 	    "assoc_id x%04x rates %s",
-	    dev->netdev->name, mac2str(mgmt->addr3),
-	    le16_to_cpu(resp->capability), le16_to_cpu(resp->status),
-	    le16_to_cpu(resp->assoc_id),
+	    dev->netdev->name, mac2str(mgmt->addr3), capa, status, assoc_id,
 	    hex2str(orates, resp->data+2,
 		    min((size_t)*(resp->data+1),(sizeof(orates)-1)/2), '\0'));
 
@@ -2205,9 +2192,9 @@ static void rx_mgmt_assoc(struct at76c503 *dev,
 		if (dev->curr_bss == NULL)
 			return;
 
-		if (resp->status == IEEE802_11_STATUS_SUCCESS) {
+		if (status == IEEE802_11_STATUS_SUCCESS) {
 			struct bss_info *ptr = dev->curr_bss;
-			ptr->assoc_id = le16_to_cpu(resp->assoc_id) & 0x3fff;
+			ptr->assoc_id = assoc_id & 0x3fff;
 			/* update iwconfig params */
 			memcpy(dev->bssid, ptr->bssid, ETH_ALEN);
 			memcpy(dev->essid, ptr->ssid, ptr->ssid_len);
@@ -2232,12 +2219,13 @@ static void rx_mgmt_reassoc(struct at76c503 *dev,
 		(struct ieee802_11_assoc_resp *)mgmt->data;
 	char orates[2*8+1] __attribute__((unused));
 	unsigned long flags;
+	u16 capa = le16_to_cpu(resp->capability);
+	u16 status = le16_to_cpu(resp->status);
+	u16 assoc_id = le16_to_cpu(resp->assoc_id);
 
 	dbg(DBG_RX_MGMT, "%s: rx ReAssocResp bssid %s capa x%04x status x%04x "
 	    "assoc_id x%04x rates %s",
-	    dev->netdev->name, mac2str(mgmt->addr3),
-	    le16_to_cpu(resp->capability), le16_to_cpu(resp->status),
-	    le16_to_cpu(resp->assoc_id),
+	    dev->netdev->name, mac2str(mgmt->addr3), capa, status, assoc_id,
 	    hex2str(orates, resp->data+2,
 		    min((size_t)*(resp->data+1),(sizeof(orates)-1)/2), '\0'));
 
@@ -2247,9 +2235,9 @@ static void rx_mgmt_reassoc(struct at76c503 *dev,
 		if (dev->new_bss == NULL)
 			return;
 
-		if (resp->status == IEEE802_11_STATUS_SUCCESS) {
+		if (status == IEEE802_11_STATUS_SUCCESS) {
 			struct bss_info *bptr = dev->new_bss;
-			bptr->assoc_id = le16_to_cpu(resp->assoc_id);
+			bptr->assoc_id = assoc_id;
 			NEW_STATE(dev,CONNECTED);
 
 			spin_lock_irqsave(&dev->bss_list_spinlock, flags);
@@ -2353,10 +2341,16 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 		    hex2str(obuf, resp->challenge, sizeof(obuf)/3, ' '));
 	}
 
-	if (dev->istate != AUTHENTICATING)
+	if (dev->istate != AUTHENTICATING) {
+		info("%s: ignored AuthFrame in state %d",
+		     dev->netdev->name, dev->istate);
 		return;
-	if (dev->auth_mode != resp->algorithm)
+	}
+	if (dev->auth_mode != alg) {
+		info("%s: ignored AuthFrame for alg %d",
+		     dev->netdev->name, alg);
 		return;
+	}
 
 	assert(dev->curr_bss != NULL);
 	if (dev->curr_bss == NULL)
@@ -2366,7 +2360,7 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 	    !memcmp(dev->netdev->dev_addr, mgmt->addr1, ETH_ALEN)) {
 		/* this is a AuthFrame from the BSS we are connected or
 		   trying to connect to, directed to us */
-		if (resp->status != IEEE802_11_STATUS_SUCCESS) {
+		if (status != IEEE802_11_STATUS_SUCCESS) {
 			del_timer_sync(&dev->mgmt_timer);
 			/* try to join next bss */
 			NEW_STATE(dev,JOINING);
@@ -2375,7 +2369,7 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 		}
 
 		if (dev->auth_mode == IEEE802_11_AUTH_ALG_OPEN_SYSTEM ||
-			resp->seq_nr == 4) {
+			seq_nr == 4) {
 			dev->retries = ASSOC_RETRIES;
 			NEW_STATE(dev,ASSOCIATING);
 			assoc_req(dev, dev->curr_bss);
@@ -2383,8 +2377,8 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 			return;
 		}
 
-		assert(resp->seq_nr == 2);
-		auth_req(dev, dev->curr_bss, resp->seq_nr+1, resp->challenge);
+		assert(seq_nr == 2);
+		auth_req(dev, dev->curr_bss, seq_nr+1, resp->challenge);
 		mod_timer(&dev->mgmt_timer,jiffies+HZ);
 	}
 	/* else: ignore AuthFrames to other receipients */
@@ -2398,7 +2392,8 @@ static void rx_mgmt_deauth(struct at76c503 *dev,
 		(struct ieee802_11_deauth_frame *)mgmt->data;
 	char obuf[ETH_ALEN*3+1] __attribute__ ((unused));
 
-	dbg(DBG_RX_MGMT, "%s: rx DeAuth bssid %s reason x%04x destination %s",
+	dbg(DBG_RX_MGMT|DBG_PROGRESS,
+	    "%s: rx DeAuth bssid %s reason x%04x destination %s",
 	    dev->netdev->name, mac2str(mgmt->addr3),
 	    le16_to_cpu(resp->reason),
 	    hex2str(obuf, mgmt->addr1, ETH_ALEN, ':'));
@@ -2425,7 +2420,7 @@ static void rx_mgmt_deauth(struct at76c503 *dev,
 		/* ignore DeAuth to other STA or from other BSSID */
 	} else {
 		/* ignore DeAuth in states SCANNING */
-		dbg(DBG_RX_MGMT, "%s: DeAuth in state %d ignored",
+		info("%s: DeAuth in state %d ignored",
 		     dev->netdev->name, dev->istate);
 	}
 } /* rx_mgmt_deauth */
@@ -2488,8 +2483,7 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 	/* we either overwrite an existing entry or append a new one
 	   match points to the entry in both cases */
 
-	/* capa is in little endian format (!) */
-	match->capa = bdata->capability_information;
+	match->capa = le16_to_cpu(bdata->capability_information);
 
 	/* while beacon_interval is not (!) */
 	match->beacon_interval = le16_to_cpu(bdata->beacon_interval);
@@ -2535,7 +2529,7 @@ static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 	struct ieee802_11_mgmt *mgmt = ( struct ieee802_11_mgmt *)buf->packet;
 	struct iw_statistics *wstats = &dev->wstats;
 	u16 lev_dbm;
-	u16 subtype = mgmt->frame_ctl & IEEE802_11_FCTL_STYPE;
+	u16 subtype = le16_to_cpu(mgmt->frame_ctl) & IEEE802_11_FCTL_STYPE;
 
 	/* update wstats */
 	if (dev->istate != INIT && dev->istate != SCANNING) {
@@ -2783,6 +2777,7 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 	u16 sctl = le16_to_cpu(i802_11_hdr->seq_ctl);
 	u16 fragnr = sctl & 0xf;
 	u16 seqnr = sctl>>4;
+	u16 frame_ctl = le16_to_cpu(i802_11_hdr->frame_ctl);
 
 	/* length including the IEEE802.11 header and the trailing FCS,
 	   excl. the struct at76c503_rx_buffer */
@@ -2790,7 +2785,7 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 	
 	/* where does the data payload start in skb->data ? 
 	 This depends on if addr4 is present or not. */
-	u8 *data = ((i802_11_hdr->frame_ctl &
+	u8 *data = ((frame_ctl &
 		       (IEEE802_11_FCTL_TODS|IEEE802_11_FCTL_FROMDS)) ==
 		      (IEEE802_11_FCTL_TODS|IEEE802_11_FCTL_FROMDS) ?
 		    (u8 *)i802_11_hdr + sizeof(struct ieee802_11_hdr) :
@@ -2805,7 +2800,7 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 
 	dbg(DBG_RX_FRAGS, "%s: rx data frame_ctl %04x addr2 %s seq/frag %d/%d "
 	    "length %d data %d: %s ...",
-	    dev->netdev->name, i802_11_hdr->frame_ctl,
+	    dev->netdev->name, frame_ctl,
 	    mac2str(i802_11_hdr->addr2),
 	    seqnr, fragnr, length, data_len,
 	    hex2str(dbuf, data, sizeof(dbuf)/2, '\0'));
@@ -2821,7 +2816,7 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 		return NULL;
 	}
 
-	if (fragnr == 0 && !(i802_11_hdr->frame_ctl & IEEE802_11_FCTL_MOREFRAGS)) {
+	if (fragnr == 0 && !(frame_ctl & IEEE802_11_FCTL_MOREFRAGS)) {
 		/* unfragmented packet received */
 		if (length < rx_copybreak && (skb = dev_alloc_skb(length)) != NULL) {
 			memcpy(skb_put(skb, length-4),
@@ -2902,7 +2897,7 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 					memcpy(skb_put(bptr->skb, data_len),
 					       data, data_len);
 				bptr->fragnr = fragnr;
-				if (!(i802_11_hdr->frame_ctl &
+				if (!(frame_ctl &
 				      IEEE802_11_FCTL_MOREFRAGS)) {
 					/* this was the last fragment - send it */
 					skb = bptr->skb;
@@ -3106,8 +3101,7 @@ static void rx_tasklet(unsigned long param)
 	struct net_device *netdev = (struct net_device *)dev->netdev;
 	struct at76c503_rx_buffer *buf = (struct at76c503_rx_buffer *)dev->rx_skb->data;
 	struct ieee802_11_hdr *i802_11_hdr = (struct ieee802_11_hdr *)buf->packet;
-	u8 frame_type;
-//	int flags;
+	u16 frame_ctl = le16_to_cpu(i802_11_hdr->frame_ctl);
 
 	if(!urb) return; // paranoid
 
@@ -3136,16 +3130,12 @@ static void rx_tasklet(unsigned long param)
 		    hex2str(obuf,(u8 *)i802_11_hdr,sizeof(obuf)/2,'\0'));
 	}
 
-	/* no need to care about endianness of constants - is taken care
-	   of in ieee802_11.h */
-	frame_type = i802_11_hdr->frame_ctl & IEEE802_11_FCTL_FTYPE;
-
-	if(frame_type == IEEE802_11_FTYPE_DATA){
-//		info("rx: it's a data frame");
+	switch (frame_ctl & IEEE802_11_FCTL_FTYPE) {
+	case IEEE802_11_FTYPE_DATA:
 		rx_data(dev);
-	}else if(frame_type == IEEE802_11_FTYPE_MGMT){
-//		info("rx: it's a mgmt frame");
+		break;
 
+	case IEEE802_11_FTYPE_MGMT:
 		/* jal: TODO: find out if we can update iwspy also on
 		   other frames than management (might depend on the
 		   radio chip / firmware version !) */
@@ -3153,12 +3143,17 @@ static void rx_tasklet(unsigned long param)
 		iwspy_update(dev, buf);
 #endif
 		rx_mgmt(dev, buf);
-	}else if(frame_type == IEEE802_11_FTYPE_CTL)
-		dbg(DBG_RX_CTRL, "%s: received ctrl frame: %2x", dev->netdev->name,
-		    i802_11_hdr->frame_ctl);
-	else
+		break;
+
+	case IEEE802_11_FTYPE_CTL:
+		dbg(DBG_RX_CTRL, "%s: ignored ctrl frame: %04x", dev->netdev->name,
+		    frame_ctl);
+		break;
+
+	default:
 		info("%s: it's a frame from mars: %2x", dev->netdev->name,
-		    i802_11_hdr->frame_ctl);
+		     frame_ctl);
+	} /* switch (frame_ctl & IEEE802_11_FCTL_FTYPE) */
 
  next_urb:
 	submit_rx_urb(dev);
@@ -3238,27 +3233,24 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	memcpy(&(tx_buffer->packet[18]), skb->data, len);
   
 	/* make wireless header */
-	/* no need to care about endianness of constants - is taken care
-	   of in ieee802_11.h */
-	i802_11_hdr->frame_ctl = IEEE802_11_FTYPE_DATA;
-
-	if (dev->wep_enabled)
-		i802_11_hdr->frame_ctl |= IEEE802_11_FCTL_WEP;
+	i802_11_hdr->frame_ctl =
+		cpu_to_le16(IEEE802_11_FTYPE_DATA |
+			    (dev->wep_enabled ? IEEE802_11_FCTL_WEP : 0) |
+			    (dev->iw_mode == IW_MODE_INFRA ? IEEE802_11_FCTL_TODS : 0));
 
 	if(dev->iw_mode == IW_MODE_ADHOC){
 		memcpy(i802_11_hdr->addr1, skb->data, ETH_ALEN); /* destination */
 		memcpy(i802_11_hdr->addr2, netdev->dev_addr, ETH_ALEN); /* source */
 		memcpy(i802_11_hdr->addr3, dev->bssid, ETH_ALEN);
 	}else if(dev->iw_mode == IW_MODE_INFRA){
-		i802_11_hdr->frame_ctl |= IEEE802_11_FCTL_TODS;
 		memcpy(i802_11_hdr->addr1, dev->bssid, ETH_ALEN);
 		memcpy(i802_11_hdr->addr2, netdev->dev_addr, ETH_ALEN); /* source */
 		memcpy(i802_11_hdr->addr3, skb->data, ETH_ALEN); /* destination */
 	}
 	memset(i802_11_hdr->addr4, 0, ETH_ALEN);
 
-	i802_11_hdr->duration_id = 0;
-	i802_11_hdr->seq_ctl = 0;
+	i802_11_hdr->duration_id = cpu_to_le16(0);
+	i802_11_hdr->seq_ctl = cpu_to_le16(0);
 
 	/* setup 'atmel' header */
 	tx_buffer->wlength = cpu_to_le16(wlen);
@@ -3337,17 +3329,31 @@ int startup_device(struct at76c503 *dev)
 		memcpy(ossid, dev->essid, dev->essid_size);
 		ossid[dev->essid_size] = '\0';
 
-		dbg_uc("%s params: ssid %s (%s) mode %s wep %s key %d keylen %d "
-		       "preamble %s rts %d frag %d txrate %d excl %d pm_mode %d "
-		       "pm_period %d",
+		dbg_uc("%s param: ssid %s (%s) mode %s ch %d wep %s key %d keylen %d",
 		       dev->netdev->name, ossid, 
 		       hex2str(hexssid,dev->essid,dev->essid_size,'\0'),
 		       dev->iw_mode == IW_MODE_ADHOC ? "adhoc" : "infra",
+		       dev->channel,
 		       dev->wep_enabled ? "enabled" : "disabled",
-		       dev->wep_key_id, dev->wep_keys_len[dev->wep_key_id],
+		       dev->wep_key_id, dev->wep_keys_len[dev->wep_key_id]);
+		dbg_uc("%s param: preamble %s rts %d frag %d txrate %s excl %d",
+		       dev->netdev->name,		       
 		       dev->preamble_type == PREAMBLE_TYPE_SHORT ? "short" : "long",
-		       dev->rts_threshold, dev->frag_threshold, dev->txrate,
-		       dev->wep_excl_unencr, dev->pm_mode, dev->pm_period_us);
+		       dev->rts_threshold, dev->frag_threshold,
+		       dev->txrate == TX_RATE_1MBIT ? "1MBit" :
+		       dev->txrate == TX_RATE_2MBIT ? "2MBit" :
+		       dev->txrate == TX_RATE_5_5MBIT ? "5.5MBit" :
+		       dev->txrate == TX_RATE_11MBIT ? "11MBit" :
+		       dev->txrate == TX_RATE_AUTO ? "auto" : "<invalid>",
+		       dev->wep_excl_unencr);
+		dbg_uc("%s param: pm_mode %d pm_period %d auth_mode %s "
+		       "scan_times %d %d scan_mode %s",
+		       dev->netdev->name,		       
+		       dev->pm_mode, dev->pm_period_us,
+		       dev->auth_mode == IEEE802_11_AUTH_ALG_OPEN_SYSTEM ?
+		       "open" : "shared_secret",
+		       dev->scan_min_time, dev->scan_max_time,
+		       dev->scan_mode == SCAN_TYPE_ACTIVE ? "active" : "passive");
 	}
 
 	memset(ccfg, 0, sizeof(struct at76c503_card_config));
@@ -3363,8 +3369,8 @@ int startup_device(struct at76c503 *dev)
 		ccfg->encryption_type = 1;
 
 
-	ccfg->rts_threshold = dev->rts_threshold;
-	ccfg->fragmentation_threshold = dev->frag_threshold;
+	ccfg->rts_threshold = cpu_to_le16(dev->rts_threshold);
+	ccfg->fragmentation_threshold = cpu_to_le16(dev->frag_threshold);
 
 	memcpy(ccfg->basic_rate_set, hw_rates, 4);
 	/* jal: really needed, we do a set_mib for autorate later ??? */
@@ -3378,7 +3384,7 @@ int startup_device(struct at76c503 *dev)
 	memcpy(ccfg->wep_default_key_value, dev->wep_keys, 4 * WEP_KEY_SIZE);
 
 	ccfg->short_preamble = dev->preamble_type;
-	ccfg->beacon_period = 100;
+	ccfg->beacon_period = cpu_to_le16(100);
 
 	ret = set_card_command(dev->udev, CMD_STARTUP, (unsigned char *)&dev->card_config,
 			       sizeof(struct at76c503_card_config));
@@ -3834,10 +3840,11 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		break;
 
 	case SIOCGIWRATE:
-		wrq->u.bitrate.value = dev->txrate == 0 ? 1000000 :
-			dev->txrate == 1 ? 2000000 : dev->txrate == 2 ? 5500000 : 
-			dev->txrate == 3 ? 11000000 : 11000000;
-		wrq->u.bitrate.fixed = (dev->txrate != 4);
+		wrq->u.bitrate.value = dev->txrate == TX_RATE_1MBIT ? 1000000 :
+			dev->txrate == TX_RATE_2MBIT ? 2000000 : 
+			dev->txrate == TX_RATE_5_5MBIT ? 5500000 : 
+			dev->txrate == TX_RATE_11MBIT ? 11000000 : 11000000;
+		wrq->u.bitrate.fixed = (dev->txrate != TX_RATE_AUTO);
 		wrq->u.bitrate.disabled = 0;
 		break;
 
@@ -4083,8 +4090,8 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		if (val < 0 || val > 1)
 			ret = -EINVAL;
 		else {
-			dev->auth_mode = val ? IEEE802_11_AUTH_ALG_SHARED_SECRET :
-			  IEEE802_11_AUTH_ALG_OPEN_SYSTEM;
+			dev->auth_mode = (val ? IEEE802_11_AUTH_ALG_SHARED_SECRET :
+					  IEEE802_11_AUTH_ALG_OPEN_SYSTEM);
 			changed = 1;
 		}
 	}
@@ -4369,7 +4376,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.26 2003/06/03 22:44:14 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.27 2003/06/16 19:49:16 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);

@@ -1,4 +1,4 @@
-(* $Id: README,v 1.9 2003/06/01 19:42:28 jal2 Exp $ *)
+(* $Id: README,v 1.10 2003/06/16 19:49:16 jal2 Exp $ *)
 
 at76c503 - linux driver for Atmel at76c503 based usb wlan adapters
 ------------------------------------------------------------------
@@ -176,9 +176,10 @@ Thanks to:
 - the author(s) of the usbnet driver
 - the author(s) of the rtl8150 driver
 - lots of other authors of usb and wlan drivers, where I stole code from
+- Pavel Roskin for testing, debugging and his patches
 
 Oliver Kurth <oku@masqmail.cx>, Mon,  6 Jan 2003 22:39:47 +0100
-updated by Joerg Albert, Thu, 1 May 2003
+updated by Joerg Albert, Thu, 1 May 2003 and later
 
 
 
