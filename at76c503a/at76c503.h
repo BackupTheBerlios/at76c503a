@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.10 2003/05/19 21:49:30 jal2 Exp $
+/* $Id: at76c503.h,v 1.11 2003/05/22 22:22:00 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -187,7 +187,7 @@ struct at76c503_command{
 	u16 size;
 } __attribute__ ((packed));
 
-/* the length of the Atmel firmware specific header before IEEE 802.11 starts */
+/* the length of the Atmel firmware specific rx header before IEEE 802.11 starts */
 #define AT76C503_RX_HDRLEN offsetof(struct at76c503_rx_buffer, packet)
 
 struct at76c503_rx_buffer {
@@ -201,6 +201,9 @@ struct at76c503_rx_buffer {
 	u8 rx_time[4];
 	u8 packet[IEEE802_11_MAX_FRAME_LEN];
 } __attribute__ ((packed));
+
+/* the length of the Atmel firmware specific tx header before IEEE 802.11 starts */
+#define AT76C503_TX_HDRLEN offsetof(struct at76c503_tx_buffer, packet)
 
 struct at76c503_tx_buffer {
 	u16 wlength;

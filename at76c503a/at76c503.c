@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.22 2003/05/19 22:30:53 jal2 Exp $
+/* $Id: at76c503.c,v 1.23 2003/05/22 22:21:59 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -187,9 +187,10 @@ const u8 bc_addr[ETH_ALEN] = {0xff,0xff,0xff,0xff,0xff,0xff};
 /* the supported rates of this hardware, bit7 marks a mandantory rate */
 const u8 hw_rates[4] = {0x82,0x84,0x0b,0x16};
 
-/* the max padding size for tx in bytes */
+/* the max padding size for tx in bytes (see calc_padding)*/
 #define MAX_PADDING_SIZE 53
 
+/* a ieee820.11 frame header without addr4 */
 struct ieee802_11_mgmt {
 	u16 frame_ctl;
 	u16 duration_id;
@@ -201,10 +202,8 @@ struct ieee802_11_mgmt {
 	u32 fcs;
 } __attribute__ ((packed));
 
-/* the size of the ieee802.11 header (incl. the at76c503 tx header) */
-#define IEEE802_11_MGMT_HEADER_SIZE \
- (offsetof(struct at76c503_tx_buffer, packet) +\
-  offsetof(struct ieee802_11_mgmt, data))
+/* the size of the ieee802.11 header (excl. the at76c503 tx header) */
+#define IEEE802_11_MGMT_HEADER_SIZE offsetof(struct ieee802_11_mgmt, data)
 
 /* beacon in ieee802_11_mgmt.data */
 struct ieee802_11_beacon_data {
@@ -220,7 +219,7 @@ struct ieee802_11_disassoc_frame {
 	u16 reason;
 } __attribute__ ((packed));
 #define DISASSOC_FRAME_SIZE \
-  (IEEE802_11_MGMT_HEADER_SIZE +\
+  (AT76C503_TX_HDRLEN + IEEE802_11_MGMT_HEADER_SIZE +\
    sizeof(struct ieee802_11_disassoc_frame))
 
 /* assoc request in ieee802_11_mgmt.data */
@@ -232,7 +231,7 @@ struct ieee802_11_assoc_req {
 };
 /* the maximum size of an AssocReq packet */
 #define ASSOCREQ_MAX_SIZE \
-  (IEEE802_11_MGMT_HEADER_SIZE +\
+  (AT76C503_TX_HDRLEN + IEEE802_11_MGMT_HEADER_SIZE +\
    offsetof(struct ieee802_11_assoc_req,data) +\
    1+1+IW_ESSID_MAX_SIZE + 1+1+4)
 
@@ -248,7 +247,7 @@ struct ieee802_11_reassoc_req {
 
 /* the maximum size of an AssocReq packet */
 #define REASSOCREQ_MAX_SIZE \
-  (IEEE802_11_MGMT_HEADER_SIZE +\
+  (AT76C503_TX_HDRLEN + IEEE802_11_MGMT_HEADER_SIZE +\
    offsetof(struct ieee802_11_reassoc_req,data) +\
    1+1+IW_ESSID_MAX_SIZE + 1+1+4)
 
@@ -269,19 +268,18 @@ struct ieee802_11_auth_frame {
 	u16 status;
 	u8 challenge[0];
 } __attribute__ ((packed));
+/* for shared secret auth, add the challenge text size */
+#define AUTH_FRAME_SIZE \
+  (AT76C503_TX_HDRLEN + IEEE802_11_MGMT_HEADER_SIZE +\
+   sizeof(struct ieee802_11_auth_frame))
 
 /* deauth frame in ieee802_11_mgmt.data */
 struct ieee802_11_deauth_frame {
 	u16 reason;
 } __attribute__ ((packed));
 #define DEAUTH_FRAME_SIZE \
-  (IEEE802_11_MGMT_HEADER_SIZE +\
+  (AT76C503_TX_HDRLEN + IEEE802_11_MGMT_HEADER_SIZE +\
    sizeof(struct ieee802_11_disauth_frame))
-
-/* for shared secret auth, add the challenge text size */
-#define AUTH_FRAME_SIZE \
-  (IEEE802_11_MGMT_HEADER_SIZE +\
-   sizeof(struct ieee802_11_auth_frame))
 
 
 #define KEVENT_CTRL_HALT 1
@@ -1250,11 +1248,13 @@ void handle_mgmt_timeout(struct at76c503 *dev)
 
 }/* handle_mgmt_timeout */
 
-/* calc. the padding from txbuf->wlength (which excludes the USB TX header) */
+/* calc. the padding from txbuf->wlength (which excludes the USB TX header) 
+   guess this is needed to compensate a flaw in the AT76C503A USB part ... */
 static inline
 int calc_padding(int wlen)
 {
-	wlen += offsetof(struct at76c503_tx_buffer,packet); /* add the USB TX header */
+	/* add the USB TX header */
+	wlen += AT76C503_TX_HDRLEN;
 
 	wlen = wlen % 64;
 
@@ -1262,12 +1262,13 @@ int calc_padding(int wlen)
 		return 50 - wlen;
 
 	if (wlen >=61)
-		return 114 - wlen;
+		return 64 + 50 - wlen;
 
 	return 0;
 }
 
-/* send a management frame on bulk-out */
+/* send a management frame on bulk-out.
+   txbuf->wlength must be set (in LE format !) */
 static
 int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf)
 {
@@ -1302,9 +1303,10 @@ int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf)
 	if (txbuf) {
 
 		txbuf->tx_rate = 0;
-		txbuf->padding = 0;
-//		txbuf->padding = 
-//		   cpu_to_le16(calc_padding(le16_to_cpu(txbuf->wlength)));
+//		txbuf->padding = 0;
+		txbuf->padding = 
+		   cpu_to_le16(calc_padding(le16_to_cpu(txbuf->wlength)));
+
 		if (dev->next_mgmt_bulk) {
 			err("%s: %s URB status %d, but mgmt is pending",
 			    dev->netdev->name, __FUNCTION__, urb_status);
@@ -1312,22 +1314,21 @@ int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf)
 #if 0
 		dbg("%s: tx mgmt: wlen %d tx_rate %d pad %d %s",
 		    dev->netdev->name, le16_to_cpu(txbuf->wlength),
-		    txbuf->tx_rate, txbuf->padding,
+		    txbuf->tx_rate, le16_to_cpu(txbuf->padding),
 		    hex2str(obuf,txbuf->packet,
 			    min((sizeof(obuf)-1)/2,
 				(size_t)le16_to_cpu(txbuf->wlength)),'\0'));
 #endif
 		/* txbuf was not consumed above -> send mgmt msg immediately */
 		memcpy(dev->bulk_out_buffer, txbuf,
-		       le16_to_cpu(txbuf->wlength) +
-		       offsetof(struct at76c503_tx_buffer,packet));
+		       le16_to_cpu(txbuf->wlength) + AT76C503_TX_HDRLEN);
 		FILL_BULK_URB(dev->write_urb, dev->udev,
 			      usb_sndbulkpipe(dev->udev, 
 					      dev->bulk_out_endpointAddr),
 			      dev->bulk_out_buffer,
 			      le16_to_cpu(txbuf->wlength) + 
 			      le16_to_cpu(txbuf->padding) +
-			      offsetof(struct at76c503_tx_buffer,packet),
+			      AT76C503_TX_HDRLEN,
 			      at76c503_write_bulk_callback, dev);
 		ret = usb_submit_urb(dev->write_urb);
 		if (ret) {
@@ -1352,7 +1353,8 @@ int disassoc_req(struct at76c503 *dev, struct bss_info *bss)
 	if (bss == NULL)
 		return -EFAULT;
 
-	tx_buffer = kmalloc(DISASSOC_FRAME_SIZE, GFP_ATOMIC);
+	tx_buffer = kmalloc(DISASSOC_FRAME_SIZE + MAX_PADDING_SIZE,
+			    GFP_ATOMIC);
 	if (!tx_buffer)
 		return -ENOMEM;
 
@@ -1373,7 +1375,7 @@ int disassoc_req(struct at76c503 *dev, struct bss_info *bss)
 
 	/* init. at76c503 tx header */
 	tx_buffer->wlength = cpu_to_le16(DISASSOC_FRAME_SIZE -
-		offsetof(struct at76c503_tx_buffer, packet));
+		AT76C503_TX_HDRLEN);
 	
 	dbg("%s: DisAssocReq bssid %s",
 	    dev->netdev->name, mac2str(mgmt->addr3));
@@ -1401,7 +1403,7 @@ int auth_req(struct at76c503 *dev, struct bss_info *bss, int seq_nr, u8 *challen
 	assert(bss != NULL);
 	assert(seq_nr != 3 || challenge != NULL);
 	
-	tx_buffer = kmalloc(buf_len, GFP_ATOMIC);
+	tx_buffer = kmalloc(buf_len + MAX_PADDING_SIZE, GFP_ATOMIC);
 	if (!tx_buffer)
 		return -ENOMEM;
 
@@ -1430,8 +1432,7 @@ int auth_req(struct at76c503 *dev, struct bss_info *bss, int seq_nr, u8 *challen
 		memcpy(req->challenge, challenge, 1+1+challenge[1]);
 
 	/* init. at76c503 tx header */
-	tx_buffer->wlength = cpu_to_le16(buf_len -
-		offsetof(struct at76c503_tx_buffer, packet));
+	tx_buffer->wlength = cpu_to_le16(buf_len - AT76C503_TX_HDRLEN);
 	
 	dbg("%s: AuthReq bssid %s alg %d seq_nr %d",
 	    dev->netdev->name, mac2str(mgmt->addr3),
@@ -1459,7 +1460,8 @@ int assoc_req(struct at76c503 *dev, struct bss_info *bss)
 
 	assert(bss != NULL);
 
-	tx_buffer = kmalloc(ASSOCREQ_MAX_SIZE, GFP_ATOMIC);
+	tx_buffer = kmalloc(ASSOCREQ_MAX_SIZE + MAX_PADDING_SIZE,
+			    GFP_ATOMIC);
 	if (!tx_buffer)
 		return -ENOMEM;
 
@@ -1547,7 +1549,8 @@ int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
 	if (curr_bss == NULL || new_bss == NULL)
 		return -EFAULT;
 
-	tx_buffer = kmalloc(REASSOCREQ_MAX_SIZE, GFP_ATOMIC);
+	tx_buffer = kmalloc(REASSOCREQ_MAX_SIZE + MAX_PADDING_SIZE,
+			    GFP_ATOMIC);
 	if (!tx_buffer)
 		return -ENOMEM;
 
@@ -3081,9 +3084,10 @@ static void at76c503_write_bulk_callback (struct urb *urb)
 	spin_unlock_irqrestore(&dev->mgmt_spinlock, flags);
 
 	if (mgmt_buf) {
+		/* we don't copy the padding bytes, but add them
+		   to the length */
 		memcpy(dev->bulk_out_buffer, mgmt_buf,
 		       le16_to_cpu(mgmt_buf->wlength) +
-		       le16_to_cpu(mgmt_buf->padding) +
 		       offsetof(struct at76c503_tx_buffer,packet));
 		FILL_BULK_URB(dev->write_urb, dev->udev,
 			      usb_sndbulkpipe(dev->udev, 
@@ -3091,7 +3095,7 @@ static void at76c503_write_bulk_callback (struct urb *urb)
 			      dev->bulk_out_buffer,
 			      le16_to_cpu(mgmt_buf->wlength) + 
 			      le16_to_cpu(mgmt_buf->padding) +
-			      offsetof(struct at76c503_tx_buffer,packet),
+			      AT76C503_TX_HDRLEN,
 			      at76c503_write_bulk_callback, dev);
 		ret = usb_submit_urb(dev->write_urb);
 		if (ret) {
@@ -3132,9 +3136,6 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	   of in ieee802_11.h */
 	i802_11_hdr->frame_ctl = IEEE802_11_FTYPE_DATA;
 
-	/* jal TODO: if the destination has sent us unencrypted packets
-	   and we did not exclude them, do not encrypt the answers.
-	   -> have a table of peers */
 	if (dev->wep_enabled)
 		i802_11_hdr->frame_ctl |= IEEE802_11_FCTL_WEP;
 
@@ -3160,30 +3161,22 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	   seems to choose the highest rate set with CMD_STARTUP in
 	   basic_rate_set replacing this value */
 	
+	memset(tx_buffer->reserved, 0, 4);
+
+	tx_buffer->padding = cpu_to_le16(calc_padding(wlen));
+	submit_len = wlen + AT76C503_TX_HDRLEN + 
+		le16_to_cpu(tx_buffer->padding);
 
 	if (debug > 1) {
 		char hbuf[2*24+1], dbuf[2*16]  __attribute__((unused));
 
-		dbg("%s tx  wlen x%x rate %d hdr %s data %s", dev->netdev->name,
-		    tx_buffer->wlength, tx_buffer->tx_rate, 
+		dbg("%s tx  wlen x%x pad x%x rate %d hdr %s data %s",
+		    dev->netdev->name,
+		    le16_to_cpu(tx_buffer->wlength),
+		    le16_to_cpu(tx_buffer->padding), tx_buffer->tx_rate, 
 		    hex2str(hbuf, (u8 *)i802_11_hdr,sizeof(hbuf)/2,'\0'),
 		    hex2str(dbuf, (u8 *)i802_11_hdr+24,sizeof(dbuf)/2,'\0'));
 	}
-
-	//info("txrate %d\n", dev->txrate);
-
-#if 0 /* does not seem to be necessary */
-	{
-		/* strange things, as done in atmelwlandriver
-		   - I do not really understand this (oku) */
-		int tmp = wlen%64;
-		tx_buffer->padding = tmp < 50 ? 50 - tmp : 114 - tmp;
-	}
-#endif
-	memset(tx_buffer->reserved, 0, 4);
-
-	tx_buffer->padding = 0;
-	submit_len = wlen + 8 + tx_buffer->padding;
 
 	/* send stuff */
 	netif_stop_queue(netdev);
@@ -4067,7 +4060,8 @@ static int at76c503_alloc_urbs(struct at76c503 *dev)
 				err("no free urbs available");
 				return -1;
 			}
-			buffer_size = sizeof(struct at76c503_tx_buffer);
+			buffer_size = sizeof(struct at76c503_tx_buffer) + 
+			  MAX_PADDING_SIZE;
 			dev->bulk_out_size = buffer_size;
 			dev->bulk_out_endpointAddr = endpoint->bEndpointAddress;
 			dev->bulk_out_buffer = kmalloc (buffer_size, GFP_KERNEL);
@@ -4176,7 +4170,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.22 2003/05/19 22:30:53 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.23 2003/05/22 22:21:59 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
