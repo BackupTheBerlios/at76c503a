@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.16 2003/12/25 22:40:26 jal2 Exp $
+#$Id: Makefile,v 1.17 2003/12/25 23:28:27 jal2 Exp $
 
 VERSION = 0.12beta1
 
@@ -18,6 +18,7 @@ SRCS = at76c503.c usbdfu.c at76c503-rfmd.c at76c505-rfmd.c at76c503-rfmd-acc.c \
 HDRS = at76c503.h ieee802_11.h usbdfu.h at76c503-fw_skel.c \
 	fw-pkg-505-rfmd2958-1.101.0-86.h  fw-pkg-i3863.h  \
 	fw-pkg-rfmd-1.101.0-84.h fw-pkg-i3861.h \
+	fw-pkg-rfmd-0.90.2-140.h \
 	fw-pkg-r505.h fw-pkg-rfmd-acc-1.101.0-84.h
 
 DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING CHANGELOG scripts
