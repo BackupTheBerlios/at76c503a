@@ -87,7 +87,7 @@ Wireless USB Adapter SMC2662W (v1) */
 #define PRODUCT_ID_INTEL_AP310         0x0200 /* AP310 AnyPoint II usb */
 
 #define VENDOR_ID_CONCEPTRONIC        0x0d8e
-#define PRODUCT_ID_CONCEPTRONIC_C11U  0x7100
+#define PRODUCT_ID_CONCEPTRONIC_C11U  0x7100 /* also Dynalink L11U */
 
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_503I        ) },
