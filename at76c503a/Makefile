@@ -1,6 +1,6 @@
-#$Id: Makefile,v 1.37 2004/08/13 00:17:22 jal2 Exp $
+#$Id: Makefile,v 1.38 2004/08/13 22:42:06 jal2 Exp $
 
-VERSION = 0.12beta15
+VERSION = 0.12beta16
 
 CC=gcc
 
@@ -63,11 +63,11 @@ modules:
 	mkdir -p .tmp_versions
 	-cp $(KERNEL_SRC)/.tmp_versions/*.mod $(MODVERDIR)
 	$(MAKE) -C $(KERNEL_SRC) SUBDIRS=$(SRCDIR) MODVERDIR=$(MODVERDIR) \
-		EXTRA_CFLAGS="-g -DDRIVER_VERSION=\\\"v$(DVERSION)\\\" $(FW_DL)" modules
+		EXTRA_CFLAGS="-DDRIVER_VERSION=\\\"v$(DVERSION)\\\" $(FW_DL)" modules
 
 mv_old:
 	for i in $(MODULES:%.o=%.ko); do \
-	  find $(DEL_MODULE_DIR) -name $$i -exec mv {} {}.orig \; ;done 
+	  find $(DEL_MODULE_DIR) -name $$i -exec rm -f {} {}.orig \; ;done 
 
 install: all mv_old
 	mkdir -p $(MODULE_DIR)
@@ -104,7 +104,7 @@ all: $(MODULES)
 
 mv_old:
 	for i in $(MODULES); do \
-	  find $(DEL_MODULE_DIR) -name $$i -exec mv {} {}.orig \; ;done 
+	  find $(DEL_MODULE_DIR) -name $$i -exec rm -f {} {}.orig \; ;done 
 
 install: all mv_old
 	mkdir -p $(MODULE_DIR)
