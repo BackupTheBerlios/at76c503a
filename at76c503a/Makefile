@@ -1,4 +1,6 @@
-VERSION = 0.10
+#$Id: Makefile,v 1.7 2003/06/16 19:46:46 jal2 Exp $
+
+VERSION = 0.11beta1
 
 CC=gcc
 
@@ -9,14 +11,17 @@ KERNEL_HEADERS = $(KERNEL_SRC)/include
 
 MODULES = at76c503.o usbdfu.o at76c503-rfmd.o at76c505-rfmd.o at76c503-i3861.o at76c503-i3863.o
 
-SRCS = at76c503.c usbdfu.c at76c503-rfmd.c at76c505-rfmd.c at76c503-i3861.c at76c503-i3863.c
-HDRS = at76c503.h ieee802_11.h usbdfu.h fw-rfmd-0.90.2-140.h fw-rfmd-0.100.4-16.h fw-r505.h fw-i3861.h fw-i3863.h
+SRCS = at76c503.c usbdfu.c at76c503-rfmd.c at76c505-rfmd.c \
+       at76c503-i3861.c at76c503-i3863.c
+HDRS = at76c503.h ieee802_11.h usbdfu.h fw-rfmd-0.90.2-140.h \
+       fw-rfmd-0.100.4-16.h fw-r505.h fw-i3861.h fw-i3863.h
 MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNEL_VERSION)/kernel/drivers/usb/
 CPPFLAGS = -D__KERNEL__ \
 	-DMODULE -DEXPORT_SYMTAB \
 	-DDRIVER_VERSION=\"v$(VERSION)\" \
 	-I$(KERNEL_HEADERS)
-CFLAGS = -O2 -Wall -Wstrict-prototypes -pipe
+CFLAGS = -O2 -Wall -Wstrict-prototypes -pipe -fno-strict-aliasing \
+         -fno-common -Wno-sign-compare
 
 MODVER = $(shell if cat $(KERNEL_HEADERS)/linux/autoconf.h 2>/dev/null | \
 grep -q '^[[:space:]]*\#define[[:space:]]*CONFIG_MODVERSIONS[[:space:]]*1'; \
@@ -38,7 +43,7 @@ all: $(MODULES)
 
 TAGS:
 	rm -f TAGS
-	find $(KERNEL_SRC)/ -name '*.[ch]' | xargs etags --append
+#	find $(KERNEL_SRC)/ -name '*.[ch]' | xargs etags --append
 	etags --append $(SRCS) $(HDRS)
 
 install:
@@ -51,7 +56,7 @@ uninstall:
 
 clean:
 	rm -f core *.o *~ a.out *.d
-	rm -f *.s *.i
+	rm -f *.s *.i .config
 
 dist:
 	[ -d $(DISTNAME) ] && rm -rf $(DISTNAME) || true
