@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.26 2004/08/18 22:01:45 jal2 Exp $
+/* $Id: at76c503.h,v 1.27 2004/08/29 11:41:18 jal2 Exp $
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth
  *           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -48,7 +48,7 @@
 #endif
  
 /* current driver version */
-#define DRIVER_VERSION "v0.12beta17" VERSION_APPEND
+#define DRIVER_VERSION "v0.12beta18" VERSION_APPEND
 
 /* Workqueue / task queue backwards compatibility stuff */
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,5,41)
@@ -91,6 +91,24 @@
 #define PRIV_IOCTL_SET_SCAN_TIMES      (SIOCIWFIRSTPRIV + 0x6)
 /* set scan mode */
 #define PRIV_IOCTL_SET_SCAN_MODE       (SIOCIWFIRSTPRIV + 0x8)
+/* set international roaming */
+#define PRIV_IOCTL_SET_INTL_ROAMING    (SIOCIWFIRSTPRIV + 0x10)
+/* set monitor mode */
+#define PRIV_IOCTL_SET_MONITOR_MODE    (SIOCIWFIRSTPRIV + 0x12)
+
+#ifndef ETH_P_ECONET
+#define ETH_P_ECONET   0x0018    /* needed for 2.2.x kernels */
+#endif
+
+#define ETH_P_80211_RAW        (ETH_P_ECONET + 1)
+
+#ifndef ARPHRD_IEEE80211
+#define ARPHRD_IEEE80211 801     /* kernel 2.4.6 */
+#endif
+
+#ifndef ARPHRD_IEEE80211_PRISM  /* kernel 2.4.18 */
+#define ARPHRD_IEEE80211_PRISM 802
+#endif
 
 #define DEVICE_VENDOR_REQUEST_OUT    0x40
 #define DEVICE_VENDOR_REQUEST_IN     0xc0
@@ -153,6 +171,16 @@
 #define PM_SAVE       2
 #define PM_SMART_SAVE 3
 
+/* international roaming state */
+#define IR_OFF        0
+#define IR_ON         1
+
+/* monitor mode - param of private ioctl */
+#define MM_OFF 0
+#define MM_ON  1
+#define MM_ON_NO_PRISM 2
+
+
 /* offsets into the MIBs we use to configure the device */
 #define TX_AUTORATE_FALLBACK_OFFSET offsetof(struct mib_local,txautorate_fallback)
 #define FRAGMENTATION_OFFSET        offsetof(struct mib_mac,frag_threshold)
@@ -161,12 +189,15 @@
 
 /* valid only for rfmd and 505 !*/
 #define IBSS_CHANGE_OK_OFFSET       offsetof(struct mib_mac_mgmt, ibss_change)
+#define IROAMING_IMPL_OFFSET		offsetof(struct mib_mac_mgmt, multi_domain_capability_implemented)
 #define IROAMING_OFFSET \
   offsetof(struct mib_mac_mgmt, multi_domain_capability_enabled)
 /* the AssocID */
 #define STATION_ID_OFFSET           offsetof(struct mib_mac_mgmt, station_id)
 #define POWER_MGMT_MODE_OFFSET      offsetof(struct mib_mac_mgmt, power_mgmt_mode)
 #define LISTEN_INTERVAL_OFFSET      offsetof(struct mib_mac, listen_interval)
+
+#define PRIVACY_OPT_IMPL			offsetof(struct mib_mac_mgmt, privacy_option_implemented)
 
 #define BOARDTYPE_503_INTERSIL_3861 1
 #define BOARDTYPE_503_INTERSIL_3863 2
@@ -425,6 +456,7 @@ enum infra_state {
 	INTFW_DOWNLOAD,
 	EXTFW_DOWNLOAD,
 	WAIT_FOR_DISCONNECT,
+	MONITORING,
 };
 
 /* a description of a regulatory domain and the allowed channels */
@@ -551,6 +583,7 @@ struct at76c503 {
 	int scan_min_time; /* scan min channel time */
 	int scan_max_time; /* scan max channel time */
 	int scan_mode;     /* SCAN_TYPE_ACTIVE, SCAN_TYPE_PASSIVE */
+	int scan_runs;  /* counts how many scans are started */
 
 	/* the list we got from scanning */
 	spinlock_t bss_list_spinlock; /* protects bss_list operations and setting
@@ -641,10 +674,71 @@ struct at76c503 {
 	char obuf[2*256+1]; /* global debug output buffer to reduce stack usage */
 	char obuf_s[3*32]; /* small global debug output buffer to reduce stack usage */
 	struct set_mib_buffer mib_buf; /* global buffer for set_mib calls */
+
+	/* new whiz-bang feature flags */
+	int international_roaming;
+	int monitor_prism_header; /* if iw_mode == IW_MODE_MONITOR, 
+				     use Prism header */
+	int monitor_scan_min_time;
+	int monitor_scan_max_time;
 };
 
 #define AT76C503A_UNPLUG 1
 #define AT76C503A_NETDEV_REGISTERED 2
+
+/* Quasi-monitor mode defs (copied from <kernel>/drivers/net/wireless/orinoco.h) */
+
+#define WLAN_DEVNAMELEN_MAX 16
+
+/* message data item for INT, BOUNDEDINT, ENUMINT */
+typedef struct p80211item_uint32
+{
+	uint32_t		did		__attribute__ ((packed));
+	uint16_t		status	__attribute__ ((packed));
+	uint16_t		len		__attribute__ ((packed));
+	uint32_t		data	__attribute__ ((packed));
+} __attribute__ ((packed)) p80211item_uint32_t;
+
+typedef struct p80211msg
+{
+	uint32_t	msgcode		__attribute__ ((packed));
+	uint32_t	msglen		__attribute__ ((packed));
+	uint8_t	devname[WLAN_DEVNAMELEN_MAX]	__attribute__ ((packed));
+} __attribute__ ((packed)) p80211msg_t;
+
+#define P80211ENUM_msgitem_status_data_ok		0
+#define P80211ENUM_msgitem_status_no_value		1
+#define P80211ENUM_truth_false			0
+#define P80211ENUM_truth_true			1
+
+#define DIDmsg_lnxind_wlansniffrm 0x0041
+#define DIDmsg_lnxind_wlansniffrm_hosttime 0x1041
+#define DIDmsg_lnxind_wlansniffrm_mactime 0x2041
+#define DIDmsg_lnxind_wlansniffrm_channel 0x3041
+#define DIDmsg_lnxind_wlansniffrm_rssi 0x4041
+#define DIDmsg_lnxind_wlansniffrm_sq 0x5041
+#define DIDmsg_lnxind_wlansniffrm_signal 0x6041
+#define DIDmsg_lnxind_wlansniffrm_noise 0x7041
+#define DIDmsg_lnxind_wlansniffrm_rate 0x8041
+#define DIDmsg_lnxind_wlansniffrm_istx 0x9041
+#define DIDmsg_lnxind_wlansniffrm_frmlen 0xA041
+
+typedef struct p80211msg_lnxind_wlansniffrm
+{
+	uint32_t		msgcode;
+	uint32_t		msglen;
+	uint8_t		    devname[WLAN_DEVNAMELEN_MAX];
+	p80211item_uint32_t	hosttime;
+	p80211item_uint32_t	mactime;
+	p80211item_uint32_t	channel;
+	p80211item_uint32_t	rssi;
+	p80211item_uint32_t	sq;
+	p80211item_uint32_t	signal;
+	p80211item_uint32_t	noise;
+	p80211item_uint32_t	rate;
+	p80211item_uint32_t	istx;
+	p80211item_uint32_t	frmlen;
+} __attribute__ ((packed)) p80211msg_lnxind_wlansniffrm_t;
 
 /* Function prototypes */
 

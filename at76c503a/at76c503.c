@@ -1,11 +1,12 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.67 2004/08/26 20:41:45 jal2 Exp $
+/* $Id: at76c503.c,v 1.68 2004/08/29 11:41:18 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth
  * Copyright (c) 2004 Joerg Albert <joerg.albert@gmx.de>
  * Copyright (c) 2004 Nick Jones
+ * Copyright (c) 2004 Balint Seeber <n0_5p4m_p13453@hotmail.com>
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License as
@@ -189,30 +190,33 @@ static inline void usb_set_intfdata(struct usb_interface *intf, void *data) {}
 #endif
 
 /* debug bits */
-#define DBG_PROGRESS        0x000001 /* progress of scan-join-(auth-assoc)-connected */
-#define DBG_BSS_TABLE       0x000002 /* show the bss table after scans */
-#define DBG_IOCTL           0x000004 /* ioctl calls / settings */
-#define DBG_KEVENT          0x000008 /* kevents */
-#define DBG_TX_DATA         0x000010 /* tx header */
-#define DBG_TX_DATA_CONTENT 0x000020 /* tx content */
-#define DBG_TX_MGMT         0x000040
-#define DBG_RX_DATA         0x000080 /* rx data header */
-#define DBG_RX_DATA_CONTENT 0x000100 /* rx data content */
-#define DBG_RX_MGMT         0x000200 /* rx mgmt header except beacon and probe responses */
-#define DBG_RX_BEACON       0x000400 /* rx beacon */
-#define DBG_RX_CTRL         0x000800 /* rx control */
-#define DBG_RX_MGMT_CONTENT 0x001000 /* rx mgmt content */
-#define DBG_RX_FRAGS        0x002000 /* rx data fragment handling */
-#define DBG_DEVSTART        0x004000 /* fw download, device start */
-#define DBG_URB             0x008000 /* rx urb status, ... */
-#define DBG_RX_ATMEL_HDR    0x010000 /* the atmel specific header of each rx packet */
-#define DBG_PROC_ENTRY      0x020000 /* procedure entries and exits */
-#define DBG_PM              0x040000 /* power management settings */
-#define DBG_BSS_MATCH       0x080000 /* show why a certain bss did not match */
-#define DBG_PARAMS          0x100000 /* show the configured parameters */
-#define DBG_WAIT_COMPLETE   0x200000 /* show the wait_completion progress */
-#define DBG_RX_FRAGS_SKB    0x400000 /* show skb header for incoming rx fragments */
-#define DBG_BSS_TABLE_RM    0x800000 /* inform on removal of old bss table entries */
+#define DBG_PROGRESS        0x00000001 /* progress of scan-join-(auth-assoc)-connected */
+#define DBG_BSS_TABLE       0x00000002 /* show the bss table after scans */
+#define DBG_IOCTL           0x00000004 /* ioctl calls / settings */
+#define DBG_KEVENT          0x00000008 /* kevents */
+#define DBG_TX_DATA         0x00000010 /* tx header */
+#define DBG_TX_DATA_CONTENT 0x00000020 /* tx content */
+#define DBG_TX_MGMT         0x00000040
+#define DBG_RX_DATA         0x00000080 /* rx data header */
+#define DBG_RX_DATA_CONTENT 0x00000100 /* rx data content */
+#define DBG_RX_MGMT         0x00000200 /* rx mgmt header except beacon and probe responses */
+#define DBG_RX_BEACON       0x00000400 /* rx beacon */
+#define DBG_RX_CTRL         0x00000800 /* rx control */
+#define DBG_RX_MGMT_CONTENT 0x00001000 /* rx mgmt content */
+#define DBG_RX_FRAGS        0x00002000 /* rx data fragment handling */
+#define DBG_DEVSTART        0x00004000 /* fw download, device start */
+#define DBG_URB             0x00008000 /* rx urb status, ... */
+#define DBG_RX_ATMEL_HDR    0x00010000 /* the atmel specific header of each rx packet */
+#define DBG_PROC_ENTRY      0x00020000 /* procedure entries and exits */
+#define DBG_PM              0x00040000 /* power management settings */
+#define DBG_BSS_MATCH       0x00080000 /* show why a certain bss did not match */
+#define DBG_PARAMS          0x00100000 /* show the configured parameters */
+#define DBG_WAIT_COMPLETE   0x00200000 /* show the wait_completion progress */
+#define DBG_RX_FRAGS_SKB    0x00400000 /* show skb header for incoming rx fragments */
+#define DBG_BSS_TABLE_RM    0x00800000 /* inform on removal of old bss table entries */
+#define DBG_MONITOR_MODE    0x01000000 /* debugs from monitor mode */
+#define DBG_MIB             0x02000000 /* dump all MIBs in startup_device */
+#define DBG_MGMT_TIMER      0x04000000 /* dump mgmt_timer ops */
 
 #define DBG_DEFAULTS 0
 static int debug = DBG_DEFAULTS;
@@ -256,16 +260,14 @@ static const u8 zeros[32];
 /* the beacon timeout in infra mode when we are connected (in seconds) */
 #define BEACON_TIMEOUT 10
 
-/* after how many seconds do we re-scan the channels in infra mode */
-#define RESCAN_TIME 10
-
 /* Version Information */
 #define DRIVER_DESC "Generic Atmel at76c503/at76c505 routines"
 
 /* Module paramaters */
 MODULE_PARM(debug, "i");
 #define DRIVER_AUTHOR \
-"Oliver Kurth, Joerg Albert <joerg.albert@gmx.de>, Alex, Nick Jones"
+"Oliver Kurth, Joerg Albert <joerg.albert@gmx.de>, Alex, Nick Jones, "\
+"Balint Seeber <n0_5p4m_p13453@hotmail.com>"
 MODULE_PARM_DESC(debug, "Debugging level");
 
 static int rx_copybreak = 200;
@@ -300,6 +302,23 @@ MODULE_PARM_DESC(pm_mode, "power management mode: 1 active (def.), 2 powersave, 
 static int pm_period = 0;
 MODULE_PARM(pm_period, "i");
 MODULE_PARM_DESC(pm_period, "period of waking up the device in usec");
+
+static int international_roaming = IR_OFF;
+MODULE_PARM(international_roaming, "i");
+MODULE_PARM_DESC(international_roaming, "enable international roaming: 0 (no, default), 1 (yes)");
+
+static int default_iw_mode = IW_MODE_INFRA;
+MODULE_PARM(default_iw_mode, "i");
+MODULE_PARM_DESC(default_iw_mode, "default IW mode for a new device: "
+		 "1 (ad-hoc), 2 (infrastructure, def.), 6 (monitor mode)");
+
+static int monitor_scan_min_time = 50;
+MODULE_PARM(monitor_scan_min_time, "i");
+MODULE_PARM_DESC(monitor_scan_min_time, "scan min channel time in MONITOR MODE (default: 50)");
+
+static int monitor_scan_max_time = 600;
+MODULE_PARM(monitor_scan_max_time, "i");
+MODULE_PARM_DESC(monitor_scan_max_time, "scan max channel time in MONITOR MODE (default: 600)");
 
 #define DEF_RTS_THRESHOLD 1536
 #define DEF_FRAG_THRESHOLD 1536
@@ -437,6 +456,7 @@ struct ieee802_11_deauth_frame {
 #define KEVENT_EXTERNAL_FW  11
 #define KEVENT_INTERNAL_FW  12
 #define KEVENT_RESET_DEVICE 13
+#define KEVENT_MONITOR      14
 
 static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 
@@ -468,6 +488,9 @@ static int startup_device(struct at76c503 *dev);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
 static int update_usb_intf_descr(struct at76c503 *dev);
 #endif
+
+static int set_iroaming(struct at76c503 *dev, int onoff);
+static void set_monitor_mode(struct at76c503 *dev, int use_prism);
 
 /* disassemble the firmware image */
 static int at76c503_get_fw_info(u8 *fw_data, int fw_size,
@@ -1126,6 +1149,26 @@ int set_card_command(struct usb_device *udev, int cmd,
 	return -ENOMEM;
 }
 
+#define MAKE_CMD_STATUS_CASE(c)	case (c): return #c
+
+static const char* get_cmd_status_string(u8 cmd_status)
+{
+	switch (cmd_status)
+	{
+		MAKE_CMD_STATUS_CASE(CMD_STATUS_IDLE);
+		MAKE_CMD_STATUS_CASE(CMD_STATUS_COMPLETE);
+		MAKE_CMD_STATUS_CASE(CMD_STATUS_UNKNOWN);
+		MAKE_CMD_STATUS_CASE(CMD_STATUS_INVALID_PARAMETER);
+		MAKE_CMD_STATUS_CASE(CMD_STATUS_FUNCTION_NOT_SUPPORTED);
+		MAKE_CMD_STATUS_CASE(CMD_STATUS_TIME_OUT);
+		MAKE_CMD_STATUS_CASE(CMD_STATUS_IN_PROGRESS);
+		MAKE_CMD_STATUS_CASE(CMD_STATUS_HOST_FAILURE);
+		MAKE_CMD_STATUS_CASE(CMD_STATUS_SCAN_FAILED);
+	}
+
+	return "UNKNOWN";
+}
+
 /* TODO: should timeout */
 int wait_completion(struct at76c503 *dev, int cmd)
 {
@@ -1140,8 +1183,8 @@ int wait_completion(struct at76c503 *dev, int cmd)
 			break;
 		}
 
-		dbg(DBG_WAIT_COMPLETE, "%s: cmd %d,cmd_status[5] = %d",
-		    dev->netdev->name, cmd, cmd_status[5]);
+		dbg(DBG_WAIT_COMPLETE, "%s: Waiting on cmd %d, cmd_status[5] = %d (%s)",
+		    dev->netdev->name, cmd, cmd_status[5], get_cmd_status_string(cmd_status[5]));
 
 		if(cmd_status[5] == CMD_STATUS_IN_PROGRESS ||
 		   cmd_status[5] == CMD_STATUS_IDLE){
@@ -1435,8 +1478,9 @@ static int dump_mib_mac_addr(struct at76c503 *dev)
 		goto err;
 	}
 
-	dbg_uc("%s: MIB MAC_ADDR: mac_addr %s group_addr %s status %d %d %d %d", 
+	dbg_uc("%s: MIB MAC_ADDR: mac_addr %s res 0x%x 0x%x group_addr %s status %d %d %d %d", 
 	       dev->netdev->name, mac2str(mac_addr->mac_addr),
+		   mac_addr->res[0], mac_addr->res[1],
 	       hex2str(dev->obuf, (u8 *)mac_addr->group_addr, 
 		       min((int)(sizeof(dev->obuf)-1)/2, 4*ETH_ALEN), '\0'),
 	       mac_addr->group_addr_status[0], mac_addr->group_addr_status[1],
@@ -1493,6 +1537,7 @@ static int dump_mib_mac_mgmt(struct at76c503 *dev)
 	int ret = 0;
 	struct mib_mac_mgmt *mac_mgmt =
 		kmalloc(sizeof(struct mib_mac_mgmt), GFP_KERNEL);
+	char country_string[4];
 
 	if(!mac_mgmt){
 		ret = -ENOMEM;
@@ -1506,9 +1551,37 @@ static int dump_mib_mac_mgmt(struct at76c503 *dev)
 		goto err;
 	}
 
-	dbg_uc("%s: MIB MAC_MGMT: station_id x%x pm_mode %d\n",
-	    dev->netdev->name, le16_to_cpu(mac_mgmt->station_id),
-	    mac_mgmt->power_mgmt_mode);
+	memcpy(&country_string, mac_mgmt->country_string, 3);
+	country_string[3] = '\0';
+
+	dbg_uc("%s: MIB MAC_MGMT: beacon_period %d CFP_max_duration %d "
+	       "medium_occupancy_limit %d station_id 0x%x ATIM_window %d "
+	       "CFP_mode %d privacy_opt_impl %d DTIM_period %d CFP_period %d "
+	       "current_bssid %s current_essid %s current_bss_type %d "
+	       "pm_mode %d ibss_change %d res %d "
+	       "multi_domain_capability_implemented %d "
+	       "international_roaming %d country_string %s",
+	       dev->netdev->name,
+	       le16_to_cpu(mac_mgmt->beacon_period),
+	       le16_to_cpu(mac_mgmt->CFP_max_duration),
+	       le16_to_cpu(mac_mgmt->medium_occupancy_limit),
+	       le16_to_cpu(mac_mgmt->station_id),
+	       le16_to_cpu(mac_mgmt->ATIM_window),
+	       mac_mgmt->CFP_mode,
+	       mac_mgmt->privacy_option_implemented,
+	       mac_mgmt->DTIM_period,
+	       mac_mgmt->CFP_period,
+	       mac2str(mac_mgmt->current_bssid),
+	       hex2str(dev->obuf, (u8 *)mac_mgmt->current_essid, 
+		       min((int)(sizeof(dev->obuf)-1)/2, 
+			   IW_ESSID_MAX_SIZE), '\0'),
+	       mac_mgmt->current_bss_type,
+	       mac_mgmt->power_mgmt_mode,
+	       mac_mgmt->ibss_change,
+	       mac_mgmt->res,
+	       mac_mgmt->multi_domain_capability_implemented,
+	       mac_mgmt->multi_domain_capability_enabled,
+	       country_string);
  err:
 	kfree(mac_mgmt);
  exit:
@@ -1534,12 +1607,163 @@ static int dump_mib_mac(struct at76c503 *dev)
 		goto err;
 	}
 
-	dbg_uc("%s: MIB MAC: listen_int %d",
-	    dev->netdev->name, le16_to_cpu(mac->listen_interval));
+	dbg_uc("%s: MIB MAC: max_tx_msdu_lifetime %d max_rx_lifetime %d "
+	       "frag_threshold %d rts_threshold %d cwmin %d cwmax %d "
+	       "short_retry_time %d long_retry_time %d scan_type %d "
+	       "scan_channel %d probe_delay %u min_channel_time %d "
+	       "max_channel_time %d listen_int %d desired_ssid %s "
+	       "desired_bssid %s desired_bsstype %d",
+	       dev->netdev->name,
+	       le32_to_cpu(mac->max_tx_msdu_lifetime),
+	       le32_to_cpu(mac->max_rx_lifetime),
+	       le16_to_cpu(mac->frag_threshold),
+	       le16_to_cpu(mac->rts_threshold),
+	       le16_to_cpu(mac->cwmin),
+	       le16_to_cpu(mac->cwmax),
+	       mac->short_retry_time,
+	       mac->long_retry_time,
+	       mac->scan_type,
+	       mac->scan_channel,
+	       le16_to_cpu(mac->probe_delay),
+	       le16_to_cpu(mac->min_channel_time),
+	       le16_to_cpu(mac->max_channel_time),
+	       le16_to_cpu(mac->listen_interval),
+	       hex2str(dev->obuf, mac->desired_ssid, 
+		       min((int)(sizeof(dev->obuf)-1)/2, 
+			   IW_ESSID_MAX_SIZE), '\0'),
+	       mac2str(mac->desired_bssid),
+	       mac->desired_bsstype);
  err:
 	kfree(mac);
  exit:
 	return ret;
+}
+
+static int dump_mib_phy(struct at76c503 *dev) __attribute__ ((unused));
+static int dump_mib_phy(struct at76c503 *dev)
+{
+	int ret = 0;
+	struct mib_phy *phy =
+		kmalloc(sizeof(struct mib_phy), GFP_KERNEL);
+
+	if(!phy){
+		ret = -ENOMEM;
+		goto exit;
+	}
+	
+	ret = get_mib(dev->udev, MIB_PHY,
+		      (u8*)phy, sizeof(struct mib_phy));
+	if(ret < 0){
+		err("%s: get_mib failed: %d", dev->netdev->name, ret);
+		goto err;
+	}
+
+	dbg_uc("%s: MIB PHY: ed_threshold %d slot_time %d sifs_time %d "
+	       "preamble_length %d plcp_header_length %d mpdu_max_length %d "
+	       "cca_mode_supported %d operation_rate_set "
+	       "0x%x 0x%x 0x%x 0x%x channel_id %d current_cca_mode %d "
+	       "phy_type %d current_reg_domain %d",
+	       dev->netdev->name,
+	       le32_to_cpu(phy->ed_threshold),
+	       le16_to_cpu(phy->slot_time),
+	       le16_to_cpu(phy->sifs_time),
+	       le16_to_cpu(phy->preamble_length),
+	       le16_to_cpu(phy->plcp_header_length),
+	       le16_to_cpu(phy->mpdu_max_length),
+	       le16_to_cpu(phy->cca_mode_supported),
+	       phy->operation_rate_set[0], phy->operation_rate_set[1],
+	       phy->operation_rate_set[2], phy->operation_rate_set[3],
+	       phy->channel_id,
+	       phy->current_cca_mode,
+	       phy->phy_type,
+	       phy->current_reg_domain);
+ err:
+	kfree(phy);
+ exit:
+	return ret;
+}
+
+static int dump_mib_local(struct at76c503 *dev) __attribute__ ((unused));
+static int dump_mib_local(struct at76c503 *dev)
+{
+	int ret = 0;
+	struct mib_local *local =
+		kmalloc(sizeof(struct mib_phy), GFP_KERNEL);
+
+	if(!local){
+		ret = -ENOMEM;
+		goto exit;
+	}
+	
+	ret = get_mib(dev->udev, MIB_LOCAL,
+		      (u8*)local, sizeof(struct mib_local));
+	if(ret < 0){
+		err("%s: get_mib failed: %d", dev->netdev->name, ret);
+		goto err;
+	}
+
+	dbg_uc("%s: MIB PHY: beacon_enable %d txautorate_fallback %d "
+	       "ssid_size %d promiscuous_mode %d preamble_type %d",
+	       dev->netdev->name,
+	       local->beacon_enable,
+	       local->txautorate_fallback,
+	       local->ssid_size,
+	       local->promiscuous_mode,
+	       local->preamble_type);
+ err:
+	kfree(local);
+ exit:
+	return ret;
+}
+
+
+static int get_mib_mdomain(struct at76c503 *dev, struct mib_mdomain *val)
+ __attribute__ ((unused));
+static int get_mib_mdomain(struct at76c503 *dev, struct mib_mdomain *val)
+{
+	int ret = 0;
+	struct mib_mdomain *mdomain =
+		kmalloc(sizeof(struct mib_mdomain), GFP_KERNEL);
+
+	if(!mdomain){
+		ret = -ENOMEM;
+		goto exit;
+	}
+	
+	ret = get_mib(dev->udev, MIB_MDOMAIN,
+		      (u8*)mdomain, sizeof(struct mib_mdomain));
+	if(ret < 0){
+		err("%s: get_mib failed: %d", dev->netdev->name, ret);
+		goto err;
+	}
+
+	memcpy(val, mdomain, sizeof(*val));
+
+ err:
+	kfree(mdomain);
+ exit:
+	return ret;
+}
+
+static void dump_mib_mdomain(struct at76c503 *dev) __attribute__ ((unused));
+static void dump_mib_mdomain(struct at76c503 *dev)
+{
+	char obuf1[2*14+1], obuf2[2*14+1]; /* to hexdump tx_powerlevel, 
+					      channel_list */
+	int ret;
+	struct mib_mdomain mdomain;
+
+	if ((ret=get_mib_mdomain(dev, &mdomain)) < 0) {
+		err("%s: get_mib_mdomain returned %d", __FUNCTION__, ret);
+		return;
+	}
+	
+	dbg(DBG_MIB, "%s: MIB MDOMAIN: channel_list %s tx_powerlevel %s",
+	    dev->netdev->name,
+	    hex2str(obuf1, mdomain.channel_list,
+		    (sizeof(obuf1)-1)/2,'\0'),
+	    hex2str(obuf2, mdomain.tx_powerlevel,
+		    (sizeof(obuf2)-1)/2,'\0'));
 }
 
 static
@@ -1592,8 +1816,12 @@ int get_current_channel(struct at76c503 *dev)
 	return ret;
 }
 
+/* == PROC start_scan ==
+  start a scan. use_essid is != 0 if any probe_delay (if scan mode is not 
+  passive) should contain the ESSID configured. ir_step describes the
+  international roaming step (0, 1) */
 static
-int start_scan(struct at76c503 *dev, int use_essid)
+int start_scan(struct at76c503 *dev, int use_essid, int ir_step)
 {
 	struct at76c503_start_scan scan;
 
@@ -1606,17 +1834,46 @@ int start_scan(struct at76c503 *dev, int use_essid)
 	} else
 		scan.essid_size = 0;
 
-	scan.probe_delay = cpu_to_le16(10000);
 	//jal: why should we start at a certain channel? we do scan the whole range
 	//allowed by reg domain.
 	scan.channel = dev->channel;
 
 	/* atmelwlandriver differs between scan type 0 and 1 (active/passive)
 	   For ad-hoc mode, it uses type 0 only.*/
-	scan.scan_type = dev->scan_mode;
-	scan.min_channel_time = cpu_to_le16(dev->scan_min_time);
-	scan.max_channel_time = cpu_to_le16(dev->scan_max_time);
+	if ((dev->international_roaming == IR_ON && ir_step == 0) ||
+		dev->iw_mode == IW_MODE_MONITOR)
+		scan.scan_type = SCAN_TYPE_PASSIVE;
+	else
+		scan.scan_type = dev->scan_mode;
+
+	/* INFO: For probe_delay, not multiplying by 1024 as this will be 
+	   slightly less than min_channel_time
+	   (per spec: probe delay < min. channel time) */
+	if (dev->istate == MONITORING) {
+		scan.min_channel_time = cpu_to_le16(dev->monitor_scan_min_time);
+		scan.max_channel_time = cpu_to_le16(dev->monitor_scan_max_time);
+		scan.probe_delay = cpu_to_le16(dev->monitor_scan_min_time * 1000);
+	} else {
+		scan.min_channel_time = cpu_to_le16(dev->scan_min_time);
+		scan.max_channel_time = cpu_to_le16(dev->scan_max_time);
+		scan.probe_delay = cpu_to_le16(dev->scan_min_time * 1000);
+	}
+
+	if (dev->international_roaming == IR_ON && ir_step == 1)
+		scan.international_scan = 0;
+	else
+		scan.international_scan = dev->international_roaming;
+
 	/* other values are set to 0 for type 0 */
+
+	dbg(DBG_PROGRESS, "%s: start_scan (use_essid = %d, intl = %d, "
+	    "channel = %d, probe_delay = %d, scan_min_time = %d, "
+	    "scan_max_time = %d)",
+	    dev->netdev->name, use_essid,
+	    scan.international_scan, scan.channel,
+	    le16_to_cpu(scan.probe_delay),
+	    le16_to_cpu(scan.min_channel_time),
+	    le16_to_cpu(scan.max_channel_time));
 
 	return set_card_command(dev->udev, CMD_SCAN,
 				(unsigned char*)&scan, sizeof(scan));
@@ -1713,19 +1970,134 @@ void mgmt_timeout(unsigned long par)
 	defer_kevent(dev, KEVENT_MGMT_TIMEOUT);
 }
 
+/* == PROC handle_mgmt_timeout_scan == */
+/* called in istate SCANNING on expiry of the mgmt_timer, when a scan was run before
+   (dev->scan_runs > 0) */
+void handle_mgmt_timeout_scan(struct at76c503 *dev)
+{
+
+	u8 *cmd_status;
+	int ret;
+	struct mib_mdomain mdomain;
+
+	cmd_status = kmalloc(40, GFP_KERNEL);
+	if (cmd_status == NULL) {
+		err("%s: %s: cmd_status kmalloc returned NULL", 
+		    dev->netdev->name, __FUNCTION__);
+		return;
+	}
+
+	
+	if ((ret=get_cmd_status(dev->udev, CMD_SCAN, cmd_status)) < 0) {
+		err("%s: %s: get_cmd_status failed with %d",
+		    dev->netdev->name, __FUNCTION__, ret);
+		cmd_status[5] = CMD_STATUS_IN_PROGRESS;	
+                /* INFO: Hope it was a one off error - if not, scanning 
+		   further down the line and stop this cycle */
+	}
+
+	dbg(DBG_PROGRESS, "%s %s:%d got cmd_status %d (istate %d, "
+	    "scan_runs %d)",
+	    dev->netdev->name, __FUNCTION__, __LINE__, cmd_status[5],
+	    dev->istate, dev->scan_runs);
+
+	if (cmd_status[5] == CMD_STATUS_COMPLETE) {
+		if (dev->istate == SCANNING) {
+			dump_bss_table(dev,0);
+			switch (dev->scan_runs) {
+
+			case 1:
+				assert(dev->international_roaming);
+				if ((ret=get_mib_mdomain(dev, &mdomain)) < 0) {
+					err("get_mib_mdomain returned %d", ret);
+				} else {
+					char obuf1[2*14+1], obuf2[2*14+1];
+					
+					dbg(DBG_MIB, "%s: MIB MDOMAIN: channel_list %s "
+					    "tx_powerlevel %s",
+					    dev->netdev->name,
+					    hex2str(obuf1, mdomain.channel_list,
+						    (sizeof(obuf1)-1)/2,'\0'),
+					    hex2str(obuf2, mdomain.tx_powerlevel,
+						    (sizeof(obuf2)-1)/2,'\0'));
+				}
+				if ((ret = start_scan(dev, 0, 1)) < 0) {
+					err("%s: %s: start_scan (ANY) failed with %d", 
+					    dev->netdev->name, __FUNCTION__, ret);
+				}
+				dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
+				    __FUNCTION__, __LINE__);
+				mod_timer(&dev->mgmt_timer, jiffies + HZ);
+				break;
+
+			case 2:
+				if ((ret = start_scan(dev, 1, 1)) < 0) {
+					err("%s: %s: start_scan (SSID) failed with %d", 
+					    dev->netdev->name, __FUNCTION__, ret);
+				}
+				dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
+				    __FUNCTION__, __LINE__);
+				mod_timer(&dev->mgmt_timer, jiffies + HZ);
+				break;
+
+			case 3:
+				/* report the end of scan to user space */
+				iwevent_scan_complete(dev->netdev);
+				NEW_STATE(dev,JOINING);
+				assert(dev->curr_bss == NULL); /* done in free_bss_list, 
+								  find_bss will start with first bss */
+				/* call join_bss immediately after
+				   re-run of all other threads in kevent */
+				defer_kevent(dev,KEVENT_JOIN);
+				break;
+
+			default:
+				err("unexpected dev->scan_runs %d", dev->scan_runs);
+			} /* switch (dev->scan_runs)*/
+			dev->scan_runs++;
+		} else {
+
+			assert(dev->istate == MONITORING);
+			dbg(DBG_MONITOR_MODE, "%s: MONITOR MODE: restart scan",
+			    dev->netdev->name);
+			start_scan(dev, 0, 0);
+			dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
+			    __FUNCTION__, __LINE__);
+			mod_timer(&dev->mgmt_timer, jiffies + HZ);
+		}
+
+	} else { 
+		if ((cmd_status[5] != CMD_STATUS_IN_PROGRESS) &&
+		    (cmd_status[5] != CMD_STATUS_IDLE))
+			err("%s: %s: Bad scan status: %s", 
+			    dev->netdev->name, __FUNCTION__, 
+			    get_cmd_status_string(cmd_status[5]));
+
+		/* the first cmd status after scan start is always a IDLE ->
+		   start the timer to poll again until COMPLETED */
+		dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
+		    __FUNCTION__, __LINE__);
+		mod_timer(&dev->mgmt_timer, jiffies + HZ);
+	}
+
+	kfree(cmd_status);
+}
+
 /* the deferred procedure called from kevent() */
 void handle_mgmt_timeout(struct at76c503 *dev)
 {
 
-	if (dev->istate != SCANNING)
-		/* this is normal behaviour in state SCANNING ... */
+	if ((dev->istate != SCANNING && dev->istate != MONITORING) || 
+	     (debug & DBG_MGMT_TIMER))
+		/* this is normal behaviour in states MONITORING, SCANNING ... */
 		dbg(DBG_PROGRESS, "%s: timeout, state %d", dev->netdev->name,
 		    dev->istate);
 
 	switch(dev->istate) {
 
-	case SCANNING: /* we use the mgmt_timer to delay the next scan for some time */
-		defer_kevent(dev, KEVENT_SCAN);
+	case MONITORING:
+	case SCANNING: 
+		handle_mgmt_timeout_scan(dev);
 		break;
 
 	case JOINING:
@@ -1750,6 +2122,8 @@ void handle_mgmt_timeout(struct at76c503 *dev)
 	case AUTHENTICATING:
 		if (dev->retries-- >= 0) {
 			auth_req(dev, dev->curr_bss, 1, NULL);
+			dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
+			    __FUNCTION__, __LINE__);
 			mod_timer(&dev->mgmt_timer, jiffies+HZ);
 		} else {
 			/* try to get next matching BSS */
@@ -1761,6 +2135,8 @@ void handle_mgmt_timeout(struct at76c503 *dev)
 	case ASSOCIATING:
 		if (dev->retries-- >= 0) {
 			assoc_req(dev,dev->curr_bss);
+			dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
+			    __FUNCTION__, __LINE__);
 			mod_timer(&dev->mgmt_timer, jiffies+HZ);
 		} else {
 			/* jal: TODO: we may be authenticated to several
@@ -1783,12 +2159,16 @@ void handle_mgmt_timeout(struct at76c503 *dev)
 			dev->retries = DISASSOC_RETRIES;
 			disassoc_req(dev, dev->curr_bss);
 		}
+		dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
+		    __FUNCTION__, __LINE__);
 		mod_timer(&dev->mgmt_timer, jiffies+HZ);
 		break;
 
 	case DISASSOCIATING:
 		if (dev->retries-- >= 0) {
 			disassoc_req(dev, dev->curr_bss);
+			dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
+			    __FUNCTION__, __LINE__);
 			mod_timer(&dev->mgmt_timer,jiffies+HZ);
 		} else {
 			/* we scan again ... */
@@ -2165,11 +2545,16 @@ int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
 
 } /* reassoc_req */
 
+#if 0 /* delete it !!! */
+/* == PROC handle_scan == */
 static
 int handle_scan(struct at76c503 *dev)
 {
+	char obuf1[2*14+1], obuf2[2*14+1]; /* to hexdump tx_powerlevel, 
+					      channel_list */
 	int ret;
-	
+	struct mib_mdomain mdomain;
+
 	if (dev->istate == INIT) {
 		ret = -EPERM;
 		goto end_scan;
@@ -2178,31 +2563,56 @@ int handle_scan(struct at76c503 *dev)
 	
 	/* empty the driver's bss list */
 	free_bss_list(dev);
+
+	if (dev->international_roaming) {
+		if ((ret = start_scan(dev, 1, 0)) < 0) {
+			err("%s: start_scan failed with %d",
+			    dev->netdev->name, ret);
+			goto end_scan;
+		}
+
+		if ((ret = wait_completion(dev,CMD_SCAN)) != CMD_STATUS_COMPLETE) {
+			err("%s: 1.start_scan completed with %d",
+			    dev->netdev->name, ret);
+			goto end_scan;
+		}
+
+
+		if ((ret=get_mib_mdomain(dev, &mdomain)) < 0) {
+			err("get_mib_mdomain returned %d", ret);
+			goto end_scan;
+		}
+
+		dbg(DBG_MIB, "%s: MIB MDOMAIN: channel_list %s tx_powerlevel %s",
+		    dev->netdev->name,
+		    hex2str(obuf1, mdomain.channel_list,
+			    (sizeof(obuf1)-1)/2,'\0'),
+		    hex2str(obuf2, mdomain.tx_powerlevel,
+			    (sizeof(obuf2)-1)/2,'\0'));
+
+		/* dump the results of the scan */
+		dump_bss_table(dev, 0);
 	
-	/* scan twice: first run with ProbeReq containing the
-	   empty SSID, the second run with the real SSID.
-	   APs in cloaked mode (e.g. Agere) will answer
-	   in the second run with their real SSID. */
-	
-	if ((ret = start_scan(dev, 0)) < 0) {
-		err("%s: start_scan failed with %d", dev->netdev->name, ret);
-		goto end_scan;
 	}
-	if ((ret = wait_completion(dev,CMD_SCAN)) != CMD_STATUS_COMPLETE) {
-		err("%s start_scan completed with %d",
+
+	if ((ret = start_scan(dev, 0, 1)) < 0) {
+		err("%s: start_scan (ANY) failed with %d", 
 		    dev->netdev->name, ret);
 		goto end_scan;
 	}
+	if ((ret = wait_completion(dev,CMD_SCAN)) != CMD_STATUS_COMPLETE) {
+		err("%s: start_scan (ANY) completed with %d", 
+			dev->netdev->name, ret);
+		goto end_scan;
+	}
 	
-	/* dump the results of the scan with ANY ssid */
-	dump_bss_table(dev, 0);
-	
-	if ((ret = start_scan(dev, 1)) < 0) {
-		err("%s: 2.start_scan failed with %d", dev->netdev->name, ret);
-			goto end_scan;
+	if ((ret = start_scan(dev, 1, 1)) < 0) {
+		err("%s: start_scan (SSID) failed with %d", 
+		    dev->netdev->name, ret);
+		goto end_scan;
 	}
 	if ((ret = wait_completion(dev,CMD_SCAN)) != CMD_STATUS_COMPLETE) {
-		err("%s 2.start_scan completed with %d", 
+		err("%s: start_scan (SSID) completed with %d", 
 			dev->netdev->name, ret);
 		goto end_scan;
 	}
@@ -2215,6 +2625,7 @@ int handle_scan(struct at76c503 *dev)
 end_scan:
 	return (ret < 0);
 }
+#endif //#if 0
 
 #if 0
 /* == PROC re_register_intf ==
@@ -2288,7 +2699,7 @@ kevent(void *data)
 	   is done. So work will be done next time something
 	   else has to be done. This is ugly. TODO! (oku) */
 
-	dbg(DBG_KEVENT, "%s: kevent entry flags=x%lx", dev->netdev->name,
+	dbg(DBG_KEVENT, "%s: kevent entry flags: 0x%lx", dev->netdev->name,
 	    dev->kevent_flags);
 
 	down(&dev->sem);
@@ -2335,16 +2746,12 @@ kevent(void *data)
 	new_bss_clean:
 		kfree(mac_mgmt);
 	}
+
 	if(test_bit(KEVENT_SET_PROMISC, &dev->kevent_flags)){
 		info("%s: KEVENT_SET_PROMISC", dev->netdev->name);
 
 		set_promisc(dev, dev->promisc);
 		clear_bit(KEVENT_SET_PROMISC, &dev->kevent_flags);
-	}
-
-	if(test_bit(KEVENT_MGMT_TIMEOUT, &dev->kevent_flags)){
-		clear_bit(KEVENT_MGMT_TIMEOUT, &dev->kevent_flags);
-		handle_mgmt_timeout(dev);
 	}
 
 	/* check this _before_ KEVENT_JOIN, 'cause _JOIN sets _STARTIBSS bit */
@@ -2439,6 +2846,8 @@ end_startibss:
 				/* send auth req */
 				NEW_STATE(dev,AUTHENTICATING);
 				auth_req(dev, dev->curr_bss, 1, NULL);
+				dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
+				    __FUNCTION__, __LINE__);
 				mod_timer(&dev->mgmt_timer, jiffies+HZ);
 			}
 			goto end_join;
@@ -2450,28 +2859,40 @@ end_startibss:
 			defer_kevent(dev,KEVENT_STARTIBSS);
 			goto end_join;
 		}
-		/* haven't found a matching BSS
-		   in infra mode - use timer to try again in 10 seconds */
+		/* haven't found a matching BSS in infra mode - try again */
 		NEW_STATE(dev,SCANNING);
-		mod_timer(&dev->mgmt_timer, jiffies+RESCAN_TIME*HZ);
+		defer_kevent(dev, KEVENT_SCAN);
 	} /* if (test_bit(KEVENT_JOIN, &dev->kevent_flags)) */
 end_join:
 
+	if(test_bit(KEVENT_MGMT_TIMEOUT, &dev->kevent_flags)){
+		clear_bit(KEVENT_MGMT_TIMEOUT, &dev->kevent_flags);
+		handle_mgmt_timeout(dev);
+	}
+
 	if (test_bit(KEVENT_SCAN, &dev->kevent_flags)) {
 		clear_bit(KEVENT_SCAN, &dev->kevent_flags);
-		
-		if (handle_scan(dev)) {
-			goto end_scan;
+
+		assert(dev->istate == SCANNING);
+
+		/* empty the driver's bss list */
+		free_bss_list(dev);
+
+		/* jal: a hack: we have an additional scan run for
+		   international roaming with use_essid == 1 */
+		dev->scan_runs = dev->international_roaming ? 1 : 2;
+		if ((ret=start_scan(dev, dev->international_roaming ? 
+				    1 : 0, 0)) < 0) {
+			err("%s: %s: start_scan failed with %d",
+			    dev->netdev->name, __FUNCTION__, ret);
+		} else {
+			dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
+			    __FUNCTION__, __LINE__);
+			mod_timer(&dev->mgmt_timer, jiffies + HZ);
 		}
-		
-		NEW_STATE(dev,JOINING);
-		assert(dev->curr_bss == NULL); /* done in free_bss_list, 
-						  find_bss will start with first bss */
-		/* call join_bss immediately after
-		   re-run of all other threads in kevent */
-		defer_kevent(dev,KEVENT_JOIN);
+
 	} /* if (test_bit(KEVENT_SCAN, &dev->kevent_flags)) */
-end_scan:
+
 
 	if (test_bit(KEVENT_SUBMIT_RX, &dev->kevent_flags)) {
 		clear_bit(KEVENT_SUBMIT_RX, &dev->kevent_flags);
@@ -2483,9 +2904,26 @@ end_scan:
 		clear_bit(KEVENT_RESTART, &dev->kevent_flags);
 		assert(dev->istate == INIT);
 		startup_device(dev);
-		/* scan again in a second */
-		NEW_STATE(dev,SCANNING);
-		mod_timer(&dev->mgmt_timer, jiffies+HZ);
+
+		/* call it here for default_iw_mode == IW_MODE_MONITOR and
+		   no subsequent  "iwconfig wlanX mode monitor" or
+		   "iwpriv wlanX monitor 1|2 C" to set dev->netdev->type 
+		   correctly */
+		set_monitor_mode(dev, dev->monitor_prism_header);
+
+
+		netif_carrier_off(dev->netdev); /* disable running netdev watchdog */
+		netif_stop_queue(dev->netdev); /* stop tx data packets */
+		if (dev->iw_mode != IW_MODE_MONITOR) {
+			NEW_STATE(dev,SCANNING);
+			defer_kevent(dev,KEVENT_SCAN);
+		} else {
+			NEW_STATE(dev,MONITORING);
+			start_scan(dev,0,0);
+			dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
+			    __FUNCTION__, __LINE__);
+			mod_timer(&dev->mgmt_timer, jiffies+HZ);
+		}
 	}
 
 	if (test_bit(KEVENT_ASSOC_DONE, &dev->kevent_flags)) {
@@ -2621,7 +3059,7 @@ end_internal_fw:
 
 	up(&dev->sem);
 
-	dbg(DBG_KEVENT, "%s: kevent exit flags=x%lx", dev->netdev->name,
+	dbg(DBG_KEVENT, "%s: kevent exit flags: 0x%lx", dev->netdev->name,
 	    dev->kevent_flags);
 
 	return;
@@ -2991,12 +3429,16 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 			dev->retries = ASSOC_RETRIES;
 			NEW_STATE(dev,ASSOCIATING);
 			assoc_req(dev, dev->curr_bss);
+			dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
+			    __FUNCTION__, __LINE__);
 			mod_timer(&dev->mgmt_timer,jiffies+HZ);
 			return;
 		}
 
 		assert(seq_nr == 2);
 		auth_req(dev, dev->curr_bss, seq_nr+1, resp->challenge);
+		dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer + HZ",
+		    __FUNCTION__, __LINE__);
 		mod_timer(&dev->mgmt_timer,jiffies+HZ);
 	}
 	/* else: ignore AuthFrames to other receipients */
@@ -3084,6 +3526,8 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 		if (dev->curr_bss == NULL)
 			goto rx_mgmt_beacon_end;
 		if (!memcmp(dev->curr_bss->bssid, mgmt->addr3, ETH_ALEN)) {
+			//dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer "
+			//    "+BEACON_TIMEOUT*HZ", __FUNCTION__, __LINE__);
 			mod_timer(&dev->mgmt_timer, jiffies+BEACON_TIMEOUT*HZ);
 			dev->curr_bss->rssi = buf->rssi;
 			goto rx_mgmt_beacon_end;
@@ -3243,12 +3687,25 @@ rx_mgmt_beacon_end:
 	spin_unlock_irqrestore(&dev->bss_list_spinlock, flags);
 } /* rx_mgmt_beacon */
 
+static void update_wstats(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
+{
+	struct iw_statistics *wstats = &dev->wstats;
+	u16 lev_dbm;
+
+	if (buf->rssi > 1) {
+		lev_dbm = (buf->rssi * 5 / 2);
+		if (lev_dbm > 255)
+			lev_dbm = 255;
+		wstats->qual.qual    = buf->link_quality;
+		wstats->qual.level   = lev_dbm;
+		wstats->qual.noise   = buf->noise_level;
+		wstats->qual.updated = 7;
+	}
+}
 
 static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 {
 	struct ieee802_11_mgmt *mgmt = ( struct ieee802_11_mgmt *)buf->packet;
-	struct iw_statistics *wstats = &dev->wstats;
-	u16 lev_dbm;
 	u16 subtype = le16_to_cpu(mgmt->frame_ctl) & IEEE802_11_FCTL_STYPE;
 
 	/* update wstats */
@@ -3262,15 +3719,7 @@ static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 			   Atmel driver actually averages the present, and previous
 			   values, we just present the raw value at the moment - TJS */
 			
-			if (buf->rssi > 1) {
-				lev_dbm = (buf->rssi * 5 / 2);
-				if (lev_dbm > 255)
-					lev_dbm = 255;
-				wstats->qual.qual    = buf->link_quality;
-				wstats->qual.level   = lev_dbm;
-				wstats->qual.noise   = buf->noise_level;
-				wstats->qual.updated = 7;
-			}
+			update_wstats(dev, buf);
 		}
 	}
 
@@ -3873,6 +4322,120 @@ static void at76c503_read_bulk_callback (struct urb *urb)
 	return;
 }
 
+static void rx_monitor_mode(struct at76c503 *dev)
+{
+	struct net_device *netdev = (struct net_device *)dev->netdev;
+	struct at76c503_rx_buffer *buf = 
+		(struct at76c503_rx_buffer *)dev->rx_skb->data;
+	/* length including the IEEE802.11 header, excl. the trailing FCS,
+		excl. the struct at76c503_rx_buffer */
+	int length = le16_to_cpu(buf->wlength) - dev->rx_data_fcs_len;
+	struct sk_buff *skb = dev->rx_skb;
+	struct net_device_stats *stats = &dev->stats;
+	struct iw_statistics *wstats = &dev->wstats;
+
+	update_wstats(dev, buf);
+
+	if (length < 0) {
+		/* buffer contains no data */
+		dbg(DBG_MONITOR_MODE, "%s: MONITOR MODE: rx skb without data",
+		    dev->netdev->name);
+		return;
+	}
+
+	if (netdev->type == ARPHRD_IEEE80211_PRISM) {
+		int skblen = sizeof(p80211msg_lnxind_wlansniffrm_t) + length;
+		p80211msg_lnxind_wlansniffrm_t *prism;
+		u8* payload;
+
+		if ((skb = dev_alloc_skb(skblen)) == NULL) {
+			err("%s: MONITOR MODE: dev_alloc_skb for Prism header "
+			    "returned NULL", dev->netdev->name);
+			return;
+		}
+
+		skb_put(skb, skblen);
+
+		prism = (p80211msg_lnxind_wlansniffrm_t*)skb->data;
+		payload = skb->data + sizeof(p80211msg_lnxind_wlansniffrm_t);
+
+		prism->msgcode = DIDmsg_lnxind_wlansniffrm;
+		prism->msglen = sizeof(p80211msg_lnxind_wlansniffrm_t);
+		strcpy(prism->devname, netdev->name);
+
+		prism->hosttime.did = DIDmsg_lnxind_wlansniffrm_hosttime;
+		prism->hosttime.status = 0;
+		prism->hosttime.len = 4;
+		prism->hosttime.data = jiffies;
+
+		prism->mactime.did = DIDmsg_lnxind_wlansniffrm_mactime;
+		prism->mactime.status = 0;
+		prism->mactime.len = 4;
+		memcpy(&prism->mactime.data, buf->rx_time, 4);
+
+		prism->channel.did = DIDmsg_lnxind_wlansniffrm_channel;
+		prism->channel.status = P80211ENUM_msgitem_status_no_value;
+		prism->channel.len = 4;
+		/* INFO: The channel is encoded in the beacon info. 
+		   (Kismet can figure it out, so less processing here) */
+		prism->channel.data = 0;
+
+		prism->rssi.did = DIDmsg_lnxind_wlansniffrm_rssi;
+		prism->rssi.status = 0;
+		prism->rssi.len = 4;
+		prism->rssi.data = buf->rssi;
+
+		prism->sq.did = DIDmsg_lnxind_wlansniffrm_sq;
+		prism->sq.status = 0;
+		prism->sq.len = 4;
+		prism->sq.data = wstats->qual.qual;
+
+		prism->signal.did = DIDmsg_lnxind_wlansniffrm_signal;
+		prism->signal.status = 0;
+		prism->signal.len = 4;
+		prism->signal.data = wstats->qual.level;
+
+		prism->noise.did = DIDmsg_lnxind_wlansniffrm_noise;
+		prism->noise.status = 0;
+		prism->noise.len = 4;
+		prism->noise.data = wstats->qual.noise;
+
+		prism->rate.did = DIDmsg_lnxind_wlansniffrm_rate;
+		prism->rate.status = 0;
+		prism->rate.len = 4;
+		prism->rate.data = hw_rates[buf->rx_rate] & (~0x80);
+
+		prism->istx.did = DIDmsg_lnxind_wlansniffrm_istx;
+		prism->istx.status = 0;
+		prism->istx.len = 4;
+		prism->istx.data = P80211ENUM_truth_false;
+
+		prism->frmlen.did = DIDmsg_lnxind_wlansniffrm_frmlen;
+		prism->frmlen.status = 0;
+		prism->frmlen.len = 4;
+		prism->frmlen.data = length;
+
+		memcpy(payload, buf->packet, length);
+	} else {
+		/* netdev->type != ARPHRD_IEEE80211_PRISM */
+		skb_pull(skb, AT76C503_RX_HDRLEN);
+		skb_trim(skb, length);
+		dev->rx_skb = NULL;
+	}
+
+	skb->dev = netdev;
+	skb->ip_summed = CHECKSUM_NONE;
+	skb->mac.raw = skb->data;
+	skb->pkt_type = PACKET_OTHERHOST;
+	skb->protocol = htons(ETH_P_80211_RAW);
+
+	netdev->last_rx = jiffies;
+	netif_rx(skb);
+	stats->rx_packets++;
+	stats->rx_bytes += length;
+} /* end of rx_monitor_mode */
+
+
 static void rx_tasklet(unsigned long param)
 {
 	struct at76c503 *dev = (struct at76c503 *)param;
@@ -3915,12 +4478,6 @@ static void rx_tasklet(unsigned long param)
 		return;
 	}
 
-	/* there is a new bssid around, accept it: */
-	if(buf->newbss && dev->iw_mode == IW_MODE_ADHOC){
-		dbg(DBG_PROGRESS, "%s: rx newbss", netdev->name);
-		defer_kevent(dev, KEVENT_NEW_BSS);
-	}
-
 	if (debug & DBG_RX_ATMEL_HDR) {
 		dbg_uc("%s: rx frame: rate %d rssi %d noise %d link %d %s",
 		    dev->netdev->name,
@@ -3928,6 +4485,17 @@ static void rx_tasklet(unsigned long param)
 		    buf->link_quality,
 		    hex2str(dev->obuf,(u8 *)i802_11_hdr,
 			    min((int)(sizeof(dev->obuf)-1)/2,48),'\0'));
+	}
+
+	if (dev->istate == MONITORING) {
+		rx_monitor_mode(dev);
+		goto finish;
+	}
+
+	/* there is a new bssid around, accept it: */
+	if(buf->newbss && dev->iw_mode == IW_MODE_ADHOC) {
+		dbg(DBG_PROGRESS, "%s: rx newbss", netdev->name);
+		defer_kevent(dev, KEVENT_NEW_BSS);
 	}
 
 	switch (frame_ctl & IEEE802_11_FCTL_FTYPE) {
@@ -3954,7 +4522,7 @@ static void rx_tasklet(unsigned long param)
 		info("%s: it's a frame from mars: %2x", dev->netdev->name,
 		     frame_ctl);
 	} /* switch (frame_ctl & IEEE802_11_FCTL_FTYPE) */
-
+finish:
 	submit_rx_urb(dev);
  no_more_urb:
 	return;
@@ -4190,10 +4758,12 @@ int startup_device(struct at76c503 *dev)
 		       dev->channel,
 		       dev->wep_enabled ? "enabled" : "disabled",
 		       dev->wep_key_id, dev->wep_keys_len[dev->wep_key_id]);
-		dbg_uc("%s param: preamble %s rts %d retry %d frag %d txrate %s auth_mode %d",
+		dbg_uc("%s param: preamble %s rts %d retry %d frag %d "
+		       "txrate %s auth_mode %d",
 		       dev->netdev->name,		       
 		       dev->preamble_type == PREAMBLE_TYPE_SHORT ? "short" : "long",
-		       dev->rts_threshold, dev->short_retry_limit, dev->frag_threshold,
+		       dev->rts_threshold, dev->short_retry_limit, 
+		       dev->frag_threshold,
 		       dev->txrate == TX_RATE_1MBIT ? "1MBit" :
 		       dev->txrate == TX_RATE_2MBIT ? "2MBit" :
 		       dev->txrate == TX_RATE_5_5MBIT ? "5.5MBit" :
@@ -4201,35 +4771,40 @@ int startup_device(struct at76c503 *dev)
 		       dev->txrate == TX_RATE_AUTO ? "auto" : "<invalid>",
 		       dev->auth_mode);
 		dbg_uc("%s param: pm_mode %d pm_period %d auth_mode %s "
-		       "scan_times %d %d scan_mode %s",
+		       "scan_times %d %d scan_mode %s international_roaming %d",
 		       dev->netdev->name,		       
 		       dev->pm_mode, dev->pm_period_us,
 		       dev->auth_mode == IEEE802_11_AUTH_ALG_OPEN_SYSTEM ?
 		       "open" : "shared_secret",
 		       dev->scan_min_time, dev->scan_max_time,
-		       dev->scan_mode == SCAN_TYPE_ACTIVE ? "active" : "passive");
+		       dev->scan_mode == SCAN_TYPE_ACTIVE ? "active" : "passive",
+		       dev->international_roaming);
 	}
 
 	memset(ccfg, 0, sizeof(struct at76c503_card_config));
-	ccfg->exclude_unencrypted = 1; /* jal: always exclude unencrypted 
-					  if WEP is active */
 	ccfg->promiscuous_mode = 0;
 	ccfg->short_retry_limit = dev->short_retry_limit;
 	//ccfg->long_retry_limit = dev->long_retry_limit;
-	
-	if (dev->wep_enabled &&
-	    dev->wep_keys_len[dev->wep_key_id] > WEP_SMALL_KEY_LEN)
-		ccfg->encryption_type = 2;
-	else
-		ccfg->encryption_type = 1;
 
+	if (dev->wep_enabled) {
+	    if (dev->wep_keys_len[dev->wep_key_id] > WEP_SMALL_KEY_LEN)
+			ccfg->encryption_type = 2;
+		else
+			ccfg->encryption_type = 1;
+
+		/* jal: always exclude unencrypted if WEP is active */
+		ccfg->exclude_unencrypted = 1;
+	} else {
+		ccfg->exclude_unencrypted = 0;
+		ccfg->encryption_type = 0;
+	}
 
 	ccfg->rts_threshold = cpu_to_le16(dev->rts_threshold);
 	ccfg->fragmentation_threshold = cpu_to_le16(dev->frag_threshold);
 
 	memcpy(ccfg->basic_rate_set, hw_rates, 4);
 	/* jal: really needed, we do a set_mib for autorate later ??? */
-	ccfg->auto_rate_fallback = (dev->txrate == 4 ? 1 : 0);
+	ccfg->auto_rate_fallback = (dev->txrate == TX_RATE_AUTO ? 1 : 0);
 	ccfg->channel = dev->channel;
 	ccfg->privacy_invoked = dev->wep_enabled;
 	memcpy(ccfg->current_ssid, dev->essid, IW_ESSID_MAX_SIZE);
@@ -4252,7 +4827,7 @@ int startup_device(struct at76c503 *dev)
 
 	/* remove BSSID from previous run */
 	memset(dev->bssid, 0, ETH_ALEN);
-  
+	
 	if (set_radio(dev, 1) == 1)
 		wait_completion(dev, CMD_RADIO);
 
@@ -4264,12 +4839,26 @@ int startup_device(struct at76c503 *dev)
 	if ((ret=set_rts(dev, dev->rts_threshold)) < 0)
 		return ret;
 	
-	if ((ret=set_autorate_fallback(dev, dev->txrate == 4 ? 1 : 0)) < 0)
+	if ((ret=set_autorate_fallback(dev, dev->txrate == TX_RATE_AUTO ? 1 : 0)) < 0)
 		return ret;
 
 	if ((ret=set_pm_mode(dev, dev->pm_mode)) < 0)
 		return ret;
 	
+	if ((ret=set_iroaming(dev, dev->international_roaming)) < 0)
+		return ret;
+
+	if (debug & DBG_MIB)
+	{
+		dump_mib_mac(dev);
+		dump_mib_mac_addr(dev);
+		dump_mib_mac_mgmt(dev);
+		dump_mib_mac_wep(dev);
+		dump_mib_mdomain(dev);
+		dump_mib_phy(dev);
+		dump_mib_local(dev);
+	}
+
 	return 0;
 }
 
@@ -4283,10 +4872,6 @@ int at76c503_open(struct net_device *netdev)
 
 	if(down_interruptible(&dev->sem))
 	   return -EINTR;
-
-	ret = startup_device(dev);
-	if (ret < 0)
-		goto err;
 
 	/* if netdev->dev_addr != dev->mac_addr we must
 	   set the mac address in the device ! */
@@ -4302,18 +4887,15 @@ int at76c503_open(struct net_device *netdev)
 
 	dev->nr_submit_rx_tries = NR_SUBMIT_RX_TRIES; /* init counter */
 
-	ret = submit_rx_urb(dev);
-	if(ret < 0){
+	if((ret=submit_rx_urb(dev)) < 0){
 		err("%s: open: submit_rx_urb failed: %d", netdev->name, ret);
 		goto err;
 	}
 
-  	NEW_STATE(dev,SCANNING);
-  	defer_kevent(dev,KEVENT_SCAN);
-  	netif_carrier_off(dev->netdev); /* disable running netdev watchdog */
-  	netif_stop_queue(dev->netdev); /* stop tx data packets */
-   
 	dev->open_count++;
+
+	defer_kevent(dev, KEVENT_RESTART);
+
 	dbg(DBG_PROC_ENTRY, "at76c503_open end");
  err:
 	up(&dev->sem);
@@ -4541,6 +5123,17 @@ static const struct iw_priv_args at76c503_priv_args[] = {
 	{ PRIV_IOCTL_SET_SCAN_MODE, 
 	  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0,
 	  "scan_mode"}, // 0 - active, 1 - passive scan
+
+	{ PRIV_IOCTL_SET_INTL_ROAMING,
+	  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0,
+	  "intl_roaming"},
+
+	/* needed for Kismet, orinoco mode */
+	{ PRIV_IOCTL_SET_MONITOR_MODE,
+	  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 2, 0,
+	  "monitor"}, /* param1: monitor mode: 0 (off), 1 (on,Prism header), 
+			                       2 (on, no Prism header)
+			 param2: channel (to start scan at) */
 };
 
 
@@ -4642,9 +5235,10 @@ int at76c503_iw_handler_set_freq(struct net_device *netdev,
 		// either that or an invalid frequency was 
 		// provided by the user
 		ret =  -EINVAL;
-	} else {
+	} else if (!dev->international_roaming) {
 		if (!(dev->domain->channel_map & (1 << (chan-1)))) {
-			info("%s: channel %d not allowed for domain %s",
+			info("%s: channel %d not allowed for domain %s "
+			     "(and international_roaming is OFF)",
 			     dev->netdev->name, chan, dev->domain->name);
 			ret = -EINVAL;
 		}
@@ -4690,13 +5284,12 @@ int at76c503_iw_handler_set_mode(struct net_device *netdev,
 	
 	dbg(DBG_IOCTL, "%s: SIOCSIWMODE - %d", netdev->name, *mode);
 	
-	if ((*mode != IW_MODE_ADHOC) &&
-	    (*mode != IW_MODE_INFRA)) {
+	if ((*mode != IW_MODE_ADHOC) && (*mode != IW_MODE_INFRA) &&
+	    (*mode != IW_MODE_MONITOR)) {
 		ret = -EINVAL;
 	} else {
 		dev->iw_mode = *mode;
 	}
-	
 	return ret;
 }
 
@@ -5039,11 +5632,15 @@ int at76c503_iw_handler_set_scan(struct net_device *netdev,
 				 char *extra)
 {
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
-	int ret = 0;
 	unsigned long flags;
 	
 	dbg(DBG_IOCTL, "%s: SIOCSIWSCAN", netdev->name);
-	
+
+	/* jal: we don't allow "iwlist wlanX scan" while we are
+	   in monitor mode */
+	if (dev->iw_mode == IW_MODE_MONITOR)
+		return -EBUSY;
+
 	// stop pending management stuff
 	del_timer_sync(&(dev->mgmt_timer));
 	
@@ -5062,16 +5659,9 @@ int at76c503_iw_handler_set_scan(struct net_device *netdev,
 	
 	// change to scanning state
 	NEW_STATE(dev, SCANNING);
+	defer_kevent(dev, KEVENT_SCAN);
 	
-	ret = handle_scan(dev);
-	
-	if (!ret) {
-		NEW_STATE(dev,JOINING);
-		assert(dev->curr_bss == NULL);
-		defer_kevent(dev, KEVENT_JOIN);
-	}
-	
-	return (ret < 0) ? ret : 0;
+	return 0;
 }
 
 static 
@@ -5772,8 +6362,14 @@ int at76c503_iw_handler_PRIV_IOCTL_SET_SCAN_TIMES
 	if (mint <= 0 || maxt <= 0 || mint > maxt) {
 		ret = -EINVAL;
 	} else {
-		dev->scan_min_time = mint;
-		dev->scan_max_time = maxt;
+		if (dev->istate == MONITORING) {
+			dev->monitor_scan_min_time = mint;
+			dev->monitor_scan_max_time = maxt;
+			ret = 0;
+		} else {
+			dev->scan_min_time = mint;
+			dev->scan_max_time = maxt;
+		}
 	}
 	
 	return ret;
@@ -5801,7 +6397,113 @@ int at76c503_iw_handler_PRIV_IOCTL_SET_SCAN_MODE
 	return ret;
 }
 
+static
+int set_iroaming(struct at76c503 *dev, int onoff)
+{
+	int ret = 0;
 
+	memset(&dev->mib_buf, 0, sizeof(struct set_mib_buffer));
+	dev->mib_buf.type = MIB_MAC_MGMT;
+	dev->mib_buf.size = 1;
+	dev->mib_buf.index = IROAMING_OFFSET;
+	dev->mib_buf.data[0] = (dev->international_roaming ? 1 : 0);
+	ret = set_mib(dev, &dev->mib_buf);
+	if(ret < 0){
+		err("%s: set_mib (intl_roaming_enable) failed: %d", dev->netdev->name, ret);
+	}
+
+	return ret;
+}
+
+static
+int at76c503_iw_handler_PRIV_IOCTL_SET_INTL_ROAMING
+	(struct net_device *netdev, IW_REQUEST_INFO *info, 
+	 char *name, char *extra)
+{
+	struct at76c503 *dev = (struct at76c503*)netdev->priv;
+	int val = *((int *)name);
+	int ret = -EIWCOMMIT;
+
+	dbg(DBG_IOCTL, "%s: PRIV_IOCTL_SET_INTL_ROAMING - mode %s",
+		netdev->name, (val == IR_OFF) ? "off" : 
+		(val == IR_ON) ? "on" : "<invalid>");
+
+	if (val != IR_OFF && val != IR_ON) {
+		ret = -EINVAL;
+	} else {
+		if (dev->international_roaming != val) {
+			dev->international_roaming = val;
+			set_iroaming(dev, val);
+		}
+	}
+
+	return ret;
+}
+
+/* == PROC set_monitor_mode == 
+   sets dev->netdev->type */
+static
+void set_monitor_mode(struct at76c503 *dev, int use_prism)
+{
+	if (dev->iw_mode == IW_MODE_MONITOR) {
+		if (use_prism) {
+			dbg(DBG_MONITOR_MODE, "%s: MONITOR MODE ON: "
+			    "Prism headers ARE used", dev->netdev->name);
+			dev->netdev->type = ARPHRD_IEEE80211_PRISM;
+		} else {
+			dbg(DBG_MONITOR_MODE, "%s: MONITOR MODE ON: "
+			    "Prism headers NOT used", dev->netdev->name);
+			dev->netdev->type = ARPHRD_IEEE80211;
+		}
+	} else {
+		dbg(DBG_MONITOR_MODE, "%s: MONITOR MODE OFF", 
+		    dev->netdev->name);
+		dev->netdev->type = ARPHRD_ETHER;
+	}
+} /* set_monitor_mode */
+
+static
+int at76c503_iw_handler_PRIV_IOCTL_SET_MONITOR_MODE
+	(struct net_device *netdev, IW_REQUEST_INFO *info, 
+	 char *name, char *extra)
+{
+	struct at76c503 *dev = (struct at76c503*)netdev->priv;
+	int *params = ((int *)name);
+	int mode = params[0];
+	int channel = params[1];
+	int ret = 0;
+
+	dbg(DBG_IOCTL, "%s: PRIV_IOCTL_SET_MONITOR_MODE - mode %d ch %d", 
+	    netdev->name, mode, channel);
+
+	if (mode != MM_OFF && mode != MM_ON && mode != MM_ON_NO_PRISM)
+		ret = -EINVAL;
+	else {
+		if (mode != MM_OFF) {
+			if ((channel >= 1) && 
+			    (channel <= (sizeof(channel_frequency) / 
+				 sizeof(channel_frequency[0]))))
+			// INFO: This doesn't actually affect the scan
+			dev->channel = channel;
+
+			dev->monitor_prism_header = (mode == MM_ON);
+
+			if (dev->iw_mode != IW_MODE_MONITOR) {
+				ret = -EIWCOMMIT;
+				dev->iw_mode = IW_MODE_MONITOR;
+			}
+		} else {
+			/* mode == MM_OFF */
+			if (dev->iw_mode == IW_MODE_MONITOR) {
+				ret = -EIWCOMMIT;
+				dev->iw_mode = IW_MODE_INFRA;
+			}
+		}
+		set_monitor_mode(dev, dev->monitor_prism_header);
+	}
+
+	return ret;
+}
 
 #if WIRELESS_EXT > 12
 /*******************************************************************************
@@ -5890,6 +6592,10 @@ static const iw_handler	at76c503_priv_handlers[] =
 	(iw_handler) at76c503_iw_handler_PRIV_IOCTL_SET_SCAN_TIMES,
 	(iw_handler) NULL,
 	(iw_handler) at76c503_iw_handler_PRIV_IOCTL_SET_SCAN_MODE,
+	(iw_handler) NULL,
+	(iw_handler) at76c503_iw_handler_PRIV_IOCTL_SET_INTL_ROAMING,
+	(iw_handler) NULL,
+	(iw_handler) at76c503_iw_handler_PRIV_IOCTL_SET_MONITOR_MODE,
 	(iw_handler) NULL,
 };
 
@@ -6306,6 +7012,16 @@ set_debug_end:
 		ret = at76c503_iw_handler_PRIV_IOCTL_SET_SCAN_MODE
 			(netdev, NULL, wrq->u.name, NULL);
 		break;
+
+	case PRIV_IOCTL_SET_INTL_ROAMING:
+		ret = at76c503_iw_handler_PRIV_IOCTL_SET_INTL_ROAMING
+			(netdev, NULL, wrq->u.name, NULL);
+		break;
+
+	case PRIV_IOCTL_SET_MONITOR_MODE:
+		ret = at76c503_iw_handler_PRIV_IOCTL_SET_MONITOR_MODE
+			(netdev, NULL, wrq->u.name, NULL);
+		break;
 	
 	default:
 		dbg(DBG_IOCTL, "%s: ioctl not supported (0x%x)", netdev->name, 
@@ -6591,7 +7307,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.67 2004/08/26 20:41:45 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.68 2004/08/29 11:41:18 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -6612,8 +7328,10 @@ int init_new_device(struct at76c503 *dev)
 	     dev->regulatory_domain);
 
 	/* initializing */
+	dev->international_roaming = international_roaming;
 	dev->channel = DEF_CHANNEL;
-	dev->iw_mode = IW_MODE_ADHOC;
+	dev->iw_mode = default_iw_mode;
+	dev->monitor_prism_header = 1;
 	memset(dev->essid, 0, IW_ESSID_MAX_SIZE);
 	memcpy(dev->essid, DEF_ESSID, DEF_ESSID_LEN);
 	dev->essid_size = DEF_ESSID_LEN;
@@ -6629,6 +7347,8 @@ int init_new_device(struct at76c503 *dev)
 	dev->scan_min_time = scan_min_time;
 	dev->scan_max_time = scan_max_time;
 	dev->scan_mode = scan_mode;
+	dev->monitor_scan_min_time = monitor_scan_min_time;
+	dev->monitor_scan_max_time = monitor_scan_max_time;
 
 	netdev->flags &= ~IFF_MULTICAST; /* not yet or never */
 	netdev->open = at76c503_open;
@@ -6889,8 +7609,6 @@ int at76c503_usbdfu_post(struct usb_device *udev)
 	}
 	return 0;
 }
-
-/* == PROC == */
 
 
 /**
