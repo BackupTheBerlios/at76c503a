@@ -133,6 +133,9 @@ static int __init mod_init(void)
 
 	info(DRIVER_DESC " " DRIVER_VERSION);
 
+	/* HZ became a variable with 2.4.23-preX */
+	module_usbdfu.reset_delay=2*HZ;
+
 	/* register with usbdfu so that the firmware will be automatically
 	 * downloaded to the device on detection */
 	result = usbdfu_register(&module_usbdfu);
@@ -148,9 +151,6 @@ static int __init mod_init(void)
 		usbdfu_deregister(&module_usbdfu);
 		return -1;
 	}
-
-	/* HZ became a variable with 2.4.23-preX */
-	module_usbdfu.reset_delay=2*HZ;
 
 	return 0;
 }
