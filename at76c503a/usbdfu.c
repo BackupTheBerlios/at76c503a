@@ -461,7 +461,9 @@ static void kevent_timer(unsigned long data)
 
 	defer_kevent(dev, KEVENT_FLAG_RESET);
 
-	del_timer_sync(&dev->timer);
+/* jal: this hangs SMP systems. no need to stop the timer, as
+   it is non-periodic */
+//	del_timer_sync(&dev->timer);
 }
 
 /* TODO: how do we make sure the device hasn't been
