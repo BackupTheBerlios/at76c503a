@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.54 2004/05/29 22:16:17 jal2 Exp $
+/* $Id: at76c503.c,v 1.55 2004/05/31 13:59:27 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -480,6 +480,41 @@ static int at76c503_get_fw_info(u8 *fw_data, int fw_size,
 
 /* second step of initialisation (after fw download) */
 static int init_new_device(struct at76c503 *dev);
+
+/* some abbrev. for wireless events */
+#if WIRELESS_EXT > 13
+static inline void iwevent_scan_complete(struct net_device *dev)
+{
+	union iwreq_data wrqu;
+	wrqu.data.length = 0;
+	wrqu.data.flags = 0;
+	wireless_send_event(dev, SIOCGIWSCAN, &wrqu, NULL);
+}
+static inline void iwevent_bss_connect(struct net_device *dev, u8 *bssid)
+{
+	union iwreq_data wrqu;
+	wrqu.data.length = 0;
+	wrqu.data.flags = 0;
+	memcpy(wrqu.ap_addr.sa_data, bssid, ETH_ALEN);
+	wrqu.ap_addr.sa_family = ARPHRD_ETHER;
+	wireless_send_event(dev, SIOCGIWAP, &wrqu, NULL);
+}
+
+static inline void iwevent_bss_disconnect(struct net_device *dev)
+{
+	union iwreq_data wrqu;
+	wrqu.data.length = 0;
+	wrqu.data.flags = 0;
+	memset(wrqu.ap_addr.sa_data, '\0', ETH_ALEN);
+	wrqu.ap_addr.sa_family = ARPHRD_ETHER;
+	wireless_send_event(dev, SIOCGIWAP, &wrqu, NULL);
+}
+
+#else
+static inline void iwevent_scan_complete(struct net_device *dev) {}
+static inline void iwevent_bss_connect(struct net_device *dev, u8 *bssid) {}
+static inline void iwevent_bss_disconnect(struct net_device *dev) {}
+#endif /* #if WIRELESS_EXT > 13 */
 
 /* hexdump len many bytes from buf into obuf, separated by delim,
    add a trailing \0 into obuf */
@@ -1711,6 +1746,7 @@ void handle_mgmt_timeout(struct at76c503 *dev)
 		if (dev->iw_mode != IW_MODE_ADHOC) {
 			netif_carrier_off(dev->netdev);
 			netif_stop_queue(dev->netdev);
+			iwevent_bss_disconnect(dev->netdev);
 			NEW_STATE(dev,SCANNING);
 			defer_kevent(dev,KEVENT_SCAN);
 		}
@@ -2180,6 +2216,9 @@ int handle_scan(struct at76c503 *dev)
 	
 	/* dump the results of the scan with real ssid */
 	dump_bss_table(dev, 0);
+	
+	iwevent_scan_complete(dev->netdev); /* report the end of scan to user space */
+
 end_scan:
 	return (ret < 0);
 }
@@ -2289,6 +2328,8 @@ kevent(void *data)
 		memcpy(dev->bssid, mac_mgmt->current_bssid, ETH_ALEN);
 		dbg(DBG_PROGRESS, "using BSSID %s", mac2str(dev->bssid));
     
+		iwevent_bss_connect(dev->netdev, dev->bssid);
+
 		memset(&mib_buf, 0, sizeof(struct set_mib_buffer));
 		mib_buf.type = MIB_MAC_MGMT;
 		mib_buf.size = 1;
@@ -2399,7 +2440,7 @@ end_startibss:
 				memcpy(dev->essid, bptr->ssid, bptr->ssid_len);
 				memcpy(dev->bssid, bptr->bssid, ETH_ALEN);
 				dev->channel = bptr->channel;
-
+				iwevent_bss_connect(dev->netdev,bptr->bssid);
 				netif_start_queue(dev->netdev);
 				/* just to be sure */
 				del_timer_sync(&dev->mgmt_timer);
@@ -2498,6 +2539,7 @@ end_scan:
 		netif_carrier_on(dev->netdev);
 		netif_wake_queue(dev->netdev); /* _start_queue ??? */
 		NEW_STATE(dev,CONNECTED);
+		iwevent_bss_connect(dev->netdev,dev->curr_bss->bssid);
 		dbg(DBG_PROGRESS, "%s: connected to BSSID %s",
 		    dev->netdev->name, mac2str(dev->curr_bss->bssid));
 	}
@@ -2808,6 +2850,8 @@ static void rx_mgmt_reassoc(struct at76c503 *dev,
 			bptr->assoc_id = assoc_id;
 			NEW_STATE(dev,CONNECTED);
 
+			iwevent_bss_connect(dev->netdev,bptr->bssid);
+
 			spin_lock_irqsave(&dev->bss_list_spinlock, flags);
 			dev->curr_bss = dev->new_bss;
 			dev->new_bss = NULL;
@@ -2873,6 +2917,7 @@ static void rx_mgmt_disassoc(struct at76c503 *dev,
 			if (dev->istate == CONNECTED) {
 				netif_carrier_off(dev->netdev);
 				netif_stop_queue(dev->netdev);
+				iwevent_bss_disconnect(dev->netdev);
 			}
 			del_timer_sync(&dev->mgmt_timer);
 			NEW_STATE(dev,JOINING);
@@ -2981,6 +3026,8 @@ static void rx_mgmt_deauth(struct at76c503 *dev,
 		 !memcmp(bc_addr, mgmt->addr1, ETH_ALEN))) {
 			/* this is a DeAuth from the BSS we are connected or
 			   trying to connect to, directed to us or broadcasted */
+			if (dev->istate == CONNECTED)
+				iwevent_bss_disconnect(dev->netdev);
 			NEW_STATE(dev,JOINING);
 			defer_kevent(dev,KEVENT_JOIN);
 			del_timer_sync(&dev->mgmt_timer);
@@ -6216,6 +6263,9 @@ void at76c503_delete_device(struct at76c503 *dev)
 	free_bss_list(dev);
 	del_timer_sync(&dev->bss_list_timer);
 
+	if (dev->istate == CONNECTED)
+		iwevent_bss_disconnect(dev->netdev);
+
 	for(i=0; i < NR_RX_DATA_BUF; i++)
 		if (dev->rx_data[i].skb != NULL) {
 			dev_kfree_skb(dev->rx_data[i].skb);
@@ -6421,7 +6471,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.54 2004/05/29 22:16:17 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.55 2004/05/31 13:59:27 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
