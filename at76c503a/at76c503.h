@@ -340,8 +340,6 @@ struct mib_mdomain {
         u8 channel_list[14]; /* 0 for invalid channels */
 } __attribute__ ((packed));
 
-#define NR_BSS_INFO 16 /* how many BSS do we record */
-
 /* states in infrastructure mode */
 enum infra_state {
 	INIT,
@@ -359,6 +357,7 @@ enum infra_state {
 #define MAX_RATE_LEN 32 /* 32 rates should be enough ... */
 
 struct bss_info{
+	struct bss_info *next; /* link to next entry, or NULL */
 	u8 mac[ETH_ALEN]; /* real mac address, differs 
 			     for ad-hoc from bssid */
 	u8 bssid[ETH_ALEN]; /* bssid */
@@ -441,8 +440,15 @@ struct at76c503 {
         int frag_threshold; /* threshold for fragmentation of tx packets */
         int rts_threshold; /* threshold for RTS mechanism */
 
-	struct bss_info bss[NR_BSS_INFO]; /* the list we got from scanning */
-	int bss_nr; /* how many valid entries in bss[] (from 0)? */
+	/* the list we got from scanning */
+	struct bss_info *first_bss;
+	struct bss_info *last_bss; /* the last entry in the list ,
+				      or NULL if list is empty */
+	struct bss_info *curr_bss; /* if istate == AUTH, ASSOC, REASSOC, JOIN or CONN 
+				      dev->bss[curr_bss] is the currently selected BSS
+				      we operate on */
+	struct bss_info *new_bss; /* if istate == REASSOC dev->new_bss
+				     is the new bss we want to reassoc to */
 
 	/* some data for infrastructure mode only */
 	spinlock_t mgmt_spinlock; /* this spinlock protects access to
@@ -450,11 +456,7 @@ struct at76c503 {
 	struct at76c503_tx_buffer *next_mgmt_bulk; /* pending management msg to
 						     send via bulk out */
 	enum infra_state istate;
-	int curr_bss; /* if istate == AUTH, ASSOC, REASSOC, JOIN or CONN 
-			 dev->bss[curr_bss] is the currently selected BSS
-			 we operate on */
-	int new_bss; /* if istate == REASSOC dev->bss[new_bss] is the new bss
-			we want to reassoc to */
+
 	struct timer_list mgmt_timer; /* the timer we use to repeat auth_req etc. */
 	int retries; /* counts backwards while re-trying to send auth/assoc_req's */
 	u16 assoc_id; /* the assoc_id for states JOINING, REASSOCIATING, CONNECTED */

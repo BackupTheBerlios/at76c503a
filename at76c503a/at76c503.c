@@ -312,11 +312,14 @@ static void iwspy_update(struct at76c503 *dev, struct at76c503_rx_buffer *buf);
 static void at76c503_read_bulk_callback (struct urb *urb);
 static void at76c503_write_bulk_callback(struct urb *urb);
 static void defer_kevent (struct at76c503 *dev, int flag);
-static int find_matching_bss(struct at76c503 *dev, int start);
-static int auth_req(struct at76c503 *dev, int idx, int seq_nr, u8 *challenge);
-static int disassoc_req(struct at76c503 *dev, int idx);
-static int assoc_req(struct at76c503 *dev, int idx);
-static int reassoc_req(struct at76c503 *dev, int curr, int new);
+static struct bss_info *find_matching_bss(struct at76c503 *dev,
+					  struct bss_info *start);
+static int auth_req(struct at76c503 *dev, struct bss_info *bss, int seq_nr,
+		    u8 *challenge);
+static int disassoc_req(struct at76c503 *dev, struct bss_info *bss);
+static int assoc_req(struct at76c503 *dev, struct bss_info *bss);
+static int reassoc_req(struct at76c503 *dev, struct bss_info *curr,
+		       struct bss_info *new);
 static void dump_bss_table(struct at76c503 *dev);
 static int submit_rx_urb(struct at76c503 *dev);
 
@@ -339,6 +342,20 @@ static char *hex2str(char *obuf, u8 *buf, int len, char delim)
   *obuf = '\0';
 
   return ret;
+}
+
+static inline void free_bss_list(struct at76c503 *dev)
+{
+	struct bss_info *ptr, *next;
+
+	ptr = dev->first_bss;
+	while (ptr != NULL) {
+		next = ptr->next;
+		kfree(ptr);
+		ptr = next;
+	}
+	dev->curr_bss = dev->first_bss =
+		dev->last_bss = dev->new_bss = NULL;
 }
 
 static inline char *mac2str(u8 *mac)
@@ -909,13 +926,11 @@ int start_ibss(struct at76c503 *dev)
 
 /* idx points into dev->bss */
 static
-int join_bss(struct at76c503 *dev, int idx)
+int join_bss(struct at76c503 *dev, struct bss_info *ptr)
 {
 	struct at76c503_join join;
-	struct bss_info *ptr;
 
-	assert(idx < dev->bss_nr);
-	ptr = dev->bss+idx;
+	assert(ptr != NULL);
 
 	memset(&join, 0, sizeof(struct at76c503_join));
 	memcpy(join.bssid, ptr->bssid, ETH_ALEN);
@@ -960,7 +975,7 @@ void handle_mgmt_timeout(struct at76c503 *dev)
 	case CONNECTED: /* we haven't received the beacon of this BSS for 
 			   BEACON_TIMEOUT seconds */
 		info("%s: lost beacon bssid %s",
-		     dev->netdev->name, mac2str(dev->bss[dev->curr_bss].bssid));
+		     dev->netdev->name, mac2str(dev->curr_bss->bssid));
 		netif_carrier_off(dev->netdev); /* disable running netdev watchdog */
 		netif_stop_queue(dev->netdev); /* stop tx data packets */
 		NEW_STATE(dev,SCANNING);
@@ -1119,14 +1134,15 @@ int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf)
 } /* send_mgmt_bulk */
 
 static
-int disassoc_req(struct at76c503 *dev, int idx)
+int disassoc_req(struct at76c503 *dev, struct bss_info *bss)
 {
 	struct at76c503_tx_buffer *tx_buffer;
 	struct ieee802_11_mgmt *mgmt;
 	struct ieee802_11_disassoc_frame *req;
-	struct bss_info *bss = dev->bss+idx;
 
-	assert(idx >= 0 && idx < dev->bss_nr);
+	assert(bss != NULL);
+	if (bss == NULL)
+		return -EFAULT;
 
 	tx_buffer = kmalloc(DISASSOC_FRAME_SIZE, GFP_ATOMIC);
 	if (!tx_buffer)
@@ -1165,16 +1181,16 @@ int disassoc_req(struct at76c503 *dev, int idx)
    send in seq_nr 3 WEP encrypted to prove we have the correct WEP key;
    otherwise it is NULL */
 static
-int auth_req(struct at76c503 *dev, int idx, int seq_nr, u8 *challenge)
+int auth_req(struct at76c503 *dev, struct bss_info *bss, int seq_nr, u8 *challenge)
 {
 	struct at76c503_tx_buffer *tx_buffer;
 	struct ieee802_11_mgmt *mgmt;
 	struct ieee802_11_auth_frame *req;
-	struct bss_info *bss = dev->bss+idx;
+	
 	int buf_len = (seq_nr != 3 ? AUTH_FRAME_SIZE : 
 		       AUTH_FRAME_SIZE + 1 + 1 + challenge[1]);
 
-	assert(idx >= 0 && idx < dev->bss_nr);
+	assert(bss != NULL);
 	assert(seq_nr != 3 || challenge != NULL);
 	
 	tx_buffer = kmalloc(buf_len, GFP_ATOMIC);
@@ -1213,7 +1229,7 @@ int auth_req(struct at76c503 *dev, int idx, int seq_nr, u8 *challenge)
 	    dev->netdev->name, mac2str(mgmt->addr3),
 	    req->algorithm, req->seq_nr);
 	if (seq_nr == 3) {
-		char obuf[18*3];
+		char obuf[18*3] __attribute__ ((unused));
 		dbg("%s: AuthReq challenge: %s ...",
 		    dev->netdev->name,
 		    hex2str(obuf, req->challenge, sizeof(obuf)/3,' '));
@@ -1226,15 +1242,14 @@ int auth_req(struct at76c503 *dev, int idx, int seq_nr, u8 *challenge)
 } /* auth_req */
 
 static
-int assoc_req(struct at76c503 *dev, int idx)
+int assoc_req(struct at76c503 *dev, struct bss_info *bss)
 {
 	struct at76c503_tx_buffer *tx_buffer;
 	struct ieee802_11_mgmt *mgmt;
 	struct ieee802_11_assoc_req *req;
-	struct bss_info *bss = dev->bss+idx;
 	u8 *tlv;
 
-	assert(idx >= 0 && idx < dev->bss_nr);
+	assert(bss != NULL);
 
 	tx_buffer = kmalloc(ASSOCREQ_MAX_SIZE, GFP_ATOMIC);
 	if (!tx_buffer)
@@ -1307,19 +1322,22 @@ int assoc_req(struct at76c503 *dev, int idx)
 
 } /* assoc_req */
 
-/* we are currently associated to dev->bss[curr] and
-   want to reassoc to dev->bss[idx] */
+/* we are currently associated to curr_bss and
+   want to reassoc to new_bss */
 static
-int reassoc_req(struct at76c503 *dev, int curr, int idx)
+int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
+		struct bss_info *new_bss)
 {
 	struct at76c503_tx_buffer *tx_buffer;
 	struct ieee802_11_mgmt *mgmt;
 	struct ieee802_11_reassoc_req *req;
-	struct bss_info *bss = dev->bss+idx;
+	
 	u8 *tlv;
 
-	assert(curr >= 0 && curr < dev->bss_nr);
-	assert(idx >= 0 && idx < dev->bss_nr);
+	assert(curr_bss != NULL);
+	assert(new_bss != NULL);
+	if (curr_bss == NULL || new_bss == NULL)
+		return -EFAULT;
 
 	tx_buffer = kmalloc(REASSOCREQ_MAX_SIZE, GFP_ATOMIC);
 	if (!tx_buffer)
@@ -1335,12 +1353,12 @@ int reassoc_req(struct at76c503 *dev, int curr, int idx)
 	/* jal: encrypt this packet if wep_enabled is TRUE ??? */
 	mgmt->frame_ctl = IEEE802_11_FTYPE_MGMT|IEEE802_11_STYPE_REASSOC_REQ;
 	mgmt->duration_id = cpu_to_le16(0x8000);
-	memcpy(mgmt->addr1, bss->bssid, ETH_ALEN);
+	memcpy(mgmt->addr1, new_bss->bssid, ETH_ALEN);
 	memcpy(mgmt->addr2, dev->netdev->dev_addr, ETH_ALEN);
-	memcpy(mgmt->addr3, bss->bssid, ETH_ALEN);
+	memcpy(mgmt->addr3, new_bss->bssid, ETH_ALEN);
 	mgmt->seq_ctl = 0;
 
-	req->capability = bss->capa;
+	req->capability = new_bss->capa;
 
 	/* we must set the Privacy bit in the capabilites to assure an
 	   Agere-based AP with optional WEP transmits encrypted frames
@@ -1351,16 +1369,16 @@ int reassoc_req(struct at76c503 *dev, int curr, int idx)
 	if (dev->preamble_type == PREAMBLE_TYPE_SHORT)
 		req->capability |= IEEE802_11_CAPA_SHORT_PREAMBLE;
 		
-	req->listen_interval = cpu_to_le16(2 * bss->beacon_interval);
+	req->listen_interval = cpu_to_le16(2 * new_bss->beacon_interval);
 	
-	memcpy(req->curr_ap, dev->bss[curr].bssid, ETH_ALEN);
+	memcpy(req->curr_ap, curr_bss->bssid, ETH_ALEN);
 
 	/* write TLV data elements */
 
 	*tlv++ = IE_ID_SSID;
-	*tlv++ = bss->ssid_len;
-	memcpy(tlv,bss->ssid, bss->ssid_len);
-	tlv += bss->ssid_len;
+	*tlv++ = new_bss->ssid_len;
+	memcpy(tlv,new_bss->ssid, new_bss->ssid_len);
+	tlv += new_bss->ssid_len;
 
 	*tlv++ = IE_ID_SUPPORTED_RATES;
 	*tlv++ = sizeof(hw_rates);
@@ -1519,9 +1537,13 @@ end_startibss:
 
 	/* check this _before_ KEVENT_SCAN, 'cause _SCAN sets _JOIN bit */
 	if (test_bit(KEVENT_JOIN, &dev->kevent_flags)) {
+		/* dev->curr_bss == NULL signals a new round,
+		   starting with dev->first_bss */
+		struct bss_info *start = dev->curr_bss != NULL ?
+			dev->curr_bss->next : dev->first_bss;
 		clear_bit(KEVENT_JOIN, &dev->kevent_flags);
 		assert(dev->istate == JOINING);
-		if ((dev->curr_bss=find_matching_bss(dev,dev->curr_bss+1)) >= 0) {
+		if ((dev->curr_bss=find_matching_bss(dev, start)) != NULL) {
 			if ((ret=join_bss(dev,dev->curr_bss)) < 0) {
 				err("%s: join_bss failed with %d",
 				    dev->netdev->name, ret);
@@ -1536,7 +1558,7 @@ end_startibss:
 				else
 					info("%s join_bss ssid %s timed out",
 						     dev->netdev->name,
-					     mac2str(dev->bss[dev->curr_bss].bssid));
+					     mac2str(dev->curr_bss->bssid));
 
 				/* retry next BSS immediately */
 				defer_kevent(dev,KEVENT_JOIN);
@@ -1545,7 +1567,7 @@ end_startibss:
 
 			/* here we have joined the (I)BSS */
 			if (dev->iw_mode == IW_MODE_ADHOC) {
-				struct bss_info *bptr = dev->bss+dev->curr_bss;
+				struct bss_info *bptr = dev->curr_bss;
 				NEW_STATE(dev,CONNECTED);
 				/* get ESSID, BSSID and channel for dev->curr_bss */
 				dev->essid_size = bptr->ssid_len;
@@ -1563,7 +1585,7 @@ end_startibss:
 				mod_timer(&dev->mgmt_timer, jiffies+HZ);
 			}
 			goto end_join;
-		} /* if ((dev->curr_bss=find_matching_bss(dev,0)) >= 0) */
+		} /* if ((dev->curr_bss=find_matching_bss(dev,dev)) >= 0) */
 
 		/* here we haven't found a matching (i)bss ... */
 		if (dev->iw_mode == IW_MODE_ADHOC) {
@@ -1582,8 +1604,8 @@ end_join:
 		clear_bit(KEVENT_SCAN, &dev->kevent_flags);
 		assert(dev->istate == SCANNING);
 
-		dev->bss_nr = 0; /* empty the table dev->bss[] */
-		dev->curr_bss = dev->new_bss = -1;
+		/* empty the driver's bss list */
+		free_bss_list(dev);
 
 		/* scan twice: first run with ProbeReq containing the
 		   empty SSID, the second run with the real SSID.
@@ -1619,8 +1641,8 @@ end_join:
 		/* dump the results of the scan with real ssid */
 		dump_bss_table(dev);
 		NEW_STATE(dev,JOINING);
-		assert(dev->curr_bss == -1); /* done in start_scan, 
-						find_bss will start with index -1 + 1 */
+		assert(dev->curr_bss == NULL); /* done in start_scan, 
+						find_bss will start with dev->first_bss */
 		/* call join_bss immediately after
 		   re-run of all other threads in kevent */
 		defer_kevent(dev,KEVENT_JOIN);
@@ -1695,15 +1717,12 @@ static void dump_bss_table(struct at76c503 *dev)
 	/* hex dump output buffer for debug */
 	char hexssid[IW_ESSID_MAX_SIZE*2+1] __attribute__ ((unused));
 	char hexrates[MAX_RATE_LEN*3+1] __attribute__ ((unused));
-	int i;
-	int nr=dev->bss_nr; /* copy it in case the rx callback adds
-			       a new BSS */
 
 	dbg("%s BSS table:", dev->netdev->name);
-	for(i=0,ptr=dev->bss; i < nr; i++,ptr++) {
-		dbg("%d.BSS %s channel %d ssid %s (%d:%s)"
+	for(ptr=dev->first_bss; ptr != NULL; ptr=ptr->next) {
+		dbg("0x%p: ssid %s channel %d ssid %s (%d:%s)"
 		    " capa x%04x rates %s rssi %d link %d noise %d",
-		    i, mac2str(ptr->bssid),
+		    ptr, mac2str(ptr->bssid),
 		    ptr->channel,
 		    ptr->ssid, ptr->ssid_len,
 		    hex2str(hexssid,ptr->ssid,ptr->ssid_len,'\0'),
@@ -1714,19 +1733,17 @@ static void dump_bss_table(struct at76c503 *dev)
 	}
 }
 
-/* try to find a matching bss in dev->bss, starting at index start.
-   returns the first index of a matching bss in the array or
-   -1 if none found */
-static int find_matching_bss(struct at76c503 *dev, int start)
+/* try to find a matching bss in dev->bss, starting at position start.
+   returns the ptr to a matching bss in the list or
+   NULL if none found */
+static struct bss_info *find_matching_bss(struct at76c503 *dev,
+					  struct bss_info *start)
 {
 	struct bss_info *ptr;
-	int i, ret;
-	int nr = dev->bss_nr; /* copy it in case the rx callback adds
-				 a new BSS */
 	char hexssid[IW_ESSID_MAX_SIZE*2+1] __attribute__ ((unused));
 	char ossid[IW_ESSID_MAX_SIZE+1];
 
-	for(i=start, ptr = dev->bss + start; i < nr; i++, ptr++) {
+	for(ptr=start; ptr != NULL; ptr = ptr->next) {
 		if (essid_matched(dev,ptr) &&
 		    mode_matched(dev,ptr)  &&
 		    wep_matched(dev,ptr)   &&
@@ -1734,23 +1751,21 @@ static int find_matching_bss(struct at76c503 *dev, int start)
 			break;
 	}
 
-	ret = i < nr ? i : -1;
-
 	/* make dev->essid printable */
 	assert(dev->essid_size <= IW_ESSID_MAX_SIZE);
 	memcpy(ossid, dev->essid, dev->essid_size);
 	ossid[dev->essid_size] = '\0';
 
-	dbg("%s %s: try to match ssid %s (%s) mode %s wep %s, preamble %s, start at %d,"
-	    " return %d",
+	dbg("%s %s: try to match ssid %s (%s) mode %s wep %s, preamble %s, start at %p,"
+	    "return %p",
 	    dev->netdev->name, __FUNCTION__, ossid, 
 	    hex2str(hexssid,dev->essid,dev->essid_size,'\0'),
 	    dev->iw_mode == IW_MODE_ADHOC ? "adhoc" : "infra",
 	    dev->wep_enabled ? "enabled" : "disabled", 
 	    dev->preamble_type == PREAMBLE_TYPE_SHORT ? "short" : "long",
-	    start, ret);
+	    start, ptr);
 
-	return ret;
+	return ptr;
 } /* find_matching_bss */
 
 
@@ -1773,13 +1788,13 @@ static void rx_mgmt_assoc(struct at76c503 *dev,
 
 	if (dev->istate == ASSOCIATING) {
 		if (resp->status == IEEE802_11_STATUS_SUCCESS) {
-			struct bss_info *ptr = dev->bss+dev->curr_bss;
+			struct bss_info *ptr = dev->curr_bss;
 			dev->assoc_id = le16_to_cpu(resp->assoc_id);
 			netif_carrier_on(dev->netdev);
 			netif_wake_queue(dev->netdev); /* _start_queue ??? */
 			NEW_STATE(dev,CONNECTED);
 			dbg("%s: connected to BSSID %s",
-			    dev->netdev->name, mac2str(dev->bss[dev->curr_bss].bssid));
+			    dev->netdev->name, mac2str(dev->curr_bss->bssid));
 			/* update iwconfig params */
 			memcpy(dev->bssid, ptr->bssid, ETH_ALEN);
 			memcpy(dev->essid, ptr->ssid, ptr->ssid_len);
@@ -1813,7 +1828,7 @@ static void rx_mgmt_reassoc(struct at76c503 *dev,
 
 	if (dev->istate == REASSOCIATING) {
 		if (resp->status == IEEE802_11_STATUS_SUCCESS) {
-			struct bss_info *bptr = dev->bss+dev->new_bss;
+			struct bss_info *bptr = dev->new_bss;
 			dev->assoc_id = le16_to_cpu(resp->assoc_id);
 			NEW_STATE(dev,CONNECTED);
 			dev->curr_bss = dev->new_bss;
@@ -1843,30 +1858,48 @@ static void rx_mgmt_disassoc(struct at76c503 *dev,
 	struct ieee802_11_mgmt *mgmt = (struct ieee802_11_mgmt *)buf->packet;
 	struct ieee802_11_disassoc_frame *resp = 
 		(struct ieee802_11_disassoc_frame *)mgmt->data;
-	char obuf[ETH_ALEN*3+1] __attribute__ ((unused));
+	char obuf[ETH_ALEN*3] __attribute__ ((unused));
 
 	dbg("%s: rx DisAssoc bssid %s reason x%04x destination %s",
 	    dev->netdev->name, mac2str(mgmt->addr3),
 	    le16_to_cpu(resp->reason),
 	    hex2str(obuf, mgmt->addr1, ETH_ALEN, ':'));
 
-	/* jal TODO: check dev->istate first, dev->curr_bss may be invalid ! */
-	if (!memcmp(mgmt->addr3,dev->bss[dev->curr_bss].bssid, ETH_ALEN) &&
+	if (dev->istate == SCANNING || dev->istate == INIT)
+		return;
+
+	assert(dev->curr_bss != NULL);
+	if (dev->curr_bss == NULL)
+		return;
+
+	if (dev->istate == REASSOCIATING) {
+		assert(dev->new_bss != NULL);
+		if (dev->new_bss == NULL)
+			return;
+	}
+
+	if (!memcmp(mgmt->addr3, dev->curr_bss->bssid, ETH_ALEN) &&
 		(!memcmp(dev->netdev->dev_addr, mgmt->addr1, ETH_ALEN) ||
 			!memcmp(bc_addr, mgmt->addr1, ETH_ALEN))) {
 		/* this is a DisAssoc from the BSS we are connected or
 		   trying to connect to, directed to us or broadcasted */
-
+		/* jal: TODO: can the Disassoc also come from the BSS
+		   we've sent a ReAssocReq to (i.e. from dev->new_bss) ? */
 		if (dev->istate == DISASSOCIATING ||
+		    dev->istate == ASSOCIATING  ||
 		    dev->istate == REASSOCIATING  ||
 		    dev->istate == CONNECTED  ||
 		    dev->istate == JOINING)
 		{
+			if (dev->istate == CONNECTED) {
+				netif_carrier_off(dev->netdev);
+				netif_stop_queue(dev->netdev);
+			}
 			del_timer_sync(&dev->mgmt_timer);
 			NEW_STATE(dev,JOINING);
 			defer_kevent(dev,KEVENT_JOIN);
 		} else
-		/* ignore DisAssoc in states SCANNING, AUTH, ASSOC */
+		/* ignore DisAssoc in states AUTH, ASSOC */
 			info("%s: DisAssoc in state %d ignored",
 			     dev->netdev->name, dev->istate);
 	}
@@ -1902,7 +1935,7 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 	if (dev->auth_mode != resp->algorithm)
 		return;
 
-	if (!memcmp(mgmt->addr3,dev->bss[dev->curr_bss].bssid, ETH_ALEN) &&
+	if (!memcmp(mgmt->addr3, dev->curr_bss->bssid, ETH_ALEN) &&
 	    !memcmp(dev->netdev->dev_addr, mgmt->addr1, ETH_ALEN)) {
 		/* this is a AuthFrame from the BSS we are connected or
 		   trying to connect to, directed to us */
@@ -1943,7 +1976,7 @@ static void rx_mgmt_deauth(struct at76c503 *dev,
 	    le16_to_cpu(resp->reason),
 	    hex2str(obuf, mgmt->addr1, ETH_ALEN, ':'));
 
-	if (!memcmp(mgmt->addr3,dev->bss[dev->curr_bss].bssid, ETH_ALEN) &&
+	if (!memcmp(mgmt->addr3, dev->curr_bss->bssid, ETH_ALEN) &&
 		(!memcmp(dev->netdev->dev_addr, mgmt->addr1, ETH_ALEN) ||
 			!memcmp(bc_addr, mgmt->addr1, ETH_ALEN))) {
 		/* this is a DeAuth from the BSS we are connected or
@@ -1975,32 +2008,47 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 		(struct ieee802_11_beacon_data *)mgmt->data;
 	struct bss_info *bss_ptr;
 	u8 *tlv_ptr;
-	int i;
+	int new_entry = 0;
 	int len;
 
 	if (dev->istate == CONNECTED) {
 		/* in state CONNECTED we use the mgmt_timer to control
 		   the beacon of the BSS */
-		assert(dev->curr_bss >= 0);
-		assert(dev->curr_bss < dev->bss_nr);
-		bss_ptr = dev->bss+dev->curr_bss;
-		if (!memcmp(bss_ptr->bssid,mgmt->addr3,ETH_ALEN)) {
+		assert(dev->curr_bss != NULL);
+		if (dev->curr_bss == NULL)
+			return;
+		if (!memcmp(dev->curr_bss->bssid, mgmt->addr3, ETH_ALEN)) {
 			mod_timer(&dev->mgmt_timer, jiffies+BEACON_TIMEOUT*HZ);
-			bss_ptr->rssi = buf->rssi;
+			dev->curr_bss->rssi = buf->rssi;
 			return;
 		}
 	}
 
 	/* look if we have this BSS already in the list */
-	for(i=0,bss_ptr=dev->bss; i < dev->bss_nr; i++,bss_ptr++) {
-		if (!memcmp(bss_ptr->bssid,mgmt->addr3,ETH_ALEN))
+	for(bss_ptr=dev->first_bss; bss_ptr != NULL; bss_ptr = bss_ptr->next) {
+		if (!memcmp(bss_ptr->bssid, mgmt->addr3, ETH_ALEN))
 			break;
 	}
 
-	if (i >= NR_BSS_INFO) {
-		/* table is full */
-		info("%s: scan bss table overflow",dev->netdev->name);
-		return;
+	if (bss_ptr == NULL) {
+		/* haven't found the bss in the list */
+		if ((bss_ptr=kmalloc(sizeof(struct bss_info), GFP_ATOMIC)) == NULL) {
+			dbg("%s: cannot kmalloc new bss info (%d byte)",
+			    dev->netdev->name, sizeof(struct bss_info));
+			return;
+		}
+		memset(bss_ptr,0,sizeof(*bss_ptr));
+		new_entry = 1;
+		/* append new struct into list */
+		if (dev->last_bss == NULL) {
+			/* list is empty */
+			assert(dev->first_bss == NULL);
+			dev->first_bss = dev->last_bss = bss_ptr;
+		} else {
+			dev->last_bss->next = bss_ptr;
+			dev->last_bss = bss_ptr;
+			bss_ptr->next = NULL;
+		}
 	}
 
 	/* we either overwrite an existing entry or append a new one
@@ -2023,7 +2071,7 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 
 	assert(*tlv_ptr == IE_ID_SSID);
 	len = min(IW_ESSID_MAX_SIZE,(int)*(tlv_ptr+1));
-	if (i >= dev->bss_nr || (len > 0 && memcmp(tlv_ptr+2,zeros,len))) {
+	if ((new_entry) || (len > 0 && memcmp(tlv_ptr+2,zeros,len))) {
 		/* we copy only if this is a new entry,
 		   or the incoming SSID is not a cloaked SSID. This will
 		   protect us from overwriting a real SSID read in a
@@ -2040,10 +2088,6 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 
 	assert(*tlv_ptr == IE_ID_DS_PARAM_SET);
 	bss_ptr->channel = *(tlv_ptr+2);
-
-	if (i >= dev->bss_nr) {
-		dev->bss_nr++;
-	}
 }
 
 static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
@@ -2057,7 +2101,7 @@ static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 	if (dev->istate != INIT && dev->istate != SCANNING) {
 		/* jal: this is a dirty hack needed by Tim in adhoc mode */
 		if (dev->iw_mode == IW_MODE_ADHOC ||
-		    !memcmp(mgmt->addr3,dev->bss[dev->curr_bss].bssid, ETH_ALEN)) {
+		    !memcmp(mgmt->addr3, dev->curr_bss->bssid, ETH_ALEN)) {
 			/* Data packets always seem to have a 0 link level, so we
 			   only read link quality info from management packets.
 			   Atmel driver actually averages the present, and previous
@@ -3014,8 +3058,8 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 				if (dev->istate == CONNECTED) {
 					/* report the SSID we have found */
 					erq->flags=1;
-					erq->length = dev->bss[dev->curr_bss].ssid_len;
-					essid = dev->bss[dev->curr_bss].ssid;
+					erq->length = dev->curr_bss->ssid_len;
+					essid = dev->curr_bss->ssid;
 				} else {
 					/* report ANY back */
 					erq->flags=0;
@@ -3267,6 +3311,8 @@ void at76c503_delete_device(struct at76c503 *dev)
 		if(dev->ctrl_buffer != NULL)
 			usb_free_urb(dev->ctrl_urb);
     
+		free_bss_list(dev);
+
 		kfree (dev->netdev); /* dev is in net_dev */ 
 	}
 }
@@ -3332,7 +3378,8 @@ static int at76c503_alloc_urbs(struct at76c503 *dev)
 	return 0;
 }
 
-struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type, const char *netdev_name)
+struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
+				     const char *netdev_name)
 {
 	struct net_device *netdev;
 	struct at76c503 *dev = NULL;
@@ -3359,7 +3406,9 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type, co
 	dev->mgmt_spinlock = SPIN_LOCK_UNLOCKED;
 	dev->next_mgmt_bulk = NULL;
 	dev->istate = INIT;
-	dev->curr_bss = dev->new_bss = -1;
+	/* initialize empty BSS list */
+	dev->curr_bss = dev->new_bss = 
+	  dev->first_bss = dev->last_bss = NULL;
 
 #if IW_MAX_SPY > 0
 	dev->iwspy_nr = 0;
