@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.17 2003/12/27 00:03:35 jal2 Exp $
+/* $Id: at76c503.h,v 1.18 2004/01/10 20:31:17 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -593,11 +593,16 @@ struct at76c503 {
 	u8 *intfw; /* points to internal firmware part, intfw_size bytes long */
 	struct usb_driver *calling_driver; /* the calling driver: at76c503-{rfmd,i3861,i3863,...} */
 	int flags; /* AT76C503A_UNPLUG signals at76c503a_stop() 
-		      that the device was unplugged */
+		      that the device was unplugged 
+		      AT76C503A_NETDEV_REGISTERED signals that register_netdevice
+		      xwas successfully called */
+	
 };
 
 #define AT76C503A_UNPLUG 1
-
+#define AT76C503A_NETDEV_REGISTERED 2
+#define AT76C503A_USB_RESET 4  /* set during call to usb_reset_device and 
+				  update_usb_intf_descr() in at76c503.c */
 /* Function prototypes */
 
 int at76c503_do_probe(struct module *mod, struct usb_device *udev, 

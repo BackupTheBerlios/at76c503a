@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.41 2004/01/04 22:31:30 jal2 Exp $
+/* $Id: at76c503.c,v 1.42 2004/01/10 20:31:17 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -2464,12 +2464,20 @@ end_scan:
 
 		dbg(DBG_DEVSTART, "resetting the device");
 
+		/* flag that we reset the device to
+		   at76c503-fw_skel.c:at76c50x_disconnect(), which gets
+		   called during reset by usb-uhci of 2.4.23 (uhci doesn't
+		   call it, nor does uhci-hcd of 2.6.0!) */
+		dev->flags |= AT76C503A_USB_RESET;
+
 		usb_reset_device(dev->udev);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
 		//jal: patch the state (patch by Dmitri)
 		dev->udev->state = USB_STATE_CONFIGURED;
 #endif
+
+		dev->flags &= ~AT76C503A_USB_RESET;
 
 		/* jal: currently (2.6.0-test2 and 2.4.23) 
 		   usb_reset_device() does not recognize that
@@ -4856,18 +4864,21 @@ void at76c503_delete_device(struct at76c503 *dev)
 		return;
 
 
-	dbg(DBG_PROC_ENTRY, "%s: ENTER",__FUNCTION__);
-	if ((sem_taken=down_trylock(&rtnl_sem)) != 0)
-		info("%s: rtnl_sem already down'ed", __FUNCTION__);
-
-        /* signal to _stop() that the device is gone */
+	/* signal to _stop() that the device is gone */
 	dev->flags |= AT76C503A_UNPLUG; 
 
-	/* synchronously calls at76c503a_stop() */
-	unregister_netdevice(dev->netdev);
+	dbg(DBG_PROC_ENTRY, "%s: ENTER",__FUNCTION__);
 
-	if (!sem_taken)
-		rtnl_unlock();
+	if (dev->flags & AT76C503A_NETDEV_REGISTERED) {
+		if ((sem_taken=down_trylock(&rtnl_sem)) != 0)
+			info("%s: rtnl_sem already down'ed", __FUNCTION__);
+
+		/* synchronously calls at76c503a_stop() */
+		unregister_netdevice(dev->netdev);
+
+		if (!sem_taken)
+			rtnl_unlock();
+	}
 
 	PUT_DEV(dev->udev);
 
@@ -4999,6 +5010,8 @@ struct at76c503 *alloc_new_device(struct usb_device *udev, int board_type,
 	}
 
 	dev = (struct at76c503 *)netdev->priv;
+	memset(dev, 0, sizeof(*dev));
+
 	dev->udev = udev;
 	dev->netdev = netdev;
 
@@ -5100,7 +5113,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.41 2004/01/04 22:31:30 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.42 2004/01/10 20:31:17 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -5160,6 +5173,7 @@ int init_new_device(struct at76c503 *dev)
 		goto error;
 	}
 	info("registered %s", dev->netdev->name);
+	dev->flags |= AT76C503A_NETDEV_REGISTERED;
 
 	return 0;
 

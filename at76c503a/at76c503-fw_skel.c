@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-fw_skel.c,v 1.2 2003/12/25 22:40:26 jal2 Exp $
+ * $Id: at76c503-fw_skel.c,v 1.3 2004/01/10 20:31:17 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  *
@@ -154,9 +154,15 @@ static void at76c50x_disconnect(struct usb_interface *interface)
 	usb_set_intfdata(interface, NULL);
 #endif
 
-	info("%s disconnecting", ((struct at76c503 *)ptr)->netdev->name);
-	at76c503_delete_device(ptr);
-	info(DRIVER_NAME " disconnected");
+	if (!(((struct at76c503 *)ptr)->flags & AT76C503A_USB_RESET)) {
+		info("%s disconnecting", ((struct at76c503 *)ptr)->netdev->name);
+		at76c503_delete_device(ptr);
+		info(DRIVER_NAME " disconnected");
+	} else {
+		info("%s: %s called during reset - ignored "
+		     "(assuming broken usb-uhci behaviour)",
+		     ((struct at76c503 *)ptr)->netdev->name, __FUNCTION__);
+	}
 }
 
 static int __init mod_init(void)
