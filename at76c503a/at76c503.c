@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.60 2004/06/15 18:20:37 jal2 Exp $
+/* $Id: at76c503.c,v 1.61 2004/06/29 21:26:24 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -711,9 +711,9 @@ static int update_usb_intf_descr(struct at76c503 *dev)
 	}
 	memset(ifp->endpoint, 0, 2 * sizeof(struct usb_host_endpoint));
 	memcpy(&ifp->endpoint[0].desc, buffer+ep0, USB_DT_ENDPOINT_SIZE);
-	le16_to_cpus(&ifp->endpoint[0].wMaxPacketSize);
+	le16_to_cpus(&ifp->endpoint[0].desc.wMaxPacketSize);
 	memcpy(&ifp->endpoint[1].desc, buffer+ep1, USB_DT_ENDPOINT_SIZE);
-	le16_to_cpus(&ifp->endpoint[1].wMaxPacketSize);
+	le16_to_cpus(&ifp->endpoint[1].desc.wMaxPacketSize);
 
 	/* we must set the max packet for the new ep (see usb_set_maxpacket() ) */
 
@@ -830,9 +830,9 @@ int update_usb_intf_descr(struct at76c503 *dev)
 
 	memset(ifp->endpoint, 0, 2 * sizeof(struct usb_endpoint_descriptor));
 	memcpy(&ifp->endpoint[0], buffer+ep0, USB_DT_ENDPOINT_SIZE);
-	le16_to_cpus(&ifp->endpoint[0].desc.wMaxPacketSize);
+	le16_to_cpus(&ifp->endpoint[0].wMaxPacketSize);
 	memcpy(&ifp->endpoint[1], buffer+ep1, USB_DT_ENDPOINT_SIZE);
-	le16_to_cpus(&ifp->endpoint[1].desc.wMaxPacketSize);
+	le16_to_cpus(&ifp->endpoint[1].wMaxPacketSize);
 
 	/* fill the interface data */
 	memcpy(ifp, buffer+intf0, USB_DT_INTERFACE_SIZE);
@@ -6537,7 +6537,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.60 2004/06/15 18:20:37 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.61 2004/06/29 21:26:24 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
