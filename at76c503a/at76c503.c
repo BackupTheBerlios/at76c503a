@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.29 2003/06/17 21:37:25 jal2 Exp $
+/* $Id: at76c503.c,v 1.30 2003/06/26 20:16:34 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -577,27 +577,29 @@ static int get_hw_config(struct at76c503 *dev)
 /* == PROC getRegDomain == */
 struct reg_domain const *getRegDomain(u16 code)
 {
-  static struct reg_domain const fd_tab[] = {
-    {0x10, "FCC", 0x7ff},
-    {0x20, "IC", 0x7ff},
-    {0x30, "ETSI", 0x1fff},
-    {0x31, "Spain", 0x600},
-    {0x32, "France", 0x1e00},
-    {0x40, "MKK", 0x2000},
-  };
-  static int const tab_len = sizeof(fd_tab) / sizeof(struct reg_domain);
+	static struct reg_domain const fd_tab[] = {
+		{0x10, "FCC (U.S)", 0x7ff}, /* ch 1-11 */
+		{0x20, "IC (Canada)", 0x7ff}, /* ch 1-11 */
+		{0x30, "ETSI (Europe - (Spain+France)", 0x1fff},  /* ch 1-13 */
+		{0x31, "Spain", 0x600},    /* ch 10,11 */
+		{0x32, "France", 0x1e00},  /* ch 10-13 */
+		{0x40, "MKK (Japan)", 0x2000},  /* ch 14 */
+		{0x41, "MKK1 (Japan)", 0x3fff},  /* ch 1-14 */
+		{0x50, "Israel", 0x3fc},  /* ch 3-9 */
+	};
+	static int const tab_len = sizeof(fd_tab) / sizeof(struct reg_domain);
 
-  /* use this if an unknown code comes in */
-  static struct reg_domain const unknown = 
-  {0, "<unknown>", 0xffffffff};
+	/* use this if an unknown code comes in */
+	static struct reg_domain const unknown = 
+		{0, "<unknown>", 0xffffffff};
   
-  int i;
+	int i;
 
-  for(i=0; i < tab_len; i++)
-    if (code == fd_tab[i].code)
-      break;
+	for(i=0; i < tab_len; i++)
+		if (code == fd_tab[i].code)
+			break;
   
-  return (i >= tab_len) ? &unknown : &fd_tab[i];
+	return (i >= tab_len) ? &unknown : &fd_tab[i];
 } /* getFreqDomain */
 
 static inline
@@ -4502,7 +4504,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.29 2003/06/17 21:37:25 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.30 2003/06/26 20:16:34 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
