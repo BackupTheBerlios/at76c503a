@@ -82,6 +82,7 @@ Wireless USB Adapter SMC2662W (v1) */
 /* this adapter contains flash */
 #define VENDOR_ID_ADDTRON             0x05dd  /* Addtron */
 #define PRODUCT_ID_ADDTRON_AWU120     0xff31 /* AWU-120 */
+/* also Compex WLU11 */
 
 #define VENDOR_ID_INTEL                        0x8086 /* Intel */
 #define PRODUCT_ID_INTEL_AP310         0x0200 /* AP310 AnyPoint II usb */

@@ -77,9 +77,10 @@
 
 #define VENDOR_ID_DICK_SMITH_ELECTR   0x1371 /* Dick Smith Electronics */
 #define PRODUCT_ID_DSE_XH1153         0x5743 /* XH1153 802.11b USB adapter */
-#define PRODUCT_ID_WL_200U               0x0002 /* WL-200U */
+                                             /* also: CNet CNUSB611 (D) */
+#define PRODUCT_ID_WL_200U            0x0002 /* WL-200U */
 
-#define VENDOR_ID_BENQ                0x4a5 /* BenQ (Acer) */
+#define VENDOR_ID_BENQ                0x04a5 /* BenQ (Acer) */
 #define PRODUCT_ID_BENQ_AWL_400       0x9001 /* BenQ AWL-400 USB stick */
 
 #define VENDOR_ID_3COM                0x506
