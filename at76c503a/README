@@ -1,4 +1,4 @@
-(* $Id: README,v 1.12 2003/11/27 22:23:46 jal2 Exp $ *)
+(* $Id: README,v 1.13 2004/03/18 20:54:57 jal2 Exp $ *)
 
 at76c503 - linux driver for Atmel at76c503 based usb wlan adapters
 ------------------------------------------------------------------
@@ -9,7 +9,9 @@ any corporation that builds devices with this chip. My only
 information source is the driver from
 http://atmelwlandriver.sourceforge.net.
 
-Look at http://at76c503a.berlios.de/ for more information, mailing lists and links.
+Look at http://at76c503a.berlios.de/ for more accurate information,
+mailing lists and links. This README is probably outdated.
+
 
 Known devices with this chip are:
 - Belkin F5D6050
@@ -21,15 +23,19 @@ and many more.
 Reqirements:
 ------------
 
-- Kernel 2.4.x. I am developing the driver on 2.4.20, but it
-  reportedly also works on 2.4.19, 2.4.18 and 2.4.16. I am not sure
-  about 2.5.x.
+- Kernel 2.4.x. I am developing the driver on 2.4.23, but it
+  reportedly also works on 2.4.20, 2.4.19, 2.4.18 and 2.4.16.
+- kernel 2.6.x: 2.6.1-4 were reported to work fine. 
+
 
 Installation:
 -------------
 
 make
 make install
+
+(with kernel 2.6 you must be run for both steps).
+
 
 Running:
 --------
@@ -105,8 +111,6 @@ Private Parameters
 In addition to the parameters of iwconfig, some can be set by iwpriv:
 - long preamble:  iwpriv wlanX short_preamble 0
 - short preamble: iwpriv wlanX short_preamble 1
-- open system authentication: iwpriv wlanX auth_mode 0
-- shared key authentication:  iwpriv wlanX auth_mode 1
 - amount of debug messages:   iwpriv wlanX set_debug N
   with N a combination of bits, see DBG_* in at76c503.c
 - power save mode: iwpriv wlanX powersave_mode N (* N = 1,2,3 
@@ -170,8 +174,8 @@ Known Problems
     
 
 
-Thanks to:
-- the authors of the usbvnet driver (atmelwlandriver.sourceforge.net)
+Thanks to (in no particular order):
+- the authors (Stavros et.al.) of the usbvnet driver (atmelwlandriver.sourceforge.net)
 - Joerg Albert for lots of patches
 - Brad Hards and Bas Vermeulen for the firmware code, which I ported to kernel space
 - David Gibson, I used his orinoco driver for learning
@@ -179,8 +183,9 @@ Thanks to:
 - the author(s) of the rtl8150 driver
 - lots of other authors of usb and wlan drivers, where I stole code from
 - Pavel Roskin for testing, debugging and his patches
+- Nick Jones for rewriting the iw_handler interface
 
-Oliver Kurth <oku@masqmail.cx>, Mon,  6 Jan 2003 22:39:47 +0100
+Oliver Kurth, Mon,  6 Jan 2003 22:39:47 +0100
 updated by Joerg Albert, Thu, 1 May 2003 and later
 
 

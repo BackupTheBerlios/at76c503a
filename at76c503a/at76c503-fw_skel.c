@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-fw_skel.c,v 1.5 2004/02/20 22:14:42 jal2 Exp $
+ * $Id: at76c503-fw_skel.c,v 1.6 2004/03/18 20:54:57 jal2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  *
@@ -26,8 +26,13 @@
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 5, 0)
 extern inline char *fw_dev_param(struct usb_device *udev, char *buf)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 20)
         snprintf(buf, FIRMWARE_NAME_MAX, "usb-%s-%s",
                  udev->bus->bus_name, udev->devpath);
+#else
+	snprintf(buf, FIRMWARE_NAME_MAX, "usb-%d-%d",
+                 udev->bus->busnum, udev->devnum);
+#endif
         return buf;
 }
 #else

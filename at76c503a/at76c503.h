@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.20 2004/03/17 22:35:07 jal2 Exp $
+/* $Id: at76c503.h,v 1.21 2004/03/18 20:54:57 jal2 Exp $
  *
  * USB at76c503 driver
  *
@@ -18,6 +18,9 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/wireless.h>
+#if WIRELESS_EXT > 12
+#include <net/iw_handler.h>
+#endif
 #include <linux/version.h>
 
 #include "ieee802_11.h" /* we need some constants here */
@@ -56,17 +59,13 @@
 /* set preamble length*/
 #define PRIV_IOCTL_SET_SHORT_PREAMBLE  (SIOCIWFIRSTPRIV + 0x0)
 /* set debug parameter */
-#define PRIV_IOCTL_SET_DEBUG           (SIOCIWFIRSTPRIV + 0x1)
-/* set authentication mode: 0 - open, 1 - shared key */
-#define PRIV_IOCTL_SET_AUTH_MODE       (SIOCIWFIRSTPRIV + 0x2)
-/* dump bss table */
-#define PRIV_IOCTL_LIST_BSS            (SIOCIWFIRSTPRIV + 0x3)
+#define PRIV_IOCTL_SET_DEBUG           (SIOCIWFIRSTPRIV + 0x2)
 /* set power save mode (incl. the Atmel proprietary smart save mode */
 #define PRIV_IOCTL_SET_POWERSAVE_MODE  (SIOCIWFIRSTPRIV + 0x4)
 /* set min and max channel times for scan */
-#define PRIV_IOCTL_SET_SCAN_TIMES      (SIOCIWFIRSTPRIV + 0x5)
+#define PRIV_IOCTL_SET_SCAN_TIMES      (SIOCIWFIRSTPRIV + 0x6)
 /* set scan mode */
-#define PRIV_IOCTL_SET_SCAN_MODE       (SIOCIWFIRSTPRIV + 0x6)
+#define PRIV_IOCTL_SET_SCAN_MODE       (SIOCIWFIRSTPRIV + 0x8)
 
 #define DEVICE_VENDOR_REQUEST_OUT    0x40
 #define DEVICE_VENDOR_REQUEST_IN     0xc0
@@ -498,7 +497,6 @@ struct at76c503 {
 	u8 op_mode;
 
         /* the WEP stuff */
-        int  wep_excl_unencr; /* 1 if unencrypted packets shall be discarded */
         int wep_enabled;      /* 1 if WEP is enabled */ 
         int wep_key_id;       /* key id to be used */
         u8 wep_keys[NR_WEP_KEYS][WEP_KEY_SIZE]; /* the four WEP keys,
@@ -520,6 +518,8 @@ struct at76c503 {
 	int txrate; /* 0,1,2,3 = 1,2,5.5,11 MBit, 4 is auto-fallback */
         int frag_threshold; /* threshold for fragmentation of tx packets */
         int rts_threshold; /* threshold for RTS mechanism */
+	int short_retry_limit;
+	//int long_retry_limit;
 
 	int scan_min_time; /* scan min channel time */
 	int scan_max_time; /* scan max channel time */
@@ -560,10 +560,15 @@ struct at76c503 {
 	struct reg_domain const *domain; /* the description of the regulatory domain */
 
 	/* iwspy support */
-#if IW_MAX_SPY > 0
+#if (WIRELESS_EXT > 15) || (IW_MAX_SPY > 0)
+	spinlock_t spy_spinlock;
+#if WIRELESS_EXT > 15
+	struct iw_spy_data spy_data;
+#else
 	int iwspy_nr; /* nr of valid entries below */
 	struct sockaddr iwspy_addr[IW_MAX_SPY];
 	struct iw_quality iwspy_stats[IW_MAX_SPY];
+#endif
 #endif
 
 	/* These fields contain HW config provided by the device (not all of
