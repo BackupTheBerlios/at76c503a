@@ -23,6 +23,13 @@
 #  define SIOCIWFIRSTPRIV SIOCDEVPRIVATE
 #endif
 
+/* WIRELESS_EXT 8 does not provide iw_point ! */
+#if WIRELESS_EXT <= 8
+/* this comes from <linux/wireless.h> */
+#undef IW_MAX_SPY 
+#define IW_MAX_SPY 0
+#endif
+
 /* our private ioctl's */
 /* set preamble length*/
 #define PRIV_IOCTL_SET_SHORT_PREAMBLE  (SIOCIWFIRSTPRIV + 0x0)
@@ -453,6 +460,13 @@ struct at76c503 {
 	u16 assoc_id; /* the assoc_id for states JOINING, REASSOCIATING, CONNECTED */
 
 	int board_type; /* 0 = Intersil, 1 = RFMD, 2 = R505 */
+
+	/* iwspy support */
+#if IW_MAX_SPY > 0
+	int iwspy_nr; /* nr of valid entries below */
+	struct sockaddr iwspy_addr[IW_MAX_SPY];
+	struct iw_quality iwspy_stats[IW_MAX_SPY];
+#endif
 
 	/* These fields contain HW config provided by the device (not all of
 	 * these fields are used by all board types) */

@@ -306,6 +306,9 @@ static u8 rfc1042sig[] = {0xaa, 0xaa, 0x03, 0x00, 0x00, 0x00};
 
 /* local function prototypes */
 	
+#if IW_MAX_SPY > 0
+static void iwspy_update(struct at76c503 *dev, struct at76c503_rx_buffer *buf);
+#endif
 static void at76c503_read_bulk_callback (struct urb *urb);
 static void at76c503_write_bulk_callback(struct urb *urb);
 static void defer_kevent (struct at76c503 *dev, int flag);
@@ -2052,8 +2055,7 @@ static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 
 	/* update wstats */
 	if (dev->istate != INIT && dev->istate != SCANNING) {
-		/* jal TODO: implement iwspy, this is a dirty hack
-		   needed by Tim in adhoc mode */
+		/* jal: this is a dirty hack needed by Tim in adhoc mode */
 		if (dev->iw_mode == IW_MODE_ADHOC ||
 		    !memcmp(mgmt->addr3,dev->bss[dev->curr_bss].bssid, ETH_ALEN)) {
 			/* Data packets always seem to have a 0 link level, so we
@@ -2426,6 +2428,13 @@ static void rx_tasklet(unsigned long param)
 		rx_data(dev, buf);
 	}else if(frame_type == IEEE802_11_FTYPE_MGMT){
 //		info("rx: it's a mgmt frame");
+
+		/* jal: TODO: find out if we can update iwspy also on
+		   other frames than management (might depend on the
+		   radio chip / firmware version !) */
+#if IW_MAX_SPY > 0
+		iwspy_update(dev, buf);
+#endif
 		rx_mgmt(dev, buf);
 	}else if(frame_type == IEEE802_11_FTYPE_CTL)
 		dbg("%s: received ctrl frame: %2x", dev->netdev->name,
@@ -2756,6 +2765,92 @@ int at76c503_set_mac_address(struct net_device *netdev, void *addr)
 	return ret;
 }
 
+#if IW_MAX_SPY > 0
+/* == PROC iwspy_update == 
+  check if we spy on the sender address of buf and update statistics */
+static
+void iwspy_update(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
+{
+	int i;
+	u16 lev_dbm;
+	struct ieee802_11_hdr *hdr = (struct ieee802_11_hdr *)buf->packet;
+
+	for(i=0; i < dev->iwspy_nr; i++) {
+		if (!memcmp(hdr->addr2, dev->iwspy_addr[i].sa_data,
+			    ETH_ALEN)) {
+			dev->iwspy_stats[i].qual = buf->link_quality;
+			lev_dbm = buf->rssi * 5 / 2;
+			dev->iwspy_stats[i].level =
+				(lev_dbm > 255 ? 255 : lev_dbm);
+			dev->iwspy_stats[i].noise = buf->noise_level; 
+			dev->iwspy_stats[i].updated = 1; 
+			break;
+		}
+	}
+} /* iwspy_update */
+
+/* == PROC ioctl_setspy == */
+static int ioctl_setspy(struct at76c503 *dev, struct iw_point *srq)
+{
+	int i;
+
+	if (srq == NULL)
+		return -EFAULT;
+
+	dbg("%s: ioctl(SIOCSIWSPY, number %d)", dev->netdev->name, srq->length);
+
+	if (srq->length > IW_MAX_SPY)
+		return -E2BIG;
+
+	dev->iwspy_nr = srq->length;
+
+	if (dev->iwspy_nr > 0) {
+		if (copy_from_user(dev->iwspy_addr, srq->pointer,
+				   sizeof(struct sockaddr) * dev->iwspy_nr)) {
+			dev->iwspy_nr = 0;
+			return -EFAULT;
+		}
+		memset(dev->iwspy_stats, 0, sizeof(dev->iwspy_stats));
+	}
+
+	/* Time to show what we have done... */
+	dbg("%s: New spy list:", dev->netdev->name);
+	for (i = 0; i < dev->iwspy_nr; i++) {
+		dbg("%s: %s", dev->netdev->name, mac2str(dev->iwspy_addr[i].sa_data));
+	}
+
+	return 0;
+} /* ioctl_setspy */
+
+
+/* == PROC ioctl_getspy == */
+static int ioctl_getspy(struct at76c503 *dev, struct iw_point *srq)
+{
+	int i;
+
+	dbg("%s: ioctl(SIOCGIWSPY, number %d)", dev->netdev->name, 
+	    dev->iwspy_nr); 
+
+	srq->length = dev->iwspy_nr;
+
+	if (srq->length > 0 && (srq->pointer)) {
+	  /* Push stuff to user space */
+		if(copy_to_user(srq->pointer, dev->iwspy_addr,
+				sizeof(struct sockaddr) * srq->length))
+			return -EFAULT;
+		if(copy_to_user(srq->pointer + 
+				sizeof(struct sockaddr)*srq->length,
+				dev->iwspy_stats,
+				sizeof(struct iw_quality)*srq->length ))
+			return -EFAULT;
+		
+		for(i=0; i < dev->iwspy_nr; i++)
+			dev->iwspy_stats[i].updated = 0;
+	}
+	return 0;
+} /* ioctl_getspy */
+#endif /* #if IW_MAX_SPY > 0 */
+
 static
 int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 {
@@ -3069,6 +3164,18 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		}
 		break;
 
+#if IW_MAX_SPY > 0
+		// Set the spy list
+	case SIOCSIWSPY:
+		ret = ioctl_setspy(dev, &wrq->u.data);
+		break;
+
+		// Get the spy list
+	case SIOCGIWSPY:
+		ret = ioctl_getspy(dev, &wrq->u.data);
+		break;
+#endif /* #if IW_MAX_SPY > 0 */
+
 	case SIOCGIWPRIV:
 		if (wrq->u.data.pointer) {
 			const struct iw_priv_args priv[] = {
@@ -3253,6 +3360,10 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type, co
 	dev->next_mgmt_bulk = NULL;
 	dev->istate = INIT;
 	dev->curr_bss = dev->new_bss = -1;
+
+#if IW_MAX_SPY > 0
+	dev->iwspy_nr = 0;
+#endif
 
 	dev->tasklet.func = rx_tasklet;
 	dev->tasklet.data = (unsigned long)dev;
