@@ -1,0 +1,96 @@
+at76c503 - linux driver for Atmel at76c503 based usb wlan adapters
+------------------------------------------------------------------
+
+This is a another driver for the Atmel based USB WLAN adaptors. I am
+developing this driver in private. I am not associated with Atmel, or
+any cooperation that builds devices with this chip. My only
+information source is the driver from
+http://atmelwlandriver.sourceforge.net.
+
+Known devices with this chip are:
+- Belkin F5D6050
+- Dynalink/Askey WLL013
+- Linksys WUSB11 v2.6
+- Netgear MA101B
+
+It is early in development. Currently, it has some limitations:
+
+- to change the essid or channel, the network has to be restarted
+  (with ifconfig)
+
+If you are looking for a more complete driver, look at
+http://atmelwlandriver.sourceforge.net.
+
+Reqirements:
+------------
+
+- Kernel 2.4.x. I am developing the driver on 2.4.20, but it
+  reportedly also works on 2.4.19, 2.4.18 and 2.4.16. I am not sure
+  about 2.5.x.
+
+Installation:
+-------------
+
+make
+make install
+
+Running:
+--------
+
+Plug in the adapter. If you already used it under Windows or with the
+driver from atmelwlandriver.sourceforge.net, replug the device
+(ie. plug out and in again).
+
+If you have hotplug installed, the drivers should now be loaded. If not,
+load them by hand:
+
+modprobe -v at76c503
+or
+insmod usbdfu.o; insmod at76c503
+
+You can give the network device another name than eth by giving
+the module the eth_name parameter. Eg.
+insmod at76c50.o eth_name=wlan%d
+would give the first device the name wlan0, the second wlan1 etc...
+
+Check if the modules are loaded with lsmod. It should look like this:
+
+...
+at76c503               49972   0 
+usbdfu                  6164   0  [at76c503]
+...
+
+setup networking (replace <iface> with eth0, eth1, ..., <ch> with a
+channel number (1..14) <essid> with your network id (a string), <ip>
+with an IP address)
+
+iwconfig <iface> channel <ch> mode ad-hoc essid <essid>
+ifonfig <iface> <ip> up
+
+Example:
+iwconfig eth2 mode ad-hoc channel 10 essid okuwlan
+ifconfig eth2 192.168.3.1 up
+
+Test it by pinging another host with a wlan adaptor.
+
+To change a parameter with iwconfig, do:
+ifconfig <iface> down
+iwconfig ...
+ifconfig <iface> up
+
+Note that the firmware survives reboots of the computer, but not
+unplugging the device.
+
+If you get problems:
+Look with dmesg, if there are error messages
+
+Thanks to:
+- the authors of the usbvnet driver (atmelwlandriver.sourceforge.net)
+- Joerg Albert for lots of patches
+- Brad Hards and Bas Vermeulen for the firmeware code, which I ported to kernel space
+- David Gibson, I used his orinoco driver for learning
+- the author(s) of the usbnet driver
+- the author(s) of the rtl8150 driver
+- lots of other authors of usb and wlan drivers, where I stole code from
+
+Oliver Kurth <oku@masqmail.cx>, Mon,  6 Jan 2003 22:39:47 +0100
