@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.16 2003/05/01 22:03:00 jal2 Exp $
+/* $Id: at76c503.c,v 1.17 2003/05/01 22:16:56 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -2582,10 +2582,12 @@ static void rx_tasklet(unsigned long param)
 		defer_kevent(dev, KEVENT_NEW_BSS);
 	}
 
-	if (debug > 2) {
+	if (debug > 1) {
 		char obuf[2*48+1] __attribute__ ((unused));
-		dbg("%s: rx frame: rate %d %s", dev->netdev->name,
-		    buf->rx_rate,
+		dbg("%s: rx frame: rate %d rssi %d noise %d link %d %s",
+		    dev->netdev->name,
+		    buf->rx_rate, buf->rssi, buf->noise_level,
+		    buf->link_quality,
 		    hex2str(obuf,(u8 *)i802_11_hdr,sizeof(obuf)/2,'\0'));
 	}
 
@@ -3671,7 +3673,7 @@ struct at76c503 *at76c503_new_device(struct usb_device *udev, int board_type,
 		goto error;
 	}
 
-	info("$Id: at76c503.c,v 1.16 2003/05/01 22:03:00 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.17 2003/05/01 22:16:56 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build);
