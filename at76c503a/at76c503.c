@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.64 2004/08/13 00:17:22 jal2 Exp $
+/* $Id: at76c503.c,v 1.65 2004/08/13 22:45:49 jal2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -573,6 +573,8 @@ static inline char *mac2str(u8 *mac)
 }
 
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
+
 /* == PROC analyze_usb_config == 
    This procedure analyzes the configuration after the
    USB device got reset and find the start of the interface and the
@@ -635,7 +637,6 @@ static int analyze_usb_config(u8 *cfgd, int cfgd_len,
 } /* end of analyze_usb_config */
 
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
 /* == PROC update_usb_intf_descr ==
    currently (2.6.0-test2) usb_reset_device() does not recognize that
@@ -883,7 +884,7 @@ int at76c503_remap(struct usb_device *udev)
 	ret = usb_control_msg(udev, usb_sndctrlpipe(udev,0),
 			      0x0a, INTERFACE_VENDOR_REQUEST_OUT,
 			      0, 0,
-			      NULL, 0, HZ);
+			      NULL, 0, HZ * USB_CTRL_GET_TIMEOUT);
 	if (ret < 0)
 		return ret;
 
@@ -899,7 +900,7 @@ static int get_op_mode(struct usb_device *udev)
 	ret = usb_control_msg(udev, usb_rcvctrlpipe(udev, 0),
 			      0x33, INTERFACE_VENDOR_REQUEST_IN,
 			      0x01, 0,
-			      &op_mode, 1, HZ);
+			      &op_mode, 1, HZ * USB_CTRL_GET_TIMEOUT);
 	if(ret < 0)
 		return ret;
 	return op_mode;
@@ -913,7 +914,7 @@ int load_ext_fw_block(struct usb_device *udev,
 	return usb_control_msg(udev, usb_sndctrlpipe(udev,0),
 			       0x0e, DEVICE_VENDOR_REQUEST_OUT,
 			       0x0802, i,
-			       buf, bsize, HZ);
+			       buf, bsize, HZ * USB_CTRL_GET_TIMEOUT);
 }
 
 static inline
@@ -923,7 +924,7 @@ int get_hw_cfg_rfmd(struct usb_device *udev,
 	return usb_control_msg(udev, usb_rcvctrlpipe(udev,0),
 			       0x33, INTERFACE_VENDOR_REQUEST_IN,
 			       ((0x0a << 8) | 0x02), 0,
-			       buf, buf_size, HZ);
+			       buf, buf_size, HZ * USB_CTRL_GET_TIMEOUT);
 }
 
 /* Intersil boards use a different "value" for GetHWConfig requests */
@@ -934,7 +935,7 @@ int get_hw_cfg_intersil(struct usb_device *udev,
 	return usb_control_msg(udev, usb_rcvctrlpipe(udev,0),
 			       0x33, INTERFACE_VENDOR_REQUEST_IN,
 			       ((0x09 << 8) | 0x02), 0,
-			       buf, buf_size, HZ);
+			       buf, buf_size, HZ * USB_CTRL_GET_TIMEOUT);
 }
 
 /* Get the hardware configuration for the adapter and place the appropriate
@@ -1041,7 +1042,7 @@ int get_mib(struct usb_device *udev,
 	return usb_control_msg(udev, usb_rcvctrlpipe(udev,0),
 			       0x33, INTERFACE_VENDOR_REQUEST_IN,
 			       mib << 8, 0,
-			       buf, buf_size, HZ);
+			       buf, buf_size, HZ * USB_CTRL_GET_TIMEOUT);
 }
 
 static inline
@@ -1176,7 +1177,7 @@ int set_mib(struct at76c503 *dev, struct set_mib_buffer *buf)
 				      0, 0,
 				      cmd_buf,
 				      sizeof(struct at76c503_command) + buf->size + 4,
-				      HZ);
+				      HZ * USB_CTRL_GET_TIMEOUT);
 		if (ret >= 0)
 			if ((ret=wait_completion(dev, CMD_SET_MIB)) != 
 			    CMD_STATUS_COMPLETE) {
@@ -6585,7 +6586,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.64 2004/08/13 00:17:22 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.65 2004/08/13 22:45:49 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -6794,22 +6795,38 @@ int at76c503_do_probe(struct module *mod, struct usb_device *udev,
 	} else {
 		/* internal firmware already inside the device */
 		/* get firmware version to test if external firmware is loaded */
-		ret = get_mib(udev, MIB_FW_VERSION, (u8*)&dev->fw_version, 
-			      sizeof(dev->fw_version));
-		if ((ret < 0) || ((dev->fw_version.major == 0) && 
-				  (dev->fw_version.minor == 0) && 
-				  (dev->fw_version.patch == 0) && 
-				  (dev->fw_version.build == 0))) {
-			dbg(DBG_DEVSTART, "cannot get firmware (ret %d) or all zeros "
-			    "- download external firmware", ret);
-			/* disassem. the firmware */
-			if ((ret=at76c503_get_fw_info(fw_data, fw_size, &dev->board_type,
-						      &version, &id_str,
-						      &dev->intfw, &dev->intfw_size,
-						      &dev->extfw, &dev->extfw_size))) {
-				goto error;
-			}
+		/* This works only for newer firmware, e.g. the Intersil 0.90.x
+		   says "control timeout on ep0in" and subsequent get_op_mode() fail
+		   too :-( */
+		int force_fw_dwl = 0;
 
+		/* disassem. the firmware */
+		if ((ret=at76c503_get_fw_info(fw_data, fw_size, &dev->board_type,
+					      &version, &id_str,
+					      &dev->intfw, &dev->intfw_size,
+					      &dev->extfw, &dev->extfw_size))) {
+			goto error;
+		}
+		
+		/* if version >= 0.100.x.y or device with built-in flash we can query the device
+		 * for the fw version */
+		if (version >= ((0<<24)|(100<<16)) || (op_mode == OPMODE_NORMAL_NIC_WITH_FLASH)) {
+			ret = get_mib(udev, MIB_FW_VERSION, (u8*)&dev->fw_version, 
+				      sizeof(dev->fw_version));
+		} else {
+			/* force fw download only if the device has no flash inside */
+			force_fw_dwl = 1;
+		}
+
+		if ((force_fw_dwl) || (ret < 0) || ((dev->fw_version.major == 0) && 
+						       (dev->fw_version.minor == 0) && 
+						       (dev->fw_version.patch == 0) && 
+						       (dev->fw_version.build == 0))) {
+			if (force_fw_dwl)
+				dbg(DBG_DEVSTART, "forced download of external firmware part");
+			else
+				dbg(DBG_DEVSTART, "cannot get firmware (ret %d) or all zeros "
+				    "- download external firmware", ret);
 			dbg(DBG_DEVSTART, "firmware board %u version %u.%u.%u#%u "
 			    "(int %x:%x, ext %x:%x)",
 			    dev->board_type, version>>24,(version>>16)&0xff,
