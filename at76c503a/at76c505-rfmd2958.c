@@ -83,6 +83,9 @@ struct firmware {
 #define VENDOR_ID_COREGA               0x07aa
 #define PRODUCT_ID_COREGA_USB_STICK_11_KK 0x7613 /* Corega WLAN USB Stick 11 (K.K.) */
 
+#define VENDOR_ID_MSI                 0x0db0
+#define PRODUCT_ID_MSI_MS6978_WLAN_BOX_PC2PC 0x1020
+
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_505R2958   ) },
 	{ USB_DEVICE(VENDOR_ID_CNET,     PRODUCT_ID_FL_WL240U         ) },
@@ -90,6 +93,7 @@ static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_LINKSYS,  PRODUCT_ID_LINKSYS_WUSB11V28 ) },
 	{ USB_DEVICE(VENDOR_ID_XTERASYS, PRODUCT_ID_XTERASYS_XN_2122B ) },
 	{ USB_DEVICE(VENDOR_ID_COREGA,   PRODUCT_ID_COREGA_USB_STICK_11_KK ) },
+        { USB_DEVICE(VENDOR_ID_MSI,      PRODUCT_ID_MSI_MS6978_WLAN_BOX_PC2PC) },
 	{ }
 };
 
