@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.32 2005/03/08 00:07:56 jal2 Exp $
+/* $Id: at76c503.h,v 1.33 2006/02/11 19:18:45 tim_small Exp $
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth
  *           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -633,6 +633,10 @@ struct at76c503 {
 	struct iw_quality iwspy_stats[IW_MAX_SPY];
 #endif
 #endif
+
+#if WIRELESS_EXT > 16
+	struct iw_public_data wireless_data;
+#endif /* WIRELESS_EXT > 16 */
 
 	/* These fields contain HW config provided by the device (not all of
 	 * these fields are used by all board types) */

@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.74 2005/03/08 01:33:14 jal2 Exp $
+/* $Id: at76c503.c,v 1.75 2006/02/11 19:18:44 tim_small Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -193,7 +193,7 @@ static inline void usb_set_intfdata(struct usb_interface *intf, void *data) {}
 # define eth_hdr(s) (s)->mac.ethernet
 # define set_eth_hdr(s,p) (s)->mac.ethernet=(p)
 #else
-# define set_eth_hdr(s,p) (s)->mac.raw=(p)
+# define set_eth_hdr(s,p) (s)->mac.raw=(unsigned char *)(p)
 #endif
 
 /* wireless extension level this source currently supports */
@@ -205,7 +205,11 @@ static inline void usb_set_intfdata(struct usb_interface *intf, void *data) {}
 #endif
 
 #ifndef USB_ASYNC_UNLINK
+#ifdef URB_ASYNC_UNLINK
 #define USB_ASYNC_UNLINK	URB_ASYNC_UNLINK
+#else
+#define USB_ASYNC_UNLINK	0
+#endif
 #endif
 
 #ifndef FILL_BULK_URB
@@ -3605,7 +3609,7 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 	if (match == NULL) {
 		/* haven't found the bss in the list */
 		if ((match=kmalloc(sizeof(struct bss_info), GFP_ATOMIC)) == NULL) {
-			dbg(DBG_BSS_TABLE, "%s: cannot kmalloc new bss info (%d byte)",
+			dbg(DBG_BSS_TABLE, "%s: cannot kmalloc new bss info (%zd byte)",
 			    dev->netdev->name, sizeof(struct bss_info));
 			goto rx_mgmt_beacon_end;
 		}
@@ -6699,7 +6703,9 @@ static const struct iw_handler_def at76c503_handler_def =
 	.standard	= (iw_handler *) at76c503_handlers,
 	.private	= (iw_handler *) at76c503_priv_handlers,
 	.private_args	= (struct iw_priv_args *) at76c503_priv_args,
-#if WIRELESS_EXT > 15
+#if WIRELESS_EXT > 16
+	.get_wireless_stats = at76c503_get_wireless_stats,
+#elif WIRELESS_EXT = 16
 	.spy_offset	= offsetof(struct at76c503, spy_data),
 #endif // #if WIRELESS_EXT > 15
 
@@ -7354,7 +7360,7 @@ struct at76c503 *alloc_new_device(struct usb_device *udev, int board_type,
 	dev->pm_mode = pm_mode;
 	dev->pm_period_us = pm_period;
 
-	strcpy(netdev->name, netdev_name);
+	dev_alloc_name(netdev, netdev_name);
 
 	return dev;
 } /* alloc_new_device */
@@ -7409,7 +7415,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.74 2005/03/08 01:33:14 jal2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.75 2006/02/11 19:18:44 tim_small Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -7456,7 +7462,15 @@ int init_new_device(struct at76c503 *dev)
 	netdev->open = at76c503_open;
 	netdev->stop = at76c503_stop;
 	netdev->get_stats = at76c503_get_stats;
+
+#if WIRELESS_EXT > 16
+	/* Add pointers to enable iwspy support. */
+	dev->wireless_data.spy_data = &dev->spy_data;
+	netdev->wireless_data = &dev->wireless_data;
+#else  /* WIRELESS_EXT > 16 */
 	netdev->get_wireless_stats = at76c503_get_wireless_stats;
+#endif /* WIRELESS_EXT > 16 */
+
 	netdev->hard_start_xmit = at76c503_tx;
 	netdev->tx_timeout = at76c503_tx_timeout;
 	netdev->watchdog_timeo = 2 * HZ;
@@ -7599,7 +7613,7 @@ int at76c503_do_probe(struct module *mod, struct usb_device *udev,
 		}
 
 		dbg(DBG_DEVSTART, "firmware board %u version %u.%u.%u#%u "
-		    "(int %x:%x, ext %x:%x)",
+		    "(int %x:%tx, ext %x:%tx)",
 		    dev->board_type, version>>24,(version>>16)&0xff,
 		    (version>>8)&0xff, version&0xff,
 		    dev->intfw_size, dev->intfw-fw_data,
@@ -7655,7 +7669,7 @@ int at76c503_do_probe(struct module *mod, struct usb_device *udev,
 				dbg(DBG_DEVSTART, "cannot get firmware (ret %d) or all zeros "
 				    "- download external firmware", ret);
 			dbg(DBG_DEVSTART, "firmware board %u version %u.%u.%u#%u "
-			    "(int %x:%x, ext %x:%x)",
+			    "(int %x:%tx, ext %x:%tx)",
 			    dev->board_type, version>>24,(version>>16)&0xff,
 			    (version>>8)&0xff, version&0xff,
 			    dev->intfw_size, dev->intfw-fw_data,
