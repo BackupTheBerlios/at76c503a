@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76_usbdfu.c,v 1.2 2004/09/05 14:07:09 jal2 Exp $ */
+/* $Id: at76_usbdfu.c,v 1.3 2006/06/21 08:50:07 maximsch2 Exp $ */
 /*
  * USB Device Firmware Upgrade (DFU) handler
  *
@@ -57,8 +57,8 @@ static int debug = 0;
 #define DRIVER_DESC "USB Device Firmware Upgrade (DFU) handler"
 
 /* Module paramaters */
-MODULE_PARM(debug, "i");
-MODULE_PARM_DESC(debug, "debug enabled (=1)");
+module_param(debug, bool, 0400);
+MODULE_PARM_DESC(debug, "debug on/off");
 
 /* DFU states */
 

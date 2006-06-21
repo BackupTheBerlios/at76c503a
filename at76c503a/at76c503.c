@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.75 2006/02/11 19:18:44 tim_small Exp $
+/* $Id: at76c503.c,v 1.76 2006/06/21 08:50:07 maximsch2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -139,9 +139,6 @@
 # define USB_CTRL_GET_TIMEOUT 5
 #endif
 
-/* try to make it compile for both 2.4.x and 2.6.x kernels */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
-
 /* number of endpoints of an interface */
 #define NUM_EP(intf) (intf)->altsetting[0].desc.bNumEndpoints
 #define EP(intf,nr) (intf)->altsetting[0].endpoint[(nr)].desc
@@ -155,34 +152,6 @@ static inline int submit_urb(struct urb *urb, int mem_flags) {
 static inline struct urb *alloc_urb(int iso_pk, int mem_flags) {
 	return usb_alloc_urb(iso_pk, mem_flags);
 }
-
-#else
-
-/* 2.4.x kernels */
-
-#define NUM_EP(intf) (intf)->altsetting[0].bNumEndpoints
-#define EP(intf,nr) (intf)->altsetting[0].endpoint[(nr)]
-
-#define GET_DEV(udev) usb_inc_dev_use((udev))
-#define PUT_DEV(udev) usb_dec_dev_use((udev))
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 4, 25)
-// this macro is defined from 2.4.25 onward
-#define SET_NETDEV_DEV(x,y)
-#endif
-
-#define SET_NETDEV_OWNER(ndev,owner) ndev->owner = owner
-
-static inline int submit_urb(struct urb *urb, int mem_flags) {
-	return usb_submit_urb(urb);
-}
-static inline struct urb *alloc_urb(int iso_pk, int mem_flags) {
-	return usb_alloc_urb(iso_pk);
-}
-
-static inline void usb_set_intfdata(struct usb_interface *intf, void *data) {}
-
-#endif //#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
 
 /* Backwards compatibility for usb_kill_urb() */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 10)
@@ -309,69 +278,70 @@ static const u8 zeros[32];
 /* Version Information */
 #define DRIVER_DESC "Generic Atmel at76c503/at76c505 routines"
 
-/* Module paramaters */
-MODULE_PARM(debug, "i");
 #define DRIVER_AUTHOR \
 "Oliver Kurth, Joerg Albert <joerg.albert@gmx.de>, Alex, Nick Jones, "\
 "Balint Seeber <n0_5p4m_p13453@hotmail.com>"
+
+/* Module paramaters */
+module_param(debug, int, 0400);
 MODULE_PARM_DESC(debug, "Debugging level");
 
 static int rx_copybreak = 200;
-MODULE_PARM(rx_copybreak, "i");
+module_param(rx_copybreak, int, 0400);
 MODULE_PARM_DESC(rx_copybreak, "rx packet copy threshold");
 
 static int scan_min_time = 10;
-MODULE_PARM(scan_min_time, "i");
+module_param(scan_min_time, int, 0400);
 MODULE_PARM_DESC(scan_min_time, "scan min channel time (default: 10)");
 
 static int scan_max_time = 120;
-MODULE_PARM(scan_max_time, "i");
+module_param(scan_max_time, int, 0400);
 MODULE_PARM_DESC(scan_max_time, "scan max channel time (default: 120)");
 
 static int scan_mode = SCAN_TYPE_ACTIVE;
-MODULE_PARM(scan_mode, "i");
+module_param(scan_mode, int, 0400);
 MODULE_PARM_DESC(scan_mode, "scan mode: 0 active (with ProbeReq, default), 1 passive");
 
 static int preamble_type = PREAMBLE_TYPE_LONG;
-MODULE_PARM(preamble_type, "i");
+module_param(preamble_type, int, 0400);
 MODULE_PARM_DESC(preamble_type, "preamble type: 0 long (default), 1 short");
 
 static int auth_mode = 0;
-MODULE_PARM(auth_mode, "i");
+module_param(auth_mode, int, 0400);
 MODULE_PARM_DESC(auth_mode, "authentication mode: 0 open system (default), "
 		 "1 shared secret");
 
 static int pm_mode = PM_ACTIVE;
-MODULE_PARM(pm_mode, "i");
+module_param(pm_mode, int, 0400);
 MODULE_PARM_DESC(pm_mode, "power management mode: 1 active (def.), 2 powersave, 3 smart save");
 
 static int pm_period = 0;
-MODULE_PARM(pm_period, "i");
+module_param(pm_period, int, 0400);
 MODULE_PARM_DESC(pm_period, "period of waking up the device in usec");
 
 static int international_roaming = IR_OFF;
-MODULE_PARM(international_roaming, "i");
+module_param(international_roaming, int, 0400);
 MODULE_PARM_DESC(international_roaming, "enable international roaming: 0 (no, default), 1 (yes)");
 
 static int default_iw_mode = IW_MODE_INFRA;
-MODULE_PARM(default_iw_mode, "i");
+module_param(default_iw_mode, int, 0400);
 MODULE_PARM_DESC(default_iw_mode, "default IW mode for a new device: "
 		 "1 (ad-hoc), 2 (infrastructure, def.), 6 (monitor mode)");
 
 static int monitor_scan_min_time = 50;
-MODULE_PARM(monitor_scan_min_time, "i");
+module_param(monitor_scan_min_time, int, 0400);
 MODULE_PARM_DESC(monitor_scan_min_time, "scan min channel time in MONITOR MODE (default: 50)");
 
 static int monitor_scan_max_time = 600;
-MODULE_PARM(monitor_scan_max_time, "i");
+module_param(monitor_scan_max_time, int, 0400);
 MODULE_PARM_DESC(monitor_scan_max_time, "scan max channel time in MONITOR MODE (default: 600)");
 
 #define DEF_RTS_THRESHOLD 1536
 #define DEF_FRAG_THRESHOLD 1536
 #define DEF_SHORT_RETRY_LIMIT 8
 //#define DEF_LONG_RETRY_LIMIT 4
-#define DEF_ESSID "okuwlan"
-#define DEF_ESSID_LEN 7
+#define DEF_ESSID ""
+#define DEF_ESSID_LEN 0
 #define DEF_CHANNEL 10
 
 #define MAX_RTS_THRESHOLD 2347
@@ -387,6 +357,7 @@ const long channel_frequency[] = {
 
 /* the broadcast address */
 const u8 bc_addr[ETH_ALEN] = {0xff,0xff,0xff,0xff,0xff,0xff};
+const u8 off_addr[ETH_ALEN] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 /* the supported rates of this hardware, bit7 marks a mandantory rate */
 const u8 hw_rates[4] = {0x82,0x84,0x0b,0x16};
@@ -2837,6 +2808,7 @@ kevent(void *data)
 			goto end_startibss;
 		}
 
+		netif_carrier_on(dev->netdev);
 		netif_start_queue(dev->netdev);
 	}
 end_startibss:
@@ -2888,6 +2860,7 @@ end_startibss:
 				memcpy(dev->bssid, bptr->bssid, ETH_ALEN);
 				dev->channel = bptr->channel;
 				iwevent_bss_connect(dev->netdev,bptr->bssid);
+				netif_carrier_on(dev->netdev);
 				netif_start_queue(dev->netdev);
 				/* just to be sure */
 				del_timer_sync(&dev->mgmt_timer);
@@ -4821,7 +4794,9 @@ void at76c503_tx_timeout(struct net_device *netdev)
 	if (!dev)
 		return;
 	warn("%s: tx timeout.", netdev->name);
+#if WIRELESS_EXT < 17
 	dev->write_urb->transfer_flags |= USB_ASYNC_UNLINK;
+#endif
 	usb_unlink_urb(dev->write_urb);
 	dev->stats.tx_errors++;
 }
@@ -5152,7 +5127,6 @@ static int ethtool_ioctl(struct at76c503 *dev, void *useraddr)
 		strncpy(info->version, DRIVER_VERSION, sizeof(info->version));
 		info->version[sizeof(info->version)-1] = '\0';
 
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 4, 7))
 		snprintf(info->bus_info, sizeof(info->bus_info)-1,
 			 "usb%d:%d", dev->udev->bus->busnum,
 			 dev->udev->devnum);
@@ -5161,15 +5135,6 @@ static int ethtool_ioctl(struct at76c503 *dev, void *useraddr)
 			 "%d.%d.%d-%d",
 			 dev->fw_version.major, dev->fw_version.minor,
 			 dev->fw_version.patch, dev->fw_version.build);
-#else
-                /* Take the risk of a buffer overflow: no snprintf... */
-		sprintf(info->bus_info, "usb%d:%d", dev->udev->bus->busnum,
-                        dev->udev->devnum);
-
-		sprintf(info->fw_version, "%d.%d.%d-%d",
-                        dev->fw_version.major, dev->fw_version.minor,
-                        dev->fw_version.patch, dev->fw_version.build);
-#endif
 		if (copy_to_user (useraddr, info, sizeof (*info))) {
 			kfree(info);
 			return -EFAULT;
@@ -5678,7 +5643,8 @@ int at76c503_iw_handler_set_wap(struct net_device *netdev,
 	
 	// if the incomming address == ff:ff:ff:ff:ff:ff, the user has 
 	// chosen any or auto AP preference
-	if (!memcmp(ap_addr->sa_data, bc_addr, ETH_ALEN)) {
+	if (!memcmp(ap_addr->sa_data, bc_addr, ETH_ALEN)
+		|| !memcmp(ap_addr->sa_data, off_addr, ETH_ALEN)) {
 		dev->wanted_bssid_valid = 0;
 	} else {
 		// user wants to set a preferred AP address
@@ -5724,6 +5690,10 @@ int at76c503_iw_handler_set_scan(struct net_device *netdev,
 {
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
 	unsigned long flags;
+	int ret = 0;
+#if WIRELESS_EXT > 19
+	struct iw_scan_req *req = NULL;
+#endif
 	
 	dbg(DBG_IOCTL, "%s: SIOCSIWSCAN", netdev->name);
 
@@ -5747,12 +5717,38 @@ int at76c503_iw_handler_set_scan(struct net_device *netdev,
 		netif_carrier_off(dev->netdev);
 		netif_stop_queue(dev->netdev);
 	}
+
+#if WIRELESS_EXT > 19
+	if (wrqu->data.length
+	    && wrqu->data.length == sizeof(struct iw_scan_req)) {
+		req = (struct iw_scan_req *)extra;
+
+		if (req->scan_type == IW_SCAN_TYPE_PASSIVE)
+			dev->scan_mode = SCAN_TYPE_PASSIVE;
+		else if (req->scan_type == IW_SCAN_TYPE_ACTIVE)
+			dev->scan_mode = SCAN_TYPE_ACTIVE;
+
+		/* Sanity check values? */
+		if (req->min_channel_time > 0) {
+			if (dev->istate == MONITORING)
+				dev->monitor_scan_min_time = req->min_channel_time;
+			else
+				dev->scan_min_time = min_channel_time;
+		}
+		if (req->max_channel_time > 0) {
+			if (dev->istate == MONITORING)
+				dev->monitor_scan_max_time = req->max_channel_time;
+			else
+				dev->scan_max_time = max_channel_time;
+		}
+	}
+#endif
 	
 	// change to scanning state
 	NEW_STATE(dev, SCANNING);
 	defer_kevent(dev, KEVENT_SCAN);
 	
-	return 0;
+	return ret;
 }
 
 static 
@@ -5884,12 +5880,20 @@ int at76c503_iw_handler_set_essid(struct net_device *netdev,
 	if (data->flags)
 	{
 		memcpy(dev->essid, extra, data->length);
-		// iwconfig gives len including 0 byte -
-		// 3 hours debugging... grrrr (oku)
-		dev->essid_size = data->length - 1;
+		dev->essid_size = data->length;
+#if WIRELESS_EXT < 21
+		/* For historic reasons, the SSID length used to include one
+		 * extra character, C string nul termination, even though SSID is
+		 * really an octet string that should not be presented as a C
+		 * string. WE-21 changes this to explicitly require the length
+		 * _not_ to include nul termination, but for WE < 21, decrement
+		 * the length count here to remove the nul termination. */
+		dev->essid_size = min(dev->essid_size - 1, 0);
+#endif
 	}
 	else
 	{
+		/* Use any SSID */
 		dev->essid_size = 0;
 	}
 	
@@ -6699,16 +6703,16 @@ static const struct iw_handler_def at76c503_handler_def =
 	.num_standard	= sizeof(at76c503_handlers)/sizeof(iw_handler),
 	.num_private	= sizeof(at76c503_priv_handlers)/sizeof(iw_handler),
 	.num_private_args = sizeof(at76c503_priv_args)/
-		sizeof(struct iw_priv_args),
+				sizeof(struct iw_priv_args),
 	.standard	= (iw_handler *) at76c503_handlers,
 	.private	= (iw_handler *) at76c503_priv_handlers,
 	.private_args	= (struct iw_priv_args *) at76c503_priv_args,
 #if WIRELESS_EXT > 16
-	.get_wireless_stats = at76c503_get_wireless_stats,
-#elif WIRELESS_EXT = 16
+ 	.get_wireless_stats = at76c503_get_wireless_stats,
+#endif
+#if WIRELESS_EXT == 15 || WIRELESS_EXT == 16
 	.spy_offset	= offsetof(struct at76c503, spy_data),
-#endif // #if WIRELESS_EXT > 15
-
+#endif
 };
 
 #endif // #if WIRELESS_EXT > 12
@@ -7144,7 +7148,6 @@ set_debug_end:
 void at76c503_delete_device(struct at76c503 *dev)
 {
 	int i;
-	int sem_taken;
 
 	if (!dev) 
 		return;
@@ -7155,14 +7158,17 @@ void at76c503_delete_device(struct at76c503 *dev)
 	dbg(DBG_PROC_ENTRY, "%s: ENTER",__FUNCTION__);
 
 	if (dev->flags & AT76C503A_NETDEV_REGISTERED) {
-		if ((sem_taken=down_trylock(&rtnl_sem)) != 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
+	    	if (down_trylock(&rtnl_sem) != 0) {
+#else
+		if (rtnl_trylock() == 0) {
+#endif
 			info("%s: rtnl_sem already down'ed", __FUNCTION__);
-
-		/* synchronously calls at76c503_stop() */
-		unregister_netdevice(dev->netdev);
-
-		if (!sem_taken)
+		} else {
+			/* synchronously calls at76c503_stop() */
+			unregister_netdevice(dev->netdev);
 			rtnl_unlock();
+		}
 	}
 
 	PUT_DEV(dev->udev);
@@ -7378,11 +7384,7 @@ int init_new_device(struct at76c503 *dev)
 	/* set up the endpoint information */
 	/* check out the endpoints */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
 	dev->interface = dev->udev->actconfig->interface[0];
-#else
-	dev->interface = &dev->udev->actconfig->interface[0];
-#endif
 
 	dbg(DBG_DEVSTART, "USB interface: %d endpoints",
 	    NUM_EP(dev->interface));
@@ -7415,7 +7417,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.75 2006/02/11 19:18:44 tim_small Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.76 2006/06/21 08:50:07 maximsch2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -7564,12 +7566,7 @@ int at76c503_do_probe(struct module *mod, struct usb_device *udev,
 		      u8 *fw_data, int fw_size, u32 board_type,
 		      const char *netdev_name, void **devptr)
 {
-	struct usb_interface *intf = 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
-		udev->actconfig->interface[0];
-#else
-		&udev->actconfig->interface[0];
-#endif
+	struct usb_interface *intf = udev->actconfig->interface[0];
 	int ret;
 	struct at76c503 *dev = NULL;
 	int op_mode;

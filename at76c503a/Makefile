@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.41 2004/09/19 19:17:29 jal2 Exp $
+#$Id: Makefile,v 1.42 2006/06/21 08:50:07 maximsch2 Exp $
 #
 # Copyright (c) 2002 - 2003 Oliver Kurth
 #           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -49,7 +49,7 @@ FW_HDRS= fw-pkg-505-rfmd2958-1.101.0-86.h  fw-pkg-i3863.h  \
 
 SCRIPTS = fwbin2h fwbin2pkg.sh fwconvert fwversion
 
-DISTFILES = $(SRCS) $(HDRS) $(FW_HDRS) Makefile README COPYING \
+DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING \
             CHANGELOG gen_fw.c kernel_patch.sh Makefile.k26
 TOPDISTFILES = 
 
@@ -83,19 +83,18 @@ all: modules
 
 modules:
 	mkdir -p .tmp_versions
-	-cp $(KERNEL_SRC)/.tmp_versions/*.mod $(MODVERDIR)
-	$(MAKE) -C $(KERNEL_SRC) SUBDIRS=$(SRCDIR) MODVERDIR=$(MODVERDIR) \
+	$(MAKE) -C $(KERNEL_SRC) M=$(SRCDIR) MODVERDIR=$(MODVERDIR) \
 		EXTRA_CFLAGS="$(FW_DL)" modules
 
 mv_old:
 	for i in $(MODULES:%.o=%.ko); do \
 	  find $(DEL_MODULE_DIR) -name $$i -exec rm -f {} {}.orig \; ;done 
 
-install-modules: all mv_old
+install-modules: all
 	mkdir -p $(MODULE_DIR)
 	install -m 644 -o 0 -g 0 $(MODULES:%.o=%.ko) $(MODULE_DIR)
 
-install: install-modules
+install: mv_old install-modules
 	$(DEPMOD) -ae
 
 uninstall:
@@ -128,11 +127,11 @@ mv_old:
 	for i in $(MODULES); do \
 	  find $(DEL_MODULE_DIR) -name $$i -exec rm -f {} {}.orig \; ;done 
 
-install-modules: all mv_old
+install-modules: all
 	mkdir -p $(MODULE_DIR)
 	for f in $(MODULES); do install -m 644 -o 0 -g 0 $$f $(MODULE_DIR)/$$f; done
 
-install: install-modules
+install: mv_old install-modules
 	$(DEPMOD) -ae
 
 uninstall:

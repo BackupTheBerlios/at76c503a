@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-fw_skel.c,v 1.8 2005/03/08 00:07:55 jal2 Exp $
+ * $Id: at76c503-fw_skel.c,v 1.9 2006/06/21 08:50:07 maximsch2 Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  *
@@ -31,22 +31,7 @@
 #include <asm/arch/ipaq.h>
 #include <asm/arch-pxa/h5400-asic.h>
 #endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 5, 0)
-extern inline char *fw_dev_param(struct usb_device *udev, char *buf)
-{
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 20)
-        snprintf(buf, FIRMWARE_NAME_MAX, "usb-%s-%s",
-                 udev->bus->bus_name, udev->devpath);
-#else
-	snprintf(buf, FIRMWARE_NAME_MAX, "usb-%d-%d",
-                 udev->bus->busnum, udev->devnum);
-#endif
-        return buf;
-}
-#else
-#define fw_dev_param(udev, buf) (&udev->dev)
-#endif
+#include <linux/module.h>
 
 MODULE_DEVICE_TABLE (usb, dev_table);
 
@@ -55,14 +40,12 @@ const struct firmware *fw;
 
 /* Module paramaters */
 
-static char netdev_name[IFNAMSIZ+1] = "wlan%d";
-MODULE_PARM(netdev_name, "c" __MODULE_STRING(IFNAMSIZ));
-MODULE_PARM_DESC(netdev_name,
-                 "network device name (default is wlan%d)");
-static int debug = 1;
-MODULE_PARM(debug, "i");
-MODULE_PARM_DESC(debug,
-                 "debug output (default: 1)");
+static char* netdev_name = "wlan%d";
+module_param(netdev_name, charp,0400);
+MODULE_PARM_DESC(netdev_name, "network device name (default is wlan%d)");
+static int debug=0;
+module_param(debug, bool, 0400);
+MODULE_PARM_DESC(debug, "debug on/off");
 
 /* Use our own dbg macro */
 #undef dbg
@@ -74,22 +57,15 @@ MODULE_PARM_DESC(debug,
 
 
 /* local function prototypes */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-static void *at76c50x_probe(struct usb_device *udev, unsigned int ifnum, 
-			    const struct usb_device_id *id);
-static void at76c50x_disconnect(struct usb_device *dev, void *ptr);
-#else
 static int at76c50x_probe(struct usb_interface *interface,
 			  const struct usb_device_id *id);
 static void at76c50x_disconnect(struct usb_interface *interface);
-#endif
 
 
 /* structure for registering this driver with the usb subsystem */
 
 static struct usb_driver module_usb = {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,20)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,20) && LINUX_VERSION_CODE < KERNEL_VERSION(2,6,16)
 	owner:      THIS_MODULE,
 #endif
 	name:	    DRIVER_NAME,
@@ -101,24 +77,14 @@ static struct usb_driver module_usb = {
 /* Module and USB entry points */
 
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-static void *at76c50x_probe(struct usb_device *udev, unsigned int ifnum, 
-			    const struct usb_device_id *id)
-#else
 static int at76c50x_probe(struct usb_interface *interface,
 			  const struct usb_device_id *id)
-#endif
 {
 	void *devptr = NULL;
 	int retval;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-#define RETERR(x) return NULL
-#else
-#define RETERR(x) return x
 	struct usb_device *udev __attribute__ ((unused));
 	udev = interface_to_usbdev(interface);
-#endif
 
 	/* if fw is statically compiled in, we use it */
 	if (static_fw.size > 0) {
@@ -126,50 +92,38 @@ static int at76c50x_probe(struct usb_interface *interface,
 		fw = &static_fw;
 	} else {
 #ifdef CONFIG_AT76C503_FIRMWARE_DOWNLOAD
-		char buf[FIRMWARE_NAME_MAX] __attribute__ ((unused));
 		if (fw == NULL) {
 			dbg("downloading firmware " FW_NAME);
-			if (request_firmware(&fw, FW_NAME, 
-					     fw_dev_param(udev,buf)) == 0) {
+			if (request_firmware(&fw, FW_NAME, &udev->dev) == 0) {
 				dbg("got it.");
 			} else {
 				err("firmware " FW_NAME " not found.");
 				err("You may need to download the firmware from "
 				    "http://www.thekelleys.org.uk/atmel or "
 				    "ftp://ftp.berlios.de/pub/at76c503a/firmware/");
-				RETERR(-EFAULT);
+				return -EFAULT;
 			}
 		} else
 			dbg("re-using previously loaded fw");
 #else
                 err("either configure driver for firmware loader or compile"
                     "firmware in");
-                RETERR(-EFAULT);
+                return -EFAULT;
 #endif
 	}
 
 	retval = at76c503_do_probe(THIS_MODULE, udev, &module_usb, fw->data, fw->size,
 				   BOARDTYPE, netdev_name, &devptr);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-	return devptr;
-#else
 	return retval;
-#endif
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-static void at76c50x_disconnect(struct usb_device *dev, void *ptr)
-#else
 static void at76c50x_disconnect(struct usb_interface *interface)
-#endif
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	struct at76c503 *ptr;
 
 	ptr = usb_get_intfdata (interface);
 	usb_set_intfdata(interface, NULL);
-#endif
 
 	info("%s disconnecting", ((struct at76c503 *)ptr)->netdev->name);
 	at76c503_delete_device(ptr);
@@ -221,8 +175,8 @@ static void __exit mod_exit(void)
 #endif
 }
 
-module_init (mod_init);
-module_exit (mod_exit);
+module_init(mod_init);
+module_exit(mod_exit);
 
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);

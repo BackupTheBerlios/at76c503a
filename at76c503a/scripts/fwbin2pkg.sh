@@ -17,7 +17,7 @@ OUTF=$3
 
 [ $DEBUG -eq 1 ] && echo "#DBG comment $COMMENT, converting $INF into $OUTF"
 
-echo '/* $Id: fwbin2pkg.sh,v 1.2 2003/12/25 22:40:27 jal2 Exp $ */' > $OUTF
+echo '/* $Id: fwbin2pkg.sh,v 1.3 2006/06/21 08:50:08 maximsch2 Exp $ */' > $OUTF
 echo "/* $COMMENT */" >> $OUTF
 echo '/**************************************************************************/' >> $OUTF
 echo '/*                                                                        */' >> $OUTF
@@ -49,3 +49,4 @@ echo '};' >> $OUTF
 echo '' >> $OUTF
 echo "const struct firmware static_fw = {`ls -l $INF | awk '{print $5}'`, fw_bin};" >> $OUTF
 echo '' >> $OUTF
+
