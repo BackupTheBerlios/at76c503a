@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.34 2006/06/21 08:50:07 maximsch2 Exp $
+/* $Id: at76c503.h,v 1.35 2006/06/22 10:09:56 maximsch2 Exp $
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth
  *           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -707,7 +707,7 @@ typedef struct p80211msg
 {
 	uint32_t	msgcode		__attribute__ ((packed));
 	uint32_t	msglen		__attribute__ ((packed));
-	uint8_t	devname[WLAN_DEVNAMELEN_MAX]	__attribute__ ((packed));
+	uint8_t	devname[WLAN_DEVNAMELEN_MAX]; // REMOVED: __attribute__ ((packed));
 } __attribute__ ((packed)) p80211msg_t;
 
 #define P80211ENUM_msgitem_status_data_ok		0
