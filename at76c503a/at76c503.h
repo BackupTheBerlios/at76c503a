@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.35 2006/06/22 10:09:56 maximsch2 Exp $
+/* $Id: at76c503.h,v 1.36 2006/06/22 10:35:42 maximsch2 Exp $
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth
  *           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -48,25 +48,10 @@
 #endif
  
 /* current driver version */
-#define DRIVER_VERSION "v0.12beta23" VERSION_APPEND
+#define DRIVER_VERSION "v0.13rc1" VERSION_APPEND
 
-/* Workqueue / task queue backwards compatibility stuff */
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,5,41)
+
 #include <linux/workqueue.h>
-#else
-#include <linux/tqueue.h>
-#define work_struct tq_struct
-#define INIT_WORK(a,b,c) INIT_TQUEUE(a,b,c)
-#define schedule_work(w) schedule_task(w)
-#define flush_scheduled_work() flush_scheduled_tasks()
-#endif
-
-/* Backward compatibility for free_netdev() */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
-#ifndef HAVE_FREE_NETDEV
-#define free_netdev(dev) kfree(dev)
-#endif
-#endif
 
 /* this wasn't even defined in early 2.4.x kernels ... */
 #ifndef SIOCIWFIRSTPRIV
