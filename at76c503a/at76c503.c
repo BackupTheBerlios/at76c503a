@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.79 2006/06/22 11:14:16 maximsch2 Exp $
+/* $Id: at76c503.c,v 1.80 2006/06/22 18:48:30 agx Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -5767,7 +5767,7 @@ int at76c503_iw_handler_set_essid(struct net_device *netdev,
 		 * string. WE-21 changes this to explicitly require the length
 		 * _not_ to include nul termination, but for WE < 21, decrement
 		 * the length count here to remove the nul termination. */
-		dev->essid_size = min(dev->essid_size - 1, 0);
+		dev->essid_size = max(dev->essid_size - 1, 0);
 #endif
 	}
 	else
@@ -7296,7 +7296,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.79 2006/06/22 11:14:16 maximsch2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.80 2006/06/22 18:48:30 agx Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
