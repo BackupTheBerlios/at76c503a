@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.82 2006/06/22 18:58:37 agx Exp $
+/* $Id: at76c503.c,v 1.83 2006/06/22 19:21:44 agx Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -5601,8 +5601,8 @@ int at76c503_iw_handler_set_scan(struct net_device *netdev,
 	}
 // Try to do passive or active scan if WE asks as.
 #if WIRELESS_EXT > 19
-	if (wrqu->length
-	    && wrqu->length == sizeof(struct iw_scan_req)) {
+	if (wrqu->data.length
+	    && wrqu->data.length == sizeof(struct iw_scan_req)) {
 		req = (struct iw_scan_req *)extra;
 
 		if (req->scan_type == IW_SCAN_TYPE_PASSIVE)
@@ -7299,7 +7299,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.82 2006/06/22 18:58:37 agx Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.83 2006/06/22 19:21:44 agx Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
