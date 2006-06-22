@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.80 2006/06/22 18:48:30 agx Exp $
+/* $Id: at76c503.c,v 1.81 2006/06/22 18:52:08 agx Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -5576,6 +5576,9 @@ int at76c503_iw_handler_set_scan(struct net_device *netdev,
 	
 	dbg(DBG_IOCTL, "%s: SIOCSIWSCAN", netdev->name);
 
+	if (!netif_running(netdev))
+		return -ENETDOWN;
+
 	/* jal: we don't allow "iwlist wlanX scan" while we are
 	   in monitor mode */
 	if (dev->iw_mode == IW_MODE_MONITOR)
@@ -7296,7 +7299,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.80 2006/06/22 18:48:30 agx Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.81 2006/06/22 18:52:08 agx Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
