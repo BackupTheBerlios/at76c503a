@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.36 2006/06/22 10:35:42 maximsch2 Exp $
+/* $Id: at76c503.h,v 1.37 2006/06/22 21:09:23 agx Exp $
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth
  *           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -30,9 +30,7 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/wireless.h>
-#if WIRELESS_EXT > 12
 #include <net/iw_handler.h>
-#endif
 #include <linux/version.h>
 
 #include "at76_ieee802_11.h" /* we need some constants here */
@@ -56,13 +54,6 @@
 /* this wasn't even defined in early 2.4.x kernels ... */
 #ifndef SIOCIWFIRSTPRIV
 #  define SIOCIWFIRSTPRIV SIOCDEVPRIVATE
-#endif
-
-/* WIRELESS_EXT 8 does not provide iw_point ! */
-#if WIRELESS_EXT <= 8
-/* this comes from <linux/wireless.h> */
-#undef IW_MAX_SPY 
-#define IW_MAX_SPY 0
 #endif
 
 /* our private ioctl's */
@@ -608,16 +599,8 @@ struct at76c503 {
 	struct reg_domain const *domain; /* the description of the regulatory domain */
 
 	/* iwspy support */
-#if (WIRELESS_EXT > 15) || (IW_MAX_SPY > 0)
 	spinlock_t spy_spinlock;
-#if WIRELESS_EXT > 15
 	struct iw_spy_data spy_data;
-#else
-	int iwspy_nr; /* nr of valid entries below */
-	struct sockaddr iwspy_addr[IW_MAX_SPY];
-	struct iw_quality iwspy_stats[IW_MAX_SPY];
-#endif
-#endif
 
 #if WIRELESS_EXT > 16
 	struct iw_public_data wireless_data;

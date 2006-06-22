@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.83 2006/06/22 19:21:44 agx Exp $
+/* $Id: at76c503.c,v 1.84 2006/06/22 21:09:23 agx Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -102,24 +102,8 @@
 #include <linux/ethtool.h>
 #include <asm/uaccess.h>
 #include <linux/wireless.h>
-
-#if WIRELESS_EXT > 12
-
 #include <net/iw_handler.h>
-#define IW_REQUEST_INFO				struct iw_request_info
 
-#else
-
-#define EIWCOMMIT				EINPROGRESS
-#define IW_REQUEST_INFO				void
-
-#endif // #if WIRELESS_EXT > 12
-
-/* not defined in WIRELESS_EXT < 15 */
-#ifndef IW_MODE_MONITOR
-# define IW_MODE_MONITOR  6
-#endif
- 
 #include <linux/rtnetlink.h>  /* for rtnl_lock() */
 #include <net/iw_handler.h>
 
@@ -519,7 +503,6 @@ static int at76c503_get_fw_info(u8 *fw_data, int fw_size,
 static int init_new_device(struct at76c503 *dev);
 
 /* some abbrev. for wireless events */
-#if WIRELESS_EXT > 13
 static inline void iwevent_scan_complete(struct net_device *dev)
 {
 	union iwreq_data wrqu;
@@ -550,11 +533,6 @@ static inline void iwevent_bss_disconnect(struct net_device *dev)
 	dbg(DBG_WE_EVENTS, "%s: %s: SIOCGIWAP sent", dev->name, __FUNCTION__);
 }
 
-#else
-static inline void iwevent_scan_complete(struct net_device *dev) {}
-static inline void iwevent_bss_connect(struct net_device *dev, u8 *bssid) {}
-static inline void iwevent_bss_disconnect(struct net_device *dev) {}
-#endif /* #if WIRELESS_EXT > 13 */
 
 /* hexdump len many bytes from buf into obuf, separated by delim,
    add a trailing \0 into obuf */
@@ -4944,7 +4922,6 @@ int at76c503_set_mac_address(struct net_device *netdev, void *addr)
 static
 void iwspy_update(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 {
-#if (WIRELESS_EXT > 15) || (IW_MAX_SPY > 0)
 	struct ieee802_11_hdr *hdr = (struct ieee802_11_hdr *)buf->packet;
 	u16 lev_dbm = buf->rssi * 5 / 2;
 	struct iw_quality wstats = {
@@ -4953,26 +4930,13 @@ void iwspy_update(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 		.noise = buf->noise_level,
 		.updated = 1,
 	};
-#if WIRELESS_EXT <= 15
-	int i = 0;
-#endif
 	
 	spin_lock_bh(&(dev->spy_spinlock));
 	
-#if WIRELESS_EXT > 15	
 	if (dev->spy_data.spy_number > 0) {
 		wireless_spy_update(dev->netdev, hdr->addr2, &wstats);
 	}
-#else
-	for (i; i < dev->iwspy_nr; i++) {
-		if (!memcmp(hdr->addr2, dev->iwspy_addr[i].sa_data, ETH_ALEN)) {
-			memcpy(&(dev->iwspy_stats[i]), &wstats, sizeof(wstats));
-			break;
-		}
-	}
-#endif // #if WIRELESS_EXT > 15
 	spin_unlock_bh(&(dev->spy_spinlock));
-#endif // #if (WIRELESS_EXT > 15) || (IW_MAX_SPY > 0)
 } /* iwspy_update */
 
 static int ethtool_ioctl(struct at76c503 *dev, void *useraddr)
@@ -5077,7 +5041,7 @@ static const struct iw_priv_args at76c503_priv_args[] = {
  */
 static
 int at76c503_iw_handler_commit(struct net_device *netdev,
-			       IW_REQUEST_INFO *info,
+			       struct iw_request_info *info,
 			       void *null,
 			       char *extra)
 {
@@ -5118,7 +5082,7 @@ int at76c503_iw_handler_commit(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_get_name(struct net_device *netdev,
-				 IW_REQUEST_INFO *info,
+				 struct iw_request_info *info,
 				 char *name,
 				 char *extra)
 {
@@ -5131,7 +5095,7 @@ int at76c503_iw_handler_get_name(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_set_freq(struct net_device *netdev,
-				 IW_REQUEST_INFO *info,
+				 struct iw_request_info *info,
 				 struct iw_freq *freq,
 				 char *extra)
 {
@@ -5189,7 +5153,7 @@ int at76c503_iw_handler_set_freq(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_get_freq(struct net_device *netdev,
-				 IW_REQUEST_INFO *info,
+				 struct iw_request_info *info,
 				 struct iw_freq *freq,
 				 char *extra)
 {
@@ -5210,7 +5174,7 @@ int at76c503_iw_handler_get_freq(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_set_mode(struct net_device *netdev,
-				 IW_REQUEST_INFO *info,
+				 struct iw_request_info *info,
 				 __u32 *mode,
 				 char *extra)
 {
@@ -5230,7 +5194,7 @@ int at76c503_iw_handler_set_mode(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_get_mode(struct net_device *netdev,
-				 IW_REQUEST_INFO *info,
+				 struct iw_request_info *info,
 				 __u32 *mode,
 				 char *extra)
 {
@@ -5245,7 +5209,7 @@ int at76c503_iw_handler_get_mode(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_get_range(struct net_device *netdev,
-				  IW_REQUEST_INFO *info,
+				  struct iw_request_info *info,
 				  struct iw_point *data,
 				  char *extra)
 {
@@ -5359,7 +5323,7 @@ int at76c503_iw_handler_get_range(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_get_priv(struct net_device *netdev,
-				 IW_REQUEST_INFO *info,
+				 struct iw_request_info *info,
 				 struct iw_point *data,
 				 char *extra)
 {
@@ -5373,52 +5337,21 @@ int at76c503_iw_handler_get_priv(struct net_device *netdev,
 }
 
 
-#if (WIRELESS_EXT > 15) || (IW_MAX_SPY > 0)
 static 
 int at76c503_iw_handler_set_spy(struct net_device *netdev,
-				IW_REQUEST_INFO *info,
+				struct iw_request_info *info,
 				struct iw_point *data,
 				char *extra)
 {
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
-#if WIRELESS_EXT <= 15
-	int i = 0;
-#endif
 	int ret = 0;
 	
 	dbg(DBG_IOCTL, "%s: SIOCSIWSPY - number of addresses %d",
 		netdev->name, data->length);
 	
 	spin_lock_bh(&(dev->spy_spinlock));
-#if WIRELESS_EXT > 15
 	ret = iw_handler_set_spy(dev->netdev, info, (union iwreq_data *)data, 
 		extra);
-#else
-	if (&data == NULL) {
-		return -EFAULT;
-	}
-	
-	if (data->length > IW_MAX_SPY)
-	{
-		return -E2BIG;
-	}
-	
-	dev->iwspy_nr = data->length;
-	
-	if (dev->iwspy_nr > 0) {
-		memcpy(dev->iwspy_addr, extra,
-			sizeof(struct sockaddr) * dev->iwspy_nr);
-		
-		memset(dev->iwspy_stats, 0, sizeof(dev->iwspy_stats));
-	}
-	
-	// Time to show what we have done...
-	dbg(DBG_IOCTL, "%s: New spy list:", netdev->name);
-	for (i = 0; i < dev->iwspy_nr; i++) {
-		dbg(DBG_IOCTL, "%s: SIOCSIWSPY - entry %d: %s", netdev->name, 
-			i + 1, mac2str(dev->iwspy_addr[i].sa_data));
-	}
-#endif // #if WIRELESS_EXT > 15
 	spin_unlock_bh(&(dev->spy_spinlock));
 	
 	return ret;
@@ -5426,38 +5359,17 @@ int at76c503_iw_handler_set_spy(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_get_spy(struct net_device *netdev,
-				IW_REQUEST_INFO *info,
+				struct iw_request_info *info,
 				struct iw_point *data,
 				char *extra)
 {
 
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
-#if WIRELESS_EXT <= 15
-	int i = 0;
-#endif
 	int ret = 0;
 	
 	spin_lock_bh(&(dev->spy_spinlock));
-#if WIRELESS_EXT > 15
 	ret = iw_handler_get_spy(dev->netdev, info, 
 		(union iwreq_data *)data, extra);
-#else
-	data->length = dev->iwspy_nr;
-	
-	if ((data->length > 0) && extra) {
-		// Push stuff to user space
-		memcpy(extra, dev->iwspy_addr,
-			sizeof(struct sockaddr) * data->length);
-		
-		memcpy(extra + sizeof(struct sockaddr) * data->length,
-			dev->iwspy_stats,
-			sizeof(struct iw_quality) * data->length);
-		
-		for (i = 0; i < dev->iwspy_nr; i++) {
-			dev->iwspy_stats[i].updated = 0;
-		}
-	}
-#endif // #if WIRELESS_EXT > 15
 	spin_unlock_bh(&(dev->spy_spinlock));
 	
 	dbg(DBG_IOCTL, "%s: SIOCGIWSPY - number of addresses %d",
@@ -5465,12 +5377,10 @@ int at76c503_iw_handler_get_spy(struct net_device *netdev,
 	
 	return ret;
 }
-#endif // #if (WIRELESS_EXT > 15) || (IW_MAX_SPY > 0)
 
-#if WIRELESS_EXT > 15
 static 
 int at76c503_iw_handler_set_thrspy(struct net_device *netdev,
-				   IW_REQUEST_INFO *info,
+				   struct iw_request_info *info,
 				   struct iw_point *data,
 				   char *extra)
 {
@@ -5490,7 +5400,7 @@ int at76c503_iw_handler_set_thrspy(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_get_thrspy(struct net_device *netdev,
-				   IW_REQUEST_INFO *info,
+				   struct iw_request_info *info,
 				   struct iw_point *data,
 				   char *extra)
 {
@@ -5507,11 +5417,10 @@ int at76c503_iw_handler_get_thrspy(struct net_device *netdev,
 	
 	return ret;
 }
-#endif //#if WIRELESS_EXT > 15
 
 static 
 int at76c503_iw_handler_set_wap(struct net_device *netdev,
-				IW_REQUEST_INFO *info,
+				struct iw_request_info *info,
 				struct sockaddr *ap_addr,
 				char *extra)
 {
@@ -5536,7 +5445,7 @@ int at76c503_iw_handler_set_wap(struct net_device *netdev,
 
 static
 int at76c503_iw_handler_get_wap(struct net_device *netdev,
-				IW_REQUEST_INFO *info,
+				struct iw_request_info *info,
 				struct sockaddr *ap_addr,
 				char *extra)
 {
@@ -5553,17 +5462,16 @@ int at76c503_iw_handler_get_wap(struct net_device *netdev,
 
 /*static 
 int at76c503_iw_handler_get_waplist(struct net_device *netdev,
-				    IW_REQUEST_INFO *info,
+				    struct iw_request_info *info,
 				    struct iw_point *data,
 				    char *extra)
 {
 	return -EOPNOTSUPP;
 }*/
 
-#if WIRELESS_EXT > 13
 static 
 int at76c503_iw_handler_set_scan(struct net_device *netdev,
-				 IW_REQUEST_INFO *info,
+				 struct iw_request_info *info,
 				 union iwreq_data *wrqu,
 				 char *extra)
 {
@@ -5635,7 +5543,7 @@ int at76c503_iw_handler_set_scan(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_get_scan(struct net_device *netdev,
-				 IW_REQUEST_INFO *info,
+				 struct iw_request_info *info,
 				 struct iw_point *data,
 				 char *extra)
 {
@@ -5746,12 +5654,11 @@ int at76c503_iw_handler_get_scan(struct net_device *netdev,
 	kfree(iwe);
 	return 0;
 }
-#endif // #if WIRELESS_EXT > 13
 
 
 static 
 int at76c503_iw_handler_set_essid(struct net_device *netdev,
-				  IW_REQUEST_INFO *info,
+				  struct iw_request_info *info,
 				  struct iw_point *data,
 				  char *extra)
 {
@@ -5784,7 +5691,7 @@ int at76c503_iw_handler_set_essid(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_get_essid(struct net_device *netdev,
-				  IW_REQUEST_INFO *info,
+				  struct iw_request_info *info,
 				  struct iw_point *data,
 				  char *extra)
 {
@@ -5821,7 +5728,7 @@ int at76c503_iw_handler_get_essid(struct net_device *netdev,
 
 static
 int at76c503_iw_handler_set_nickname(struct net_device *netdev,
-				     IW_REQUEST_INFO *info,
+				     struct iw_request_info *info,
 				     struct iw_point *data,
 				     char *extra)
 {
@@ -5837,7 +5744,7 @@ int at76c503_iw_handler_set_nickname(struct net_device *netdev,
 
 static
 int at76c503_iw_handler_get_nickname(struct net_device *netdev,
-				     IW_REQUEST_INFO *info,
+				     struct iw_request_info *info,
 				     struct iw_point *data,
 				     char *extra)
 {
@@ -5855,7 +5762,7 @@ int at76c503_iw_handler_get_nickname(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_set_rate(struct net_device *netdev,
-				 IW_REQUEST_INFO *info,
+				 struct iw_request_info *info,
 				 struct iw_param *bitrate,
 				 char *extra)
 {
@@ -5880,7 +5787,7 @@ int at76c503_iw_handler_set_rate(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_get_rate(struct net_device *netdev,
-				 IW_REQUEST_INFO *info,
+				 struct iw_request_info *info,
 				 struct iw_param *bitrate,
 				 char *extra)
 {
@@ -5909,7 +5816,7 @@ int at76c503_iw_handler_get_rate(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_set_rts(struct net_device *netdev,
-				IW_REQUEST_INFO *info,
+				struct iw_request_info *info,
 				struct iw_param *rts,
 				char *extra)
 {
@@ -5935,7 +5842,7 @@ int at76c503_iw_handler_set_rts(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_get_rts(struct net_device *netdev,
-				IW_REQUEST_INFO *info,
+				struct iw_request_info *info,
 				struct iw_param *rts,
 				char *extra)
 {
@@ -5954,7 +5861,7 @@ int at76c503_iw_handler_get_rts(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_set_frag(struct net_device *netdev,
-				 IW_REQUEST_INFO *info,
+				 struct iw_request_info *info,
 				 struct iw_param *frag,
 				 char *extra)
 {
@@ -5980,7 +5887,7 @@ int at76c503_iw_handler_set_frag(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_get_frag(struct net_device *netdev,
-				 IW_REQUEST_INFO *info,
+				 struct iw_request_info *info,
 				 struct iw_param *frag,
 				 char *extra)
 {
@@ -5999,7 +5906,7 @@ int at76c503_iw_handler_get_frag(struct net_device *netdev,
 
 static
 int at76c503_iw_handler_get_txpow(struct net_device *netdev,
-				  IW_REQUEST_INFO *info,
+				  struct iw_request_info *info,
 				  struct iw_param *power,
 				  char *extra)
 {
@@ -6018,7 +5925,7 @@ int at76c503_iw_handler_get_txpow(struct net_device *netdev,
    while long retry is not (?) */
 static 
 int at76c503_iw_handler_set_retry(struct net_device *netdev,
-				  IW_REQUEST_INFO *info,
+				  struct iw_request_info *info,
 				  struct iw_param *retry,
 				  char *extra)
 {
@@ -6044,7 +5951,7 @@ int at76c503_iw_handler_set_retry(struct net_device *netdev,
 // adapted (ripped) from atmel.c
 static 
 int at76c503_iw_handler_get_retry(struct net_device *netdev,
-				  IW_REQUEST_INFO *info,
+				  struct iw_request_info *info,
 				  struct iw_param *retry,
 				  char *extra)
 {
@@ -6072,7 +5979,7 @@ int at76c503_iw_handler_get_retry(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_set_encode(struct net_device *netdev,
-				   IW_REQUEST_INFO *info,
+				   struct iw_request_info *info,
 				   struct iw_point *encoding,
 				   char *extra)
 {
@@ -6126,7 +6033,7 @@ int at76c503_iw_handler_set_encode(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_get_encode(struct net_device *netdev,
-				   IW_REQUEST_INFO *info,
+				   struct iw_request_info *info,
 				   struct iw_point *encoding,
 				   char *extra)
 {
@@ -6167,7 +6074,7 @@ int at76c503_iw_handler_get_encode(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_set_power(struct net_device *netdev,
-				  IW_REQUEST_INFO *info,
+				  struct iw_request_info *info,
 				  struct iw_param *power,
 				  char *extra)
 {
@@ -6198,7 +6105,7 @@ int at76c503_iw_handler_set_power(struct net_device *netdev,
 
 static 
 int at76c503_iw_handler_get_power(struct net_device *netdev,
-				  IW_REQUEST_INFO *info,
+				  struct iw_request_info *info,
 				  struct iw_param *power,
 				  char *extra)
 {
@@ -6249,7 +6156,7 @@ int at76c503_iw_handler_get_power(struct net_device *netdev,
  */
 static 
 int at76c503_iw_handler_PRIV_IOCTL_SET_SHORT_PREAMBLE
-	(struct net_device *netdev, IW_REQUEST_INFO *info, 
+	(struct net_device *netdev, struct iw_request_info *info, 
 	 char *name, char *extra)
 {
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
@@ -6272,7 +6179,7 @@ int at76c503_iw_handler_PRIV_IOCTL_SET_SHORT_PREAMBLE
 
 static 
 int at76c503_iw_handler_PRIV_IOCTL_SET_DEBUG
-	(struct net_device *netdev, IW_REQUEST_INFO *info, 
+	(struct net_device *netdev, struct iw_request_info *info, 
 	 struct iw_point *data, char *extra)
 {
 	char *ptr;
@@ -6308,7 +6215,7 @@ int at76c503_iw_handler_PRIV_IOCTL_SET_DEBUG
 
 static 
 int at76c503_iw_handler_PRIV_IOCTL_SET_POWERSAVE_MODE
-	(struct net_device *netdev, IW_REQUEST_INFO *info, 
+	(struct net_device *netdev, struct iw_request_info *info, 
 	 char *name, char *extra)
 {
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
@@ -6330,7 +6237,7 @@ int at76c503_iw_handler_PRIV_IOCTL_SET_POWERSAVE_MODE
 
 static 
 int at76c503_iw_handler_PRIV_IOCTL_SET_SCAN_TIMES
-	(struct net_device *netdev, IW_REQUEST_INFO *info, 
+	(struct net_device *netdev, struct iw_request_info *info, 
 	 char *name, char *extra)
 {
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
@@ -6358,7 +6265,7 @@ int at76c503_iw_handler_PRIV_IOCTL_SET_SCAN_TIMES
 
 static 
 int at76c503_iw_handler_PRIV_IOCTL_SET_SCAN_MODE
-	(struct net_device *netdev, IW_REQUEST_INFO *info, 
+	(struct net_device *netdev, struct iw_request_info *info, 
 	 char *name, char *extra)
 {
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
@@ -6398,7 +6305,7 @@ int set_iroaming(struct at76c503 *dev, int onoff)
 
 static
 int at76c503_iw_handler_PRIV_IOCTL_SET_INTL_ROAMING
-	(struct net_device *netdev, IW_REQUEST_INFO *info, 
+	(struct net_device *netdev, struct iw_request_info *info, 
 	 char *name, char *extra)
 {
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
@@ -6445,7 +6352,7 @@ void set_monitor_mode(struct at76c503 *dev, int use_prism)
 
 static
 int at76c503_iw_handler_PRIV_IOCTL_SET_MONITOR_MODE
-	(struct net_device *netdev, IW_REQUEST_INFO *info, 
+	(struct net_device *netdev, struct iw_request_info *info, 
 	 char *name, char *extra)
 {
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
@@ -6486,7 +6393,6 @@ int at76c503_iw_handler_PRIV_IOCTL_SET_MONITOR_MODE
 	return ret;
 }
 
-#if WIRELESS_EXT > 12
 /*******************************************************************************
  * structure that advertises the iw handlers of this driver
  */
@@ -6509,34 +6415,19 @@ static const iw_handler	at76c503_handlers[] =
 	(iw_handler) NULL,				// -- hole --
 	(iw_handler) NULL,				// -- hole --
 	
-#if (WIRELESS_EXT > 15) || (IW_MAX_SPY > 0)
 	(iw_handler) at76c503_iw_handler_set_spy,	// SIOCSIWSPY
 	(iw_handler) at76c503_iw_handler_get_spy,	// SIOCGIWSPY
-#else
-	(iw_handler) NULL,				// SIOCSIWSPY
-	(iw_handler) NULL,				// SIOCGIWSPY
-#endif
 
-#if WIRELESS_EXT > 15
 	(iw_handler) at76c503_iw_handler_set_thrspy,	// SIOCSIWTHRSPY
 	(iw_handler) at76c503_iw_handler_get_thrspy,	// SIOCGIWTHRSPY
-#else
-	(iw_handler) NULL,				// SIOCSIWTHRSPY
-	(iw_handler) NULL,				// SIOCGIWTHRSPY
-#endif
 
 	(iw_handler) at76c503_iw_handler_set_wap,	// SIOCSIWAP
 	(iw_handler) at76c503_iw_handler_get_wap,	// SIOCGIWAP
 	(iw_handler) NULL,				// -- hole --
 	(iw_handler) NULL,				// SIOCGIWAPLIST
 
-#if WIRELESS_EXT > 13
 	(iw_handler) at76c503_iw_handler_set_scan,	// SIOCSIWSCAN
 	(iw_handler) at76c503_iw_handler_get_scan,	// SIOCGIWSCAN
-#else
-	(iw_handler) NULL,				// SIOCSIWSCAN
-	(iw_handler) NULL,				// SIOCGIWSCAN
-#endif
 	(iw_handler) at76c503_iw_handler_set_essid,	// SIOCSIWESSID
 	(iw_handler) at76c503_iw_handler_get_essid,	// SIOCGIWESSID
 	(iw_handler) at76c503_iw_handler_set_nickname,	// SIOCSIWNICKN
@@ -6597,7 +6488,6 @@ static const struct iw_handler_def at76c503_handler_def =
 #endif
 };
 
-#endif // #if WIRELESS_EXT > 12
 
 
 
@@ -6692,57 +6582,6 @@ int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 		kfree(extra);
 		break;
 	
-#if (WIRELESS_EXT <= 15) && (IW_MAX_SPY > 0)
-	// Set the spy list
-	case SIOCSIWSPY:
-		if (!(extra=kmalloc(sizeof(struct sockaddr) * IW_MAX_SPY, GFP_KERNEL))) {
-			ret = -ENOMEM;
-			break;
-		}
-		
-		if (wrq->u.data.length > IW_MAX_SPY) {
-			ret = -E2BIG;
-			goto sspyerror;
-		}
-		
-		if (copy_from_user(extra, wrq->u.data.pointer,
-				   sizeof(struct sockaddr) * dev->iwspy_nr)) {
-			dev->iwspy_nr = 0;
-			ret = -EFAULT;
-			goto sspyerror;
-		}
-		
-		// never needs a device restart
-		at76c503_iw_handler_set_spy(netdev, NULL, 
-			&(wrq->u.data), extra);
-sspyerror:
-		kfree(extra);
-		break;
-	
-	// Get the spy list
-	case SIOCGIWSPY:
-		if (!(extra = (char*)kmalloc((sizeof(struct sockaddr) +
-					      sizeof(struct iw_quality)) * wrq->u.data.length, 
-					     GFP_KERNEL))) {
-			ret = -ENOMEM;
-			break;
-		}
-		
-		at76c503_iw_handler_get_spy(netdev, NULL, 
-			&(wrq->u.data), extra);
-		
-		if (copy_to_user(wrq->u.data.pointer, dev->iwspy_addr,
-				(sizeof(struct sockaddr) + 
-				sizeof(struct iw_quality)) * 
-				wrq->u.data.length)) {
-			ret = -EFAULT;
-		}
-		
-		kfree(extra);
-		break;
-
-#endif // #if (WIRELESS_EXT <= 15) && (IW_MAX_SPY > 0)
-	
 	case SIOCSIWAP:
 		at76c503_iw_handler_set_wap(netdev, NULL, 
 			&(wrq->u.ap_addr), NULL);
@@ -6756,7 +6595,6 @@ sspyerror:
 	/*case SIOCGIWAPLIST:
 	  break;*/
 	
-#if WIRELESS_EXT > 13
 	case SIOCSIWSCAN:
 		ret = at76c503_iw_handler_set_scan(netdev, NULL, NULL, NULL);
 		break;
@@ -6777,8 +6615,6 @@ sspyerror:
 		
 		kfree(extra);
 		break;
-
-#endif // #if WIRELESS_EXT > 13
 	
 	case SIOCSIWESSID:
 		if (!(extra=kmalloc(IW_ESSID_MAX_SIZE + 1, GFP_KERNEL))) {
@@ -7229,12 +7065,7 @@ struct at76c503 *alloc_new_device(struct usb_device *udev, int board_type,
 	dev->bss_list_timer.data = (unsigned long)dev;
 	dev->bss_list_timer.function = bss_list_timeout;
 
-#if (WIRELESS_EXT > 15) || (IW_MAX_SPY > 0)
 	dev->spy_spinlock = SPIN_LOCK_UNLOCKED;
-#if WIRELESS_EXT <= 15
-	dev->iwspy_nr = 0;
-#endif
-#endif
 
 	/* mark all rx data entries as unused */
 	for(i=0; i < NR_RX_DATA_BUF; i++)
@@ -7299,7 +7130,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.83 2006/06/22 19:21:44 agx Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.84 2006/06/22 21:09:23 agx Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -7358,10 +7189,8 @@ int init_new_device(struct at76c503 *dev)
 	netdev->hard_start_xmit = at76c503_tx;
 	netdev->tx_timeout = at76c503_tx_timeout;
 	netdev->watchdog_timeo = 2 * HZ;
-#if WIRELESS_EXT > 12
 	netdev->wireless_handlers = 
 		(struct iw_handler_def*)&at76c503_handler_def;
-#endif
 	netdev->do_ioctl = at76c503_ioctl;
 	netdev->set_multicast_list = at76c503_set_multicast;
 	netdev->set_mac_address = at76c503_set_mac_address;
