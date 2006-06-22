@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.77 2006/06/22 10:18:13 maximsch2 Exp $
+/* $Id: at76c503.c,v 1.78 2006/06/22 10:58:31 maximsch2 Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -681,7 +681,7 @@ static int analyze_usb_config(u8 *cfgd, int cfgd_len,
 } /* end of analyze_usb_config */
 
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
+
 /* == PROC update_usb_intf_descr ==
    currently (2.6.0-test2) usb_reset_device() does not recognize that
    the interface descr. are changed.
@@ -797,128 +797,7 @@ err:
 	dbg(DBG_DEVSTART, "%s: EXIT with %d", __FUNCTION__, result);
 	return result;
 } /* update_usb_intf_descr */
-
-#else
-
-/* 2.4.x version */
-/* == PROC update_usb_intf_descr ==
-   currently (2.4.23) usb_reset_device() does not recognize that
-   the interface descr. are changed.
-   This procedure reads the configuration and does a limited parsing of
-   the interface and endpoint descriptors.
-   This is IMHO needed until usb_reset_device() is changed inside the
-   kernel's USB subsystem.
-   Copied from usb/core/config.c:usb_get_configuration()
-
-   THIS IS VERY UGLY CODE - DO NOT COPY IT ! */
-
-#define AT76C503A_USB_CONFDESCR_LEN 0x20
-/* the short configuration descriptor before reset */
-//#define AT76C503A_USB_SHORT_CONFDESCR_LEN 0x19
-
-int update_usb_intf_descr(struct at76c503 *dev)
-{
-	int intf0; /* begin of intf descriptor in configuration */ 
-	int ep0, ep1; /* begin of endpoint descriptors */
-
-	struct usb_device *udev = dev->udev;
-	struct usb_config_descriptor *cfg_desc;
-	int result = 0, size;
-	u8 *buffer;
-	struct usb_interface_descriptor *ifp;
-	int i;
-
-	dbg(DBG_DEVSTART, "%s: ENTER", __FUNCTION__);
-
-	cfg_desc = (struct usb_config_descriptor *)
-		kmalloc(AT76C503A_USB_CONFDESCR_LEN, GFP_KERNEL);
-	if (!cfg_desc) {
-		err("cannot kmalloc config desc");
-		return -ENOMEM;
-	}
-
-	result = usb_get_descriptor(udev, USB_DT_CONFIG, 0,
-				    cfg_desc, AT76C503A_USB_CONFDESCR_LEN);
-	if (result < AT76C503A_USB_CONFDESCR_LEN) {
-		if (result < 0)
-			err("unable to get descriptor");
-		else {
-			err("config descriptor too short (expected >= %i, got %i)",
-			    AT76C503A_USB_CONFDESCR_LEN, result);
-			result = -EINVAL;
-		}
-		goto err;
-	}
-
-	/* now check the config descriptor */
-	le16_to_cpus(&cfg_desc->wTotalLength);
-	size = cfg_desc->wTotalLength;
-	buffer = (u8 *)cfg_desc;
-	
-	if (cfg_desc->bNumInterfaces > 1) {
-		err("found %d interfaces", cfg_desc->bNumInterfaces);
-		result = - EINVAL;
-		goto err;
-	}
-
-	if ((result=analyze_usb_config(buffer, size, &intf0, &ep0, &ep1))) {
-		err("analyze_usb_config returned %d for config desc %s",
-		    result,
-		    hex2str(dev->obuf, (u8 *)cfg_desc, 
-			    min((int)(sizeof(dev->obuf)-1)/2, size), '\0'));
-		result=-EINVAL;
-		goto err;
-	}
-
-	/* we got the correct config descriptor - update the interface's endpoints */
-	ifp = &udev->actconfig->interface[0].altsetting[0];
-
-	if (ifp->endpoint)
-		kfree(ifp->endpoint);
-
-	//memcpy(&ifp->desc, expected_cfg_descr+intf0, USB_DT_INTERFACE_SIZE);
-
-	if (!(ifp->endpoint = kmalloc(2 * sizeof(struct usb_endpoint_descriptor), 
-				      GFP_KERNEL))) {
-		result = -ENOMEM;
-		goto err;
-	}
-
-	memset(ifp->endpoint, 0, 2 * sizeof(struct usb_endpoint_descriptor));
-	memcpy(&ifp->endpoint[0], buffer+ep0, USB_DT_ENDPOINT_SIZE);
-	le16_to_cpus(&ifp->endpoint[0].wMaxPacketSize);
-	memcpy(&ifp->endpoint[1], buffer+ep1, USB_DT_ENDPOINT_SIZE);
-	le16_to_cpus(&ifp->endpoint[1].wMaxPacketSize);
-
-	/* fill the interface data */
-	memcpy(ifp, buffer+intf0, USB_DT_INTERFACE_SIZE);
-
-	/* we must set the max packet for the new ep (see usb_set_maxpacket() ) */
-
-	for(i=0; i < ifp->bNumEndpoints; i++) {
-		struct usb_endpoint_descriptor	*d = &ifp->endpoint[i];		
-		int b = d->bEndpointAddress & USB_ENDPOINT_NUMBER_MASK;
-		if (usb_endpoint_out(d->bEndpointAddress)) {
-			if (d->wMaxPacketSize > udev->epmaxpacketout[b])
-				udev->epmaxpacketout[b] = d->wMaxPacketSize;
-		} else {
-			if (d->wMaxPacketSize > udev->epmaxpacketin[b])
-				udev->epmaxpacketin[b] = d->wMaxPacketSize;
-		}
-	}
-			     
-	dbg(DBG_DEVSTART, "%s: ifp %p num_altsetting %d "
-	    "endpoint addr x%x, x%x", __FUNCTION__,
-	    ifp, udev->actconfig->interface[0].num_altsetting,
-	    ifp->endpoint[0].bEndpointAddress,
-	    ifp->endpoint[1].bEndpointAddress);
-	result = 0;
-err:
-	kfree(cfg_desc);
-	dbg(DBG_DEVSTART, "%s: EXIT with %d", __FUNCTION__, result);
-	return result;
-} /* update_usb_intf_descr */
-# endif /* #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0) ... #else ... */
+		
 #endif	/* #if  LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8) */
 
 
@@ -2694,7 +2573,7 @@ int re_register_intf(struct usb_device *dev)
 	dbg(DBG_DEVSTART, "%s: EXIT", __FUNCTION__);
 	return 0;
 } /* re_register_intf */
-#endif
+#endif // #if 0
 
 /* shamelessly copied from usbnet.c (oku) */
 static void defer_kevent (struct at76c503 *dev, int flag)
@@ -3008,10 +2887,10 @@ end_join:
    recognizes the change in the config descriptors. Subsequently the device
    will be registered again. */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
-#  if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 0)
+
 		//jal: patch the state (patch by Dmitri)
 		dev->udev->state = USB_STATE_CONFIGURED;
-#endif
+
 		/* jal: currently (2.6.0-test2 and 2.4.23) 
 		   usb_reset_device() does not recognize that
 		   the interface descr. are changed.
@@ -5717,7 +5596,7 @@ int at76c503_iw_handler_set_scan(struct net_device *netdev,
 		netif_carrier_off(dev->netdev);
 		netif_stop_queue(dev->netdev);
 	}
-
+// Try to do passive or active scan if WE asks as.
 #if WIRELESS_EXT > 19
 /*	if (wrqu->data.length
 	    && wrqu->data.length == sizeof(struct iw_scan_req)) { */
@@ -7417,7 +7296,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.77 2006/06/22 10:18:13 maximsch2 Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.78 2006/06/22 10:58:31 maximsch2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
