@@ -1,0 +1,1291 @@
+2006-06-23 01:09  agx
+
+	* at76c503a/: at76c503.c, at76c503.h: assume WIRELESS_EXT >= 16
+
+2006-06-22 23:21  agx
+
+	* at76c503a/at76c503.c: fix compilation for WE >19
+
+2006-06-22 22:58  agx
+
+	* at76c503a/at76c503.c: use iwreq_data instead of iw_point in
+	  at76c503_iw_handler_set_scan as the ipw2X00 drivers do
+
+2006-06-22 22:52  agx
+
+	* at76c503a/at76c503.c: Pavel Roskin <proski@gnu.org>:
+
+	  Scanning doesn't work when the interface is down.  When it's
+	  brought up, the driver reports two assertion failures:
+
+	  /home/proski/src/at76c503a/at76c503.c:
+	  /home/proski/src/at76c503a/at76c503.c:2806 assertion dev->istate
+	  == INIT failed/home/proski/src/at76c503a/at76c503.c:
+	  /home/proski/src/at76c503a/at76c503.c:2777 assertion dev->istate
+	  == SCANNING +failed
+
+	  To prevent this, scanning should not be allowed when the
+	  interface is down.
+
+2006-06-22 22:48  agx
+
+	* at76c503a/at76c503.c: vel Roskin <proski@gnu.org>:
+
+	  The current CVS version of ignores ESSID settings.  When ESSID is
+	  set using iwconfig, the device reports that it's disconnected,
+	  and then associates to a random AP in the range, even it its
+	  ESSID is different.
+
+	  The simplest test is to set ESSID to a non-existing string (e.g.
+	  "non-existing") and see it associate.  It happens whenever the
+	  interface is up.  ESSID can be set when the interface is up or
+	  down.
+
+	  The fix it to set ESSID length properly
+
+2006-06-22 15:14  maximsch2
+
+	* at76c503a/at76c503.c:
+	  Another attempt to fix wrqu error.
+
+2006-06-22 14:58  maximsch2
+
+	* at76c503a/at76c503.c:
+	  Cleaned some more 2.4 staff.
+
+2006-06-22 14:35  maximsch2
+
+	* at76c503a/at76c503.h:
+	  Removed some 2.4 specific staff
+
+2006-06-22 14:18  maximsch2
+
+	* at76c503a/at76c503.c:
+	  Dirty hack to avoid problems with wrqu and min_scan_time and
+	  max_scan_timenE
+
+2006-06-22 14:09  maximsch2
+
+	* at76c503a/at76c503.h:
+	  Removed packed attribute from byte array. Thanks to Pavel Roskin.
+
+2006-06-21 12:50  maximsch2
+
+	* at76c503a/: Makefile, at76_usbdfu.c, at76c503-fw_skel.c,
+	  at76c503.c, at76c503.h, scripts/fwbin2pkg.sh:
+	  Applied fixes from debian patchset. Fixes compilation with 2.6.17
+	  and other issuse. Added some fixes to WE code.
+
+2006-02-12 20:02  tim_small
+
+	* at76c503a/fw-rfmd-0.90.2-140.h: Backout bogus change.
+
+2006-02-11 22:22  tim_small
+
+	* at76c503a/fw-rfmd-0.90.2-140.h: Make this firmware file useful
+	  for static inclusion.
+
+2006-02-11 22:18  tim_small
+
+	* at76c503a/: at76c503.c, at76c503.h:
+	  Apply Pavel's patch from
+	  https://lists.berlios.de/pipermail/at76c503a-develop/2005-September/000235.html
+
+	  Have tested on ARM, and x86, with Netgear MA101, and a Linksys
+	  WUSB11 v2.6 As I don't have time for more testing, I'm just going
+	  to commit (Pavel should know what he's doing ;o) ).
+
+2005-03-08 04:33  jal2
+
+	* at76c503a/at76c503.c: replaced usb_unlink_urb by usb_kill_urb for
+	  >= 2.6.10 (as posted by Deuce <the_deuce@yahoo.com> Jan 3, 2005)
+
+2005-03-08 03:07  jal2
+
+	* at76c503a/: at76c503-fw_skel.c, at76c503.c, at76c503.h,
+	  at76c505a-rfmd2958.c: version 0.12beta23: - at76c505a-rfmd2958.c:
+	  added Gigaset11 (0x1690/0x0701) (thanks to Mike Pinna) - added
+	  patch to support HP iPAQ h5[45]xx (see email by Erik Hovland, 28
+	  Febr 2005)
+
+2004-10-20 00:45  jal2
+
+	* at76c503a/: at76c503.c, at76c503.h: version 0.12beta22, fixed
+	  compiler error: /usr/src/atm/at76c503a/at76c503.c:3903: error:
+	  union has no member named 'ethernet'
+
+2004-10-14 05:21  jal2
+
+	* at76c503a/: at76c503.c, at76c503.h: - version 0.12beta21 - iwlist
+	  wlanx scanning: fixed bug which showed only parts of the result:
+	  it seems like iwlist is polling by SIOCGIWSCAN, i.e. invoking
+	  _get_scan,   which must return -EAGAIN if the scan is still
+	  running.  - introd. SCAN_POLLING_INTERVAL and poll faster to
+	  decrease startup time
+
+2004-10-14 03:58  jal2
+
+	* at76c503a/: at76c503.c, at76c503.h: version 0.12beta20, fixed
+	  compiler bug with undefined IW_MONITOR_MODE for kernel 2.4.19 (WE
+	  < 15)
+
+2004-09-19 23:17  jal2
+
+	* at76c503a/Makefile: added target install-modules for make-kpkg
+
+2004-09-05 18:07  jal2
+
+	* at76c503a/: at76_usbdfu.c, at76_usbdfu.h, at76c503.c, at76c503.h:
+	  version 0.12beta19: fixed some problems with at76c505a and 2.6.x
+	  kernels, probs with ohci remain here :(
+
+2004-08-29 15:41  jal2
+
+	* at76c503a/: at76c503.c, at76c503.h: - version 0.12beta18 - added
+	  support for international roaming - added support for
+	  "pseudo-monitor" mode, i.e. Kismet displays	the contents of
+	  beacon and probe responses   (both items thanks to the patch by
+	  Balint Seeber) - removed polling for scan completion in kevent()
+	  - this will	hopefully remove the temporary system locks in
+	  managed mode	 when no AP is found. Removed RESCAN_TIME etc.
+
+2004-08-27 00:41  jal2
+
+	* at76c503a/: Makefile, at76c503.c: Makefile: ignore errors at
+	  rmmod ; at76c503.c: range of signal is 0..255 (fix -XXX dBm
+	  displays in iwconfig for Fiberline WL-240
+
+2004-08-19 02:01  jal2
+
+	* at76c503a/: Makefile, Makefile.k26, at76_ieee802_11.h,
+	  at76_usbdfu.c, at76_usbdfu.h, at76c503-fw_skel.c,
+	  at76c503-i3861.c, at76c503-i3863.c, at76c503-rfmd-acc.c,
+	  at76c503-rfmd.c, at76c503.c, at76c503.h, at76c505-rfmd.c,
+	  at76c505-rfmd2958.c, at76c505a-rfmd2958.c, fw-empty.h,
+	  ieee802_11.h, kernel_patch.sh, usbdfu.c, usbdfu.h: version
+	  0.12beta17: - Makefile: new targets:	  * rmmod - remove all
+	  loaded modules in correct order (for tests etc.)   * kernel_patch
+	  - try to copy the source files and patch Kconfig
+	  and Makefile, for 2.6.x only - use with care !  * VERSION went
+	  into at76c503.h
+
+	  - file names cleaned up:	  * usbdfu.*  --> at76_usbdfu.*   *
+	  removed fw-empty.h	* ieee802* --> at76_ieee802*
+
+	  - no debugs even if CONFIG_USB_DEBUG is defined - fixed copyright
+	  entries - added ref. to Berlios project's homepage
+
+2004-08-14 02:45  jal2
+
+	* at76c503a/at76c503.c: *do_probe(): firmware 0.90.x (Intersil)
+	  shows error "control timeout on ep0in"   when querying the
+	  firmware version from the device and a subsequent call to
+	  get_op_mode() fail. Fortunately we can overwrite an existing
+	  external firmware, so we force the external fw download here if
+	  the device   has no internal flash.
+
+2004-08-14 02:42  jal2
+
+	* at76c503a/Makefile: - version 0.12beta16 - removed -g for 2.6.x
+	  build (make the .o .ko files smaller) - install: don't rename old
+	  driver into *.orig as the 2.4.x depmod seems	 to parse _all_
+	  files under /lib/modules/`uname -r`/; remove old version now
+	  (and all *.orig)
+
+2004-08-13 04:17  jal2
+
+	* at76c503a/: Makefile, at76c503.c, at76c503.h: - version
+	  0.12beta15 - added support for >= 2.6.8: USB subsys will
+	  disconnect after the device is   reset. We get reconnected
+	  afterwards with the internal fw loaded (only), which	 we can
+	  recognize by a failure in getting the firmware version.    added
+	  new state WAIT_FOR_DISCONNECT, added new KEVENT_RESET_DEVICE
+
+2004-08-11 03:10  jal2
+
+	* at76c503a/at76c503.c: take USB_CTRL_GET_TIMEOUT from the kernel
+	  include if defined there
+
+2004-08-11 03:05  jal2
+
+	* at76c503a/at76c503.c: - fixed "Bad board type set (7).  Unable to
+	  get hardware config." for   505a-rfmd2958 - fixed "control
+	  timeout on ep0in" for 505a-rfmd2958	(both thanks to
+	  <leshik@ngs.ru>) - added some debug code to catch a spurious
+	  error where submit_tx   seems to return -EINVAL from the USB
+	  subsys
+
+2004-08-02 02:52  jal2
+
+	* at76c503a/Makefile: install: rename any old driver file into
+	  *.orig
+
+2004-07-24 03:28  jal2
+
+	* at76c503a/Makefile: fixed typo in extension
+
+2004-06-30 01:26  jal2
+
+	* at76c503a/at76c503.c: fixed bug with le16_to_cpus showing up on
+	  bigendian archs only (which should have been fixed by version
+	  1.54)
+
+2004-06-16 00:02  jal2
+
+	* at76c503a/at76c505a-rfmd2958.c: added boardtype
+	  BOARDTYPE_505A_RFMD_2958 and new firmware and driver variant file
+	  (not tested yet - probably needs some special handling in
+	  at76c503.c)
+
+2004-06-15 23:53  jal2
+
+	* at76c503a/: Makefile, at76c503.h, at76c505-rfmd.c,
+	  fw-pkg-505a-rfmd2958-1.102.0-113.h, gen_fw.c: added boardtype
+	  BOARDTYPE_505A_RFMD_2958 and new firmware and driver variant file
+	  (not tested yet - probably needs some special handling in
+	  at76c503.c)
+
+2004-06-15 22:20  jal2
+
+	* at76c503a/at76c503.c: fixed compile bug for WE version <= 13
+
+2004-06-14 04:05  jal2
+
+	* at76c503a/: at76c503.c, at76c503.h: remove debug (hexdump) buffer
+	  to further reduce stack usage
+
+2004-06-14 02:23  jal2
+
+	* at76c503a/at76c503.c: at76c503_ioctl: cleaned up the case:
+
+2004-06-14 02:03  jal2
+
+	* at76c503a/: Makefile, at76c503.c: Nick Jones' patch to fix the
+	  crash with kernel versions with 4KSTACKS set (2.6.5+) when
+	  iwconfgi is called
+
+2004-06-12 14:59  jal2
+
+	* at76c503a/: Makefile, at76c503.c, ieee802_11.h: - version
+	  0.12beta13 - tx data: send correct SNAP header, which should fix
+	  bug with WindowsXP as peer - rx data, ieee802_11_hdr: cleaned it
+	  up a bit, removed addr4 which is   not used by non-APs
+
+2004-05-31 17:59  jal2
+
+	* at76c503a/: Makefile, at76c503.c: version 0.12beta12: added
+	  wireless events
+
+2004-05-30 02:16  jal2
+
+	* at76c503a/at76c503.c: fixed bug with compiling for >= 2.4.25 and
+	  on big endian machines (Nick's patch from email "Fixup for >
+	  2.4.25", 22/5/2004)
+
+2004-04-16 23:06  jal2
+
+	* at76c503a/at76c503.c: iwlist wlanX scan showed APs as Managed.
+	  Changed to Master
+
+2004-04-15 02:15  jal2
+
+	* at76c503a/: Makefile, at76c503.c, at76c503.h: version 0.12beta11,
+	  added patch by Nick Jones to specify the wanted BSSID with
+	  iwconfig
+
+2004-04-15 01:06  jal2
+
+	* at76c503a/at76c503-rfmd.c: added devices: Gigabyte GN-WLBM101,
+	  Planex GW-US11S, Compaq iPAQs
+
+2004-04-10 22:56  jal2
+
+	* at76c503a/at76c503.c: at76c503_iw_handler_set_encode: returns
+	  -EIWCOMMIT (was: 0)
+
+2004-04-10 00:56  jal2
+
+	* at76c503a/at76c503.c: fixed bug in iw_handler list; CGIWRANGE:
+	  max retry is 255 (1 byte value, no idea if 255 will work)
+
+2004-04-10 00:47  jal2
+
+	* at76c503a/at76c503.c: enabled set retry in iwconfig
+
+2004-04-04 02:06  jal2
+
+	* at76c503a/Makefile: version 0.12beta10 (needed for documentation
+	  on firmware download proc.)
+
+2004-03-29 02:12  jal2
+
+	* at76c503a/Makefile: mark versions without compiled-in firmware by
+	  suffix -fwdl
+
+2004-03-27 00:54  jal2
+
+	* at76c503a/at76c503.c: made beacon scanning more robust (Nick
+	  Jones' patch)
+
+2004-03-27 00:53  jal2
+
+	* at76c503a/Makefile: if no file fw-pkg*.h is avail., compile for
+	  firmware download, create non-firmware distribution tgz, too
+
+2004-03-22 20:10  jal2
+
+	* at76c503a/at76c503.c: fixed SET_NETDEV_DEV for 2.6.x kernels
+	  (patch by Pavel Roskin, Sat, 20 Mar 2004, [PATCH] Fix for
+	  SET_NETDEV_DEV
+
+2004-03-18 23:54  jal2
+
+	* at76c503a/: Makefile, README, at76c503-fw_skel.c, at76c503.c,
+	  at76c503.h: - version 0.12beta9 - Nick's new iw_handler
+	  implementation, supports "iwlist ..." and more - authentication
+	  method is now choosen by encr XXX restr, not by iwpriv anymore -
+	  removed "iwpriv wlan0 list_bss" command
+
+2004-03-18 01:35  jal2
+
+	* at76c503a/: at76c503.c, at76c503.h: replaced kfree on a netdev by
+	  free_netdev (patch provided by Pavel Roskin
+
+2004-03-16 23:15  jal2
+
+	* at76c503a/at76c503.c: - treat ' ' as a cloaked SSID, too -
+	  rx_mgmt_beacon: write \0 after copying the SSID
+
+2004-03-16 18:23  njones
+
+	* at76c503a/at76c503.c: Some code cleanups: - removed a stray
+	  comment near the top - Improved the debugging output in the
+	  _get/set_encode iw_handlers
+
+2004-03-16 18:06  njones
+
+	* at76c503a/at76c503.c: Changes made based on information from
+	  Jean, both in _get_scan: - When returning ESSID information,
+	  flags = 1 -> SSID on,   flags = 0 -> SSID off/any - With the
+	  encoding information, we add to the flags: | IW_ENCODE_NOKEY
+	  This indicates that the encryption keys are not returned as part
+	  of the   scan information.
+
+2004-03-15 20:27  njones
+
+	* at76c503a/at76c503.c: Passing through the various TODOs embedded
+	  in the code.	Some TODOs have been removed because fixes were
+	  made or it was agreed that no changes were needed in those cases:
+	  - handle_scan: used EPERM as a more suitable return code if the
+	  device is   found to be in the wrong state when this function is
+	  called - _get_range: max/avg_qual.qual is set to zero unless the
+	  board has an	 intersil radio chipset.  - min/max_r_time settings
+	  removed as the device doesn't support these.	- _set_scan now
+	  returns a more appropriate error code.  - in get essid and
+	  nickname handlers, 1 is added to the length of the   returned
+	  string to include the '\0'.  This is the same behaviour as
+	  displayed by iwconfig when these values are set.
+
+2004-03-14 19:02  njones
+
+	* at76c503a/at76c503.c: - Cleaned up a lot of the mess that was
+	  present in the spy handlers.	The   code is a bit more pleasant
+	  to look at now
+
+2004-03-13 16:43  njones
+
+	* at76c503a/at76c503.c: - In the ioctl for SIOCGIWSPY, fixed up the
+	  process of copying the data	back to user space.  Frankly it was
+	  absurd before - my fault.  The whole	 array of spy statistics is
+	  translated in one go.
+
+2004-03-13 16:24  njones
+
+	* at76c503a/at76c503.c: Changes centre around the TODOs that were
+	  left in the iw_handler code.	- Removed several TODOs that I felt
+	  were no longer relevant - in get_rts, rts->disabled = (rts->value
+	  >= MAX_RTS_THRESHOLD); rather   than == MAX_RTS_THRESHOLD
+
+2004-03-11 21:40  njones
+
+	* at76c503a/at76c503.c: - yet again, removed the copy_from_user
+	  stuff from the SET_DEBUG private   ioctl.  This should work now
+	  because the private ioctl commands have   been renumbered as
+	  suggested by the comments in net/core/wireless.c   copy_from_user
+	  should be done before this function is reached and this
+	  function should work properly now.	If it doesn't, Joerg is
+	  going to kill me!  - Because the private ioctl command number is
+	  used as an index into the   table of private ioctl functions, and
+	  Because the private ioctl command   numbers have been changed in
+	  at76c503.h, it is necessary to insert   'gaps' in the private
+	  ioctl function table so that the functions match   the new
+	  command numbers.
+
+2004-03-11 21:31  njones
+
+	* at76c503a/at76c503.h: - 'setter' iw_handler command codes must
+	  have an even value, otherwise   they will not be set up and
+	  called properly from the wireless subsystem
+
+2004-03-10 00:13  jal2
+
+	* at76c503a/at76c503.c: fixed the bug in iwpriv wlanX set_debug
+	  again, copy_from_user seems to be needed (at least on 2.4.23)
+
+2004-03-09 21:57  njones
+
+	* at76c503a/at76c503.h: - Removed one remaining trace of the
+	  SET_AUTH_MODE ioctl
+
+2004-03-09 21:56  njones
+
+	* at76c503a/at76c503.c: - Removed all traces of container_of.  It
+	  was quite a silly idea to use it   on a union in the first place
+	  (duh!).  Union member is now cast back to   the union in the
+	  calls to the kernel provided spy functions.  - Removed some
+	  remaining traces of the SET_AUTH_MODE private ioctl - disabled
+	  the set_retry iw_handler as it is uncertain whether the retry
+	  parameter is settable at all on this device - used offsetof to
+	  replace a creative exploitation of the C language - in the
+	  SET_DEBUG ioctl, transferring data->pointer from userspace is
+	  not needed as it will already be done at this point, either
+	  within   at76c503_ioctl if the ioctl interface is being used, or
+	  within the   wireless subsystem if the iw_handler interface is
+	  used.
+
+2004-03-08 02:30  jal2
+
+	* at76c503a/: at76c503.c, at76c503.h: - authentication mode is now
+	  determined by the open/restricted param of   encr/key in iwconfig
+	  (open = open system, restr = shared secret) - removed
+	  dev->wep_excl_unencr field, unencrypted data is now always
+	  excluded   if WEP is active
+
+2004-03-08 01:45  jal2
+
+	* at76c503a/at76c503.c: added define container_of if not defined in
+	  some include
+
+2004-03-08 01:09  jal2
+
+	* at76c503a/at76c503-i3861.c: added device IO-DATA WN-B11/USB
+
+2004-03-07 21:16  njones
+
+	* at76c503a/at76c503.c: Quite a big patch, but all changes are for
+	  the same purpose: to allow the driver to compile under older 2.4
+	  kernels: - Added macros to only include iw_handler.h if
+	  WIRELESS_EXT > 12, if < 12   a definition of EIWCOMMIT
+	  EINPROGRESS is needed.  - Macro definition for both conditions:
+	  IW_REQUEST_INFO   = struct iw_request_info if WIRELESS_EXT > 12,
+	  else = void since the   iw_request_info struct doesn't exist for
+	  WIRELESS_EXT <= 12 - Fixed instance where usb_fill_bulk_urb was
+	  being called directly   instead of via the FILL_BULK_URB macro -
+	  Changed all instances of struct iw_request_info to
+	  IW_REQUEST_INFO,   see above - All iw_handlers now take the
+	  iwreq_data union member rather than the   iwreq_data object
+	  itself.  This is to simplify things for older   versions of the
+	  kernel (< 2.4.19) where iwreq_data did not exist and	 all the
+	  ioctl payload types were defined in a union called 'u' inside
+	  iw_req.  Not only does this save us using preprocessing for the
+	  iw_handler function headers, but it also allows the code inside
+	  the	handlers to be a bit cleaner as well.  I cant remember what
+	  the	official C standard dictates, but my understanding tells me
+	  that	 a pointer to a union can be used transparently as a
+	  pointer to any   of the members of that union at runtime
+	  (although the compiler will	complain about the function headers
+	  being inconsistent), so even	 though the wireless subsystem will
+	  pass a iwreq_data to our   iw_handlers, inside the handlers, we
+	  can treat the pointer as a   iw_point or iw_param or whatever
+	  inside.  - Changed all calls to the iw_handlers in the ioctl so
+	  that the union   member is passed as the 3rd parameter, rather
+	  than the union.  This   is done because in kernels < 2.4.20,
+	  iw_req-> does not have a type.    (see above)
+
+2004-03-07 20:41  njones
+
+	* at76c503a/at76c503-fw_skel.c: - struct usb_bus->bus_name and
+	  struct usb_device->devpath are not   present in kernels < 2.4.0,
+	  changed to bus->busnum and dev->devnum
+
+2004-03-07 20:33  njones
+
+	* at76c503a/at76c503.h: - Only include iw_wireless.h if
+	  WIRELESS_EXT > 12
+
+2004-03-05 22:25  jal2
+
+	* at76c503a/at76c505-rfmd2958.c: added new device: MSI MS6978 Wlan
+	  Box PC2PC
+
+2004-03-02 23:38  jal2
+
+	* at76c503a/Makefile: added more files for distribution
+
+2004-03-02 23:32  jal2
+
+	* at76c503a/: Makefile, at76c505-rfmd2958.c: 0.12beta8, added
+	  device Corega USB Stick 11 K.K.
+
+2004-03-02 19:27  njones
+
+	* at76c503a/at76c503.c: -Fixed a pointer arithmetic bug in
+	  iwspy_update.  I was only able to spot  this when compiling under
+	  a 2.4.20 kernel.  Perhaps this is due to less  sensitive compiler
+	  flags used for 2.6 kbuilds -Used macros to hide calls to the
+	  kernel thrspy functions, when those  functions are not present
+	  -Removed the NULL entry in the table of private iw_handlers.
+	  This was  not clever at all because with the NULL entry, the
+	  table of handlers did  not match the table of arguments to the
+	  handlers.  -Added a SIOCGIWTXPOW entry to the ioctl switch
+	  statement, with  corresponding iw_handler call -Fixed silly typo
+	  in SIOCGIWRETRY
+
+2004-03-02 19:13  njones
+
+	* at76c503a/at76c503.h: -Removed PRIV_IOCTL_SET_AUTH_MODE macro and
+	  moved all of the following  PRIV_IOCTL_ macros 'up by 0x1'
+
+2004-03-01 18:41  njones
+
+	* at76c503a/at76c503.c: -Re-arranged some comments.  The comment in
+	  SIOGIWSPY displays the number of  entries AFTER the list has been
+	  parsed, rather than before, which makes  much more sense -ioctl
+	  function is now handed to the net device in all cases.  It will
+	  be  up to the wireless subsystem to decide whether to use the iw
+	  handlers or  the ioctls, which of course, it is designed to do.
+
+2004-03-01 00:58  jal2
+
+	* at76c503a/at76c503.c: - iw_handler: added txpower (15 dBm) in
+	  RANGE and SIOCGIWTXPOW (to get rid   of some error msg by "iwlist
+	  XXX txpower" - fixed bug in "iwpriv wlan0 set_debug" - "iwlist
+	  XXX scanning": report more than 8 bitrates from an access point
+
+2004-02-29 23:20  jal2
+
+	* at76c503a/at76c503.c: - fixed bug in dbg(DBG_RX_BEACON, ...) -
+	  added rssi/link qual (Intersil only), bit rate output for iwlist
+	  X scanning
+
+2004-02-29 20:32  njones
+
+	* at76c503a/at76c503.c: Fixed up an oversight in handle_scan that
+	  caused the driver to become useless because it halted after a
+	  scan.
+
+	  Left some debugging code in rx_mgmt_beacon.
+
+	  SIOCSIWSCAN now returns the mode of each AP and an encryption
+	  enabled flag.
+
+	  When setting up the netdevice, we enable either iw_handlers or
+	  ioctls, but not both.
+
+2004-02-28 18:10  njones
+
+	* at76c503a/at76c503.c: Moved the process of doing the scan out of
+	  the _SCAN Kevent, and placed it in it's own function.  This
+	  function can now be called with flexibility from the scan
+	  iw_handler.
+
+	  Scan set and get iw_handlers implemented to a basic level (it
+	  compiles).  Added these functions to the table of standard
+	  iw_handlers and to the switch in the ioctl.
+
+	  Some statistics about the beacons cannot be retrieved because
+	  this driver in it's current implementation doesn't keep those
+	  statistics.  In future, I will look at how we can obtain and
+	  store that extra information in the bss_info structure.  Also,
+	  thought needs to be given to whether the scan will stay
+	  synchronous, as it is now, or whether we will use a kevent.
+
+2004-02-27 20:06  njones
+
+	* at76c503a/at76c503.c: Placed locks around sections where spy data
+	  is updated.
+
+	  Streamlined the versioning of the spy iw_handlers and the spy
+	  code in iwspy_update
+
+2004-02-27 20:03  njones
+
+	* at76c503a/at76c503.h: Added a spinlock to protect the spy
+	  structures in struct at76c503
+
+2004-02-26 19:55  njones
+
+	* at76c503a/at76c503.c: General improvements to separation of spy
+	  related functionality based on the version of wireless extensions
+	  available at compile time.
+
+	  In particular, the messy #if's in the table of standard
+	  iw_handler table have all been removed from this location and
+	  moved to inside the iw handlers.
+
+	  This makes things a bit cleaner.
+
+	  Added implementation of spy statistics recording for WIRELESS_EXT
+	  > 15 in the iwspy_update function
+
+2004-02-26 19:48  njones
+
+	* at76c503a/at76c503.h: Improved the separation of spy related
+	  members of struct at76c503.  Separation is based on the version
+	  of wireless extensions available
+
+2004-02-25 21:53  njones
+
+	* at76c503a/at76c503.h: Added _retry_limit member variables to
+	  struct at76c503
+
+2004-02-25 21:52  njones
+
+	* at76c503a/at76c503.c: Added handlers for SIOCxIWRETRY, also
+	  retry_limit values are passed to the device in startup_device
+
+2004-02-24 20:01  njones
+
+	* at76c503a/at76c503.c: Added public and private iw_handler tables.
+	  Added iw_handler_def structure.  Removed references to STATS
+	  ioctls, as stats are retrieved through the netdev with
+	  get_wireless_stats
+
+2004-02-24 19:57  njones
+
+	* at76c503a/at76c503.h: Added #include for iw_handler.h, added new
+	  member: spy_data (a iw_spy_data struct) to the at76c03 struct
+
+2004-02-23 19:10  njones
+
+	* at76c503a/at76c503.c: update to new iw_handler routines, please
+	  see
+	  https://lists.berlios.de/pipermail/at76c503a-develop/2004-February/thread.html
+	  for more detail
+
+2004-02-22 01:21  jal2
+
+	* at76c503a/at76c503.c: Nick Jones mail from Febr, 20, >>iw handler
+	  update<<
+
+2004-02-22 01:20  jal2
+
+	* at76c503a/Makefile: version 0.12beta7-new-iw
+
+2004-02-21 01:14  jal2
+
+	* at76c503a/: Makefile, at76c503-fw_skel.c, at76c503.c, at76c503.h:
+	  0.12beta7: un-done the workaround for 2.4.x kernels and usb-uhci
+	  calling disconnect during resetting the device (it didn't work)
+
+2004-01-19 22:43  jal2
+
+	* at76c503a/: at76c503-i3861.c, at76c503-i3863.c,
+	  at76c503-rfmd-acc.c, at76c503-rfmd.c, at76c505-rfmd.c,
+	  at76c505-rfmd2958.c: fixed compile bug for kernel < 2.4.23
+
+2004-01-17 15:29  jal2
+
+	* at76c503a/at76c505-rfmd2958.c: added device Xterasys XN-2122B
+
+2004-01-17 15:28  jal2
+
+	* at76c503a/at76c503-rfmd.c: added device iBlitzz BWU613
+
+2004-01-17 15:15  jal2
+
+	* at76c503a/: Makefile, at76c503-fw_skel.c, at76c503-i3861.c,
+	  at76c503-i3863.c, at76c503-rfmd-acc.c, at76c503-rfmd.c,
+	  at76c505-rfmd.c, at76c505-rfmd2958.c, gen_fw.c: 0.12beta6, added
+	  include <version.h> for 2.6.x, fixed firmware download file
+	  names, prepared Makefile for fw download config
+
+2004-01-17 14:14  jal2
+
+	* at76c503a/: at76c503-i3861.c, at76c503-i3863.c,
+	  at76c503-rfmd-acc.c, at76c503-rfmd.c, at76c505-rfmd.c,
+	  at76c505-rfmd2958.c: include linux/firmware.h only for kernel >=
+	  2.4.23
+
+2004-01-10 23:31  jal2
+
+	* at76c503a/: Makefile, at76c503-fw_skel.c, at76c503.c, at76c503.h:
+	  version 0.12beta5: - fixed bug in
+	  at76c503.c:at76c503_delete_device(), which called
+	  unregister_netdev() even if netdev wasn't registered before -
+	  usb-uhci of 2.4.23/24 calls the disconnect() after we resetted
+	  the device   try to work around this
+
+2004-01-05 01:31  jal2
+
+	* at76c503a/: Makefile, at76c503.c: - version 0.12beta4 - Makefile:
+	  removed scripts/CVS/* from tar.gz file - at76c503.c: changed scan
+	  of USB configuration to fix bug with	 505+RFMD2958 devices using
+	  a different EP number
+
+2004-01-04 23:01  jal2
+
+	* at76c503a/at76c503.c:   Fiberline WL-240u returned op_mode 204 in
+	    at76c503_do_probe() after plugging in with
+	    kernel 2.4.23
+
+2004-01-04 02:24  jal2
+
+	* at76c503a/: Makefile, at76c503.c: version 0.12beta3: fixed bug in
+	  at76c503.c:update_usb_intf_descr() for big endian machines
+	  (length field in expected_cfg_descr)
+
+2003-12-27 03:33  jal2
+
+	* at76c503a/: at76c503-rfmd-acc.c, at76c503-rfmd.c: moved d5c/a002
+	  from *-rfmd.c into *-rfmd-acc.c
+
+2003-12-27 03:03  jal2
+
+	* at76c503a/: Makefile, at76c503-i3861.c, at76c503-i3863.c,
+	  at76c503-rfmd-acc.c, at76c503-rfmd.c, at76c503.c, at76c503.h,
+	  at76c505-rfmd.c, at76c505-rfmd2958.c,
+	  fw-pkg-505-rfmd2958-1.101.0-86.h, fw-pkg-i3861.h, fw-pkg-i3863.h,
+	  fw-pkg-r505.h, fw-pkg-rfmd-0.90.2-140.h,
+	  fw-pkg-rfmd-1.101.0-84.h, fw-pkg-rfmd-acc-1.101.0-84.h, gen_fw.c:
+	  - version 0.12beta2 - cleaned BOARDTYPE, we now have six:  503
+	  with Intersil 3861  503 with Intersil 3863  503 with RFMD   503
+	  with RFMD, Accton design    505 with RFMD   505 with RFMD 2958
+
+2003-12-26 03:16  jal2
+
+	* at76c503a/at76c503.c: cleaned up some uncond. debug outputs;
+	  removed compiler warning about unused label
+
+2003-12-26 03:08  jal2
+
+	* at76c503a/gen_fw.c: added fw-rfmd-0.90.2-140.h for WUSB11 v2.6
+
+2003-12-26 02:28  jal2
+
+	* at76c503a/Makefile: added fw-pkg-rfmd-0.90.2-140.h
+
+2003-12-26 02:27  jal2
+
+	* at76c503a/fw-pkg-rfmd-0.90.2-140.h: added this old 503+RFMD
+	  firmware for WUSB11 v2.6
+
+2003-12-26 01:40  jal2
+
+	* at76c503a/: .cvsignore, Makefile, at76c503-fw_skel.c,
+	  at76c503-i3861.c, at76c503-i3863.c, at76c503-rfmd-acc.c,
+	  at76c503-rfmd.c, at76c503.c, at76c503.h, at76c505-rfmd.c,
+	  at76c505-rfmd2958.c, fw-empty.h,
+	  fw-pkg-505-rfmd2958-1.101.0-86.h, fw-pkg-i3861.h, fw-pkg-i3863.h,
+	  fw-pkg-r505.h, fw-pkg-rfmd-1.101.0-84.h,
+	  fw-pkg-rfmd-acc-1.101.0-84.h, gen_fw.c, readme.filenames,
+	  usbdfu.c, usbdfu.h, scripts/fwbin2pkg.sh: - version 0.12beta1 -
+	  copied from kernel_2_6 branch (tag version_0_12beta_2_6) - added
+	  kernel 2.6 support - major changes in start behaviour (usbdfu
+	  doesn't register itself   by USB subsys, but exports some
+	  procedures only; ...)
+
+2003-12-26 01:19  jal2
+
+	* at76c503a/: Makefile, README, at76c503-fw_skel.c,
+	  at76c503-i3861.c, at76c503-i3863.c, at76c503-rfmd-acc.c,
+	  at76c503-rfmd.c, at76c503.c, at76c503.h, at76c505-rfmd.c,
+	  at76c505-rfmd2958.c, fw-pkg-505-rfmd2958-1.101.0-86.h,
+	  scripts/fwbin2pkg.sh: - version 0.12beta1 - merged all changes of
+	  the main trunk since we spawned   (mainly new devices) - added
+	  support for 2.4.x
+
+2003-12-24 16:27  jal2
+
+	* at76c503a/Makefile: version 0.11
+
+2003-12-06 22:42  jal2
+
+	* at76c503a/at76c505-rfmd2958.c: added Linksys WUSB11, version 2.8
+
+2003-12-01 02:19  jal2
+
+	* at76c503a/: at76c503-i3861.c, at76c503-rfmd.c: added comments
+
+2003-12-01 02:19  jal2
+
+	* at76c503a/at76c505-rfmd2958.c: added device CNet CNUSB 611G
+
+2003-11-28 01:23  jal2
+
+	* at76c503a/README: added calls to ifconfig in example of setting
+	  the device up
+
+2003-11-24 23:33  jal2
+
+	* at76c503a/at76c503.c: usb_submit_rx_urb(): GFP_KERNEL ->
+	  GFP_ATOMIC to fix the >>> Debug: sleeping function called from
+	  invalid context at mm/slab.c<<< with ohci hcd
+
+2003-11-16 04:15  jal2
+
+	* at76c503a/at76c503-rfmd.c: added device Belkin F5D6050 version 2
+
+2003-11-09 01:20  jal2
+
+	* at76c503a/: Makefile, at76c503-i3861.c, at76c503-i3863.c,
+	  at76c503-rfmd-acc.c, at76c503-rfmd.c, at76c505-rfmd.c,
+	  at76c505-rfmd2958.c: 0.11beta6: module_usbdfu.reset_delay
+	  initialization _before_ usage
+
+2003-11-02 22:13  jal2
+
+	* at76c503a/at76c503.c: fixed bug with missing BOARDTYPE_RFMD_ACC
+	  in get_hw_config()
+
+2003-11-02 12:37  jal2
+
+	* at76c503a/at76c503-i3861.c: added device Arescom WL-210
+
+2003-10-31 02:23  jal2
+
+	* at76c503a/fw-505rfmd2958-1.101.0-86.h: firmware for 505 with RFMD
+	  2958 radio
+
+2003-10-31 01:46  jal2
+
+	* at76c503a/gen_fw.c: added 505+RFMD2958 firmware
+
+2003-10-30 01:00  jal2
+
+	* at76c503a/: Makefile, at76c505-rfmd.c, at76c505-rfmd2958.c,
+	  fw-505rfmd2958-1.101.0-86.h: added module at76c505-rfmd2958 for
+	  505 with RFMD2958 radios
+
+2003-10-30 00:34  jal2
+
+	* at76c503a/: Makefile, at76c503-i3861.c, at76c503-i3863.c,
+	  at76c503-rfmd-acc.c, at76c503-rfmd.c, at76c505-rfmd.c: version
+	  0.11beta5, initialize module_usbdfu.reset_delay in mod_init,
+	  because HZ became a variable
+
+2003-10-24 23:54  jal2
+
+	* at76c503a/at76c503-i3861.c: added device Siemens Santis WLL-013
+
+2003-10-24 23:54  jal2
+
+	* at76c503a/at76c503-rfmd.c: added comment
+
+2003-10-01 02:52  jal2
+
+	* at76c503a/at76c505-rfmd.c: added device Fiberline WL240U
+
+2003-09-14 23:45  jal2
+
+	* at76c503a/at76c503.c: - set usb_device->state to
+	  USB_STATE_CONFIGURED immediately after   usb_reset_device
+	  (otherwise it remains in USB_STATE_ADDRESS with 2.6.0-test5)
+	  patch provided by Dmitri Katchalov
+
+2003-09-13 01:03  jal2
+
+	* at76c503a/at76c503-i3861.c: added device Intel AP310 AnyPoint II
+	  usb
+
+2003-09-04 22:45  jal2
+
+	* at76c503a/Makefile: allow copying *.mod files to fail (patch
+	  provided by Pavel Roskin)
+
+2003-09-04 09:42  jal2
+
+	* at76c503a/.cvsignore: added more generated files
+
+2003-09-04 09:27  jal2
+
+	* at76c503a/: at76c503-i3861.c, at76c503-i3863.c,
+	  at76c503-rfmd-acc.c, at76c503-rfmd.c, at76c503.c,
+	  at76c505-rfmd.c, fw-pkg-i3861.h, fw-pkg-i3863.h, fw-pkg-r505.h,
+	  fw-pkg-rfmd-1.101.0-84.h, fw-pkg-rfmd-acc-1.101.0-84.h: - fixed
+	  compiler errors/warnings for 2.6.0-test4   (patches by Deuce and
+	  Pavel Roskin) - fixed missing symbols request/release_firmware
+	  when	 CONFIG_FW_LOADER is not set in the kernel
+
+2003-09-03 02:15  jal2
+
+	* at76c503a/: Makefile, at76c503-i3861.c, at76c503-i3863.c,
+	  at76c503-rfmd-acc.c, at76c503-rfmd.c, at76c503.c, at76c503.h,
+	  at76c505-rfmd.c, fw-empty.h, fw-pkg-i3861.h, fw-pkg-i3863.h,
+	  fw-pkg-r505.h, fw-pkg-rfmd-1.101.0-84.h,
+	  fw-pkg-rfmd-acc-1.101.0-84.h, gen_fw.c, readme.filenames,
+	  usbdfu.c, usbdfu.h: - version 0.11beta6-2.6 - added support for
+	  firmware download class (not tested yet) - simplified (IMHO)
+	  usbdfu. It only provides a function to download the	internal fw
+	  part and does no longer claim the device's interface - moved
+	  REMAP / reset into at76c503 - added work-around (aka very dirty
+	  hack) in at76c503 to get the new two	 endpoints of the interface
+	  after usb_reset_device() is called
+
+2003-08-24 16:54  jal2
+
+	* at76c503a/usbdfu.c: fixed interface address bug
+
+2003-08-24 16:53  jal2
+
+	* at76c503a/Makefile: new version 0.11beta5-2.6
+
+2003-08-24 16:51  jal2
+
+	* at76c503a/: at76c503-i3861.c, at76c503-i3863.c,
+	  at76c503-rfmd-acc.c, at76c503-rfmd.c, at76c503.c, at76c503.h,
+	  at76c505-rfmd.c: - applied Jason Andryk's patch (posted to
+	  at76c503a-develop by Deuce on Thu, 14 Aug 2003)
+
+2003-08-14 23:45  jal2
+
+	* at76c503a/at76c503-rfmd.c: added WL-200U device (1371/2)
+
+2003-07-30 10:31  jal2
+
+	* at76c503a/: at76c503.c, usbdfu.c: added patch for 2.4.2
+	  Montavista, embedded PPC (supplied by Jocelyn Mayer)
+
+2003-07-30 01:13  jal2
+
+	* at76c503a/at76c503a.spec: added spec file to build rpms
+
+2003-07-26 23:14  jal2
+
+	* at76c503a/: Makefile, at76c503-i3861.c, at76c503-i3863.c,
+	  at76c503-rfmd-acc.c, at76c503-rfmd.c, at76c503.c, at76c503.h,
+	  at76c505-rfmd.c, usbdfu.c, usbdfu.h: - Pavel Roskin's patch for
+	  2.6.0 as mailed on 07-24-2003 under Subj   "Re:
+	  [at76c503a-develop] Re: [Atmelwlandriver-devel] Re: Atmel USB" to
+	  at76c503a-develop@berlios.de
+
+2003-07-26 21:06  jal2
+
+	* at76c503a/: Makefile, at76c503.c, usbdfu.c: - 0.11beta4 - added
+	  init. of bss_list_timer (patch provided by Pavel Roskin) - added
+	  id_table for usbdfu for DFU class (patch provided by Pavel
+	  Roskin)
+
+2003-07-20 13:48  jal2
+
+	* at76c503a/: README, usbdfu.c: spelling corrected
+
+2003-07-20 13:47  jal2
+
+	* at76c503a/at76c503-rfmd.c: added device DWL-120e
+
+2003-07-20 13:47  jal2
+
+	* at76c503a/Makefile: no-unused-variable -> no-unused for gcc < 3.0
+
+2003-07-15 23:57  jal2
+
+	* at76c503a/: at76c503-i3861.c, at76c503-i3863.c,
+	  at76c503-rfmd-acc.c, at76c503-rfmd.c, at76c503.c,
+	  at76c505-rfmd.c, usbdfu.c: added #include <linux/init.h> to fix a
+	  compile bug on ppc32 platform
+
+2003-07-14 23:56  jal2
+
+	* at76c503a/at76c503-i3861.c: added device Conceptronic C11U
+
+2003-07-12 00:53  jal2
+
+	* at76c503a/: CHANGELOG, Makefile, at76c503.c, at76c503.h: firmware
+	  0.84 does not send trailing FCS in rx data
+
+2003-07-08 02:02  jal2
+
+	* at76c503a/: CHANGELOG, Makefile: 0.11beta2, new module for
+	  RFMD-ACC firmware variant
+
+2003-07-08 01:58  jal2
+
+	* at76c503a/: at76c503-rfmd-acc.c, fw-rfmd-acc-1.101.0-84.h: -
+	  0.11beta2 - added new driver variant (at76c503-rfmd-acc) for
+	  Accton OEM design based devices   with RFMD radio, which need a
+	  special firmware.
+
+2003-06-27 00:28  jal2
+
+	* at76c503a/at76c503.c: added dbg output on kevent's exit
+
+2003-06-27 00:16  jal2
+
+	* at76c503a/at76c503.c: added reg domains MKK1 and Israel
+
+2003-06-21 02:01  jal2
+
+	* at76c503a/at76c503-i3861.c: added Addtron AWU-120 device
+
+2003-06-18 01:37  jal2
+
+	* at76c503a/: at76c503.c, at76c503.h: - added rudimentary ethtool
+	  support for SuSE's future hotplug - added nickname ioctl (to
+	  suppress error at SuSE 8.2 hotplug config)
+
+2003-06-17 00:20  jal2
+
+	* at76c503a/: at76c503.c, at76c503.h: added test if channel is
+	  valid for regulatory domain
+
+2003-06-16 23:49  jal2
+
+	* at76c503a/: README, at76c503.c, ieee802_11.h: - added values in
+	  dbg param output at startup - added big-endian patch (by Kevin
+	  Cernekee), removed #ifdef ... #else	for endianess in
+	  ieee802_11.h. Translate all u16 values into cpu endianess
+	  instead.
+
+2003-06-16 23:46  jal2
+
+	* at76c503a/Makefile: added CFLAGS to suppress gcc 3.3 warnings in
+	  linux header files (no-common, no-sign-compare)
+
+2003-06-05 02:07  jal2
+
+	* at76c503a/usbdfu.c: fixed crash when device was disconnected
+	  during fw download (patch by Pavel Roskin)
+
+2003-06-04 02:44  jal2
+
+	* at76c503a/at76c503.c: applied Pavel Roskin's patch to suppress
+	  unsupported iwconfig modes (master,monitor)
+
+2003-06-02 00:04  jal2
+
+	* at76c503a/CHANGELOG: [no log message]
+
+2003-06-01 23:42  jal2
+
+	* at76c503a/: Makefile, README, at76c503.c, at76c503.h: - version
+	  0.10 - added more DBG_* bits, cleaned dbg output - added iwpriv
+	  commands for scan_{min,max}_time, scan_mode - added module
+	  parameter for iwpriv commands
+
+2003-05-29 14:35  jal2
+
+	* at76c503a/: Makefile, README, at76c503.c: - 0.10beta3 - fine
+	  tuned debug control:	 * added DBG_* macros to control debug
+	  messages   * new macro dbg_uc for "unconditional" debug output -
+	  fixed bug in changing the MAC address with firmware 1.101.x
+	  (and probably 0.100.y as well): it must be done _after_
+	  CMD_STARTUP was sent.  - set_mib: added wait_completion inside
+	  this proc
+
+2003-05-23 02:21  jal2
+
+	* at76c503a/: at76c503.c, at76c503.h: added tx padding
+
+2003-05-20 02:30  jal2
+
+	* at76c503a/at76c503.c: fixed kernel crash when driver was rmmod'd
+	  without opening the netdev before (bss_list_timer wasn't removed
+	  in _delete_device())
+
+2003-05-20 01:49  jal2
+
+	* at76c503a/: Makefile, README, at76c503.c, at76c503.h,
+	  ieee802_11.h: added support for 802.11 data fragmentation
+
+2003-05-19 03:26  jal2
+
+	* at76c503a/at76c503.c: fixed bug (possible system lockup) in
+	  dump_bss_table: added spinlock release
+
+2003-05-15 00:58  jal2
+
+	* at76c503a/at76c503.c: suppress warning about uninit. ptr variable
+	  with some gcc version =/= 2.95.2
+
+2003-05-14 04:46  jal2
+
+	* at76c503a/: README, at76c503.c, at76c503.h: added power save mode
+	  (802.11 and Atmel's smart power save)
+
+2003-05-08 23:57  jal2
+
+	* at76c503a/at76c503-rfmd.c: added 3COM 3CRSHEW696 device
+
+2003-05-02 02:16  jal2
+
+	* at76c503a/at76c503.c: added rssi/noise/link in rx frame dbg
+	  output, put it down to debug >= 2
+
+2003-05-02 02:03  jal2
+
+	* at76c503a/at76c503.c: - put unregister_netdev inside rntl_lock -
+	  call flush_scheduled_tasks() before destroying the device
+
+2003-05-01 23:48  jal2
+
+	* at76c503a/: Makefile, README, at76c503.c, at76c503.h: - version
+	  0.10beta1 (it's a major change) - Makefile: target install does
+	  not compile anymore, use target all before - redesigned BSS list
+	  handling: an entry now times out and is removed after
+	  BSS_LIST_TIMEOUT (curr. 120 seconds) after the arrival of the
+	  last beacon.	- new iwpriv command list_bss: dumps the bss list
+	  to syslog (temporary command,   until we have iwlist).
+
+2003-05-01 23:15  jal2
+
+	* at76c503a/at76c503.c: This change fixes the problem with
+	  re-loading the driver while the device stays powered (and keeps
+	  its firmware). The problem was that downloading the external
+	  firmware twice was fine with 0.90.x firmwares but fails with
+	  0.100.x and 1.101.y. This change simply ignores the error
+	  USB_ST_STALL during downloading the external firmware.
+
+2003-04-26 00:21  jal2
+
+	* at76c503a/at76c503-rfmd.c: added BenQ AWL-400 USB stick device
+
+2003-04-25 03:13  jal2
+
+	* at76c503a/at76c503-rfmd.c: switch to firmware 1.101.0-84 which
+	  fixes the bug in joining 802.11g access points in mixed mode
+
+2003-04-23 03:13  jal2
+
+	* at76c503a/: at76c503-i3861.c, at76c503-rfmd.c: added new devices
+
+2003-04-13 21:22  jal2
+
+	* at76c503a/fw-rfmd-1.101.0-84.h: this version shall fix the JOIN
+	  timeout when connecting to an 802.11g access point (i.e. an AP
+	  whose OpRates list in the beacon is longer than 5 rates)
+
+2003-04-13 01:18  jal2
+
+	* at76c503a/at76c503-rfmd.c: added Actiontec 802UAT1 device (info
+	  provided by Martin Garton)
+
+2003-04-09 01:30  jal2
+
+	* at76c503a/at76c503.c: added more debugging to track lock-up
+	  problems; don't rescan in ad-hoc when we lost the beacon of the
+	  peer
+
+2003-04-05 20:58  jal2
+
+	* at76c503a/usbdfu.c: fixed bug hanging SMP systems (hopefully)
+
+2003-03-30 15:26  jal2
+
+	* at76c503a/: at76c503-rfmd.c, at76c503.c: added new device Network
+	  Everywhere NWU11B, added info() to announce registration of new
+	  device
+
+2003-03-30 15:10  jal2
+
+	* at76c503a/scripts/fwbin2h: a tool to convert binary firmware
+	  files (e.g. from Windows drivers) into C header files extracting
+	  the version info
+
+2003-03-28 01:25  jal2
+
+	* at76c503a/: at76c503.c, at76c503.h: - fixed bug with restart
+	  triggered by iwconfig: It seems that the STARTUP command must not
+	  be sent while the device is busy with some other cmd (e.g. SCAN -
+	  which takes a long time to complete).  The device got confused,
+	  it did not send any AuthReq, only ProbeRequests until it got a
+	  power cycle (guess some internal variables got mixed up and were
+	  only resetted with internal firmware reload).
+
+	  - added compilation time and cvs Id of at76c503.c into syslog
+
+2003-03-23 00:27  jal2
+
+	* at76c503a/: README, at76c503.c: iwconfig now restarts the device
+	  with new params immediately -> no need for ifconfig calls anymore
+
+2003-03-22 20:45  jal2
+
+	* at76c503a/: at76c503.c, at76c503.h: replaced array dev->bss[] by
+	  a linked list of struct bss_info (to work in env. with a lot of
+	  BSS, e.g. CeBIT :-)
+
+2003-03-22 19:04  jal2
+
+	* at76c503a/: at76c503.c, at76c503.h: added iwspy support
+
+2003-03-22 01:39  jal2
+
+	* at76c503a/at76c503.c: Tim's 'link level patch', email, 2003-03-05
+	  with small modification
+
+2003-03-22 01:17  jal2
+
+	* at76c503a/: README, at76c503.c, at76c503.h: Joerg: added shared
+	  secret authentication, added iwpriv calls for preamble and auth
+	  type
+
+2003-03-22 01:15  jal2
+
+	* at76c503a/at76c503-i3861.c: Russ Dill: new device SMC2662W v1
+
+2003-03-22 01:06  jal2
+
+	* at76c503a/at76c503.c: joerg's patch: hidden SSID, fixed ANY ssid
+	  (email 2003-02-23)
+
+2003-03-22 01:01  jal2
+
+	* at76c503a/: at76c503.c, at76c503.h: Alex 'First phase of RX
+	  optimization' patch (email, 2003-02-21)
+
+2003-03-22 00:52  jal2
+
+	* at76c503a/at76c503.c: alex' deprecation patch, email 2003-02-21
+
+2003-03-22 00:47  jal2
+
+	* at76c503a/.cvsignore: started
+
+2003-03-22 00:44  jal2
+
+	* at76c503a/: Makefile, README, at76c503-i3861.c, at76c503-i3863.c,
+	  at76c503-rfmd.c, at76c503.c, at76c503.h, at76c503fw.c,
+	  at76c505-rfmd.c, externalr.h, fw-i3861.h, fw-i3863.h, fw-r505.h,
+	  fw-rfmd-0.100.4-16.h, fw-rfmd-0.90.2-140.h, internalr.h, rom2h.c,
+	  usbdfu.c, usbdfu.h, scripts/fwconvert, scripts/fwversion:
+	  Oliver's version 0.9
+
+2003-03-21 23:53  jal2
+
+	* at76c503a/: Makefile, README, at76c503-i3861.c, at76c503-i3863.c,
+	  at76c503-rfmd.c, at76c503.c, at76c503.h, at76c505-rfmd.c,
+	  usbdfu.c, vnet503-i3861.c, vnet503-i3863.c, vnet503-rfmd.c,
+	  vnet505-rfmd.c: alex' version 0.8pas4
+
+2003-03-21 23:50  jal2
+
+	* at76c503a/: Makefile, at76c503.c, fw-i3861.h, fw-i3863.h,
+	  fw-r505.h, scripts/fwconvert: alex' version 0.8pas3, error in fw
+	  header files' generation fixed (and more)
+
+2003-03-21 23:44  jal2
+
+	* at76c503a/: Makefile, at76c503.c, at76c503.h, fw-i3861.h,
+	  fw-i3863.h, fw-r505.h, vnet503-i3861.c, vnet503-i3863.c,
+	  vnet503-rfmd.c, vnet505-rfmd.c, scripts/fwconvert,
+	  scripts/fwversion: alex' version 0.8pas2
+
+2003-03-21 23:34  jal2
+
+	* at76c503a/: Makefile, README, at76c503.c, at76c503.h,
+	  fw-rfmd-0.100.4-16.h, fw-rfmd-0.90.2-140.h, usbdfu.c, usbdfu.h,
+	  vnet503-rfmd.c, externalr.h, internalr.h: alex' patch pas1
+
+2003-03-21 23:21  jal2
+
+	* at76c503a/: at76c503.c, at76c503.h, at76c503fw.c, COPYING,
+	  externalr.h, ieee802_11.h, Makefile, internalr.h, README,
+	  rom2h.c, usbdfu.c, usbdfu.h: Initial revision
+
+2003-03-21 23:21  jal2
+
+	* at76c503a/: at76c503.c, at76c503.h, at76c503fw.c, COPYING,
+	  externalr.h, ieee802_11.h, Makefile, internalr.h, README,
+	  rom2h.c, usbdfu.c, usbdfu.h: [no log message]
+
