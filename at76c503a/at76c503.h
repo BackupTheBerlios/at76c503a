@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.38 2006/06/30 08:27:40 agx Exp $
+/* $Id: at76c503.h,v 1.39 2006/06/30 09:11:26 agx Exp $
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth
  *           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -571,6 +571,12 @@ struct at76c503 {
 	struct at76c503_tx_buffer *next_mgmt_bulk; /* pending management msg to
 						     send via bulk out */
 	enum infra_state istate;
+	enum {
+		SITE_SURVEY_IDLE,
+		SITE_SURVEY_IN_PROGRESS,
+		SITE_SURVEY_COMPLETED
+	} site_survey_state;
+	time_t last_survey;
 
 	struct timer_list restart_timer; /* the timer we use to delay the restart a bit */
 

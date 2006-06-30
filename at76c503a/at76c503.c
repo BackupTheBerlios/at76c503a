@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.88 2006/06/30 08:50:03 agx Exp $
+/* $Id: at76c503.c,v 1.89 2006/06/30 09:11:26 agx Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -1900,6 +1900,7 @@ void handle_mgmt_timeout_scan(struct at76c503 *dev)
 				break;
 
 			case 3:
+				dev->site_survey_state = SITE_SURVEY_COMPLETED;
 				/* report the end of scan to user space */
 				iwevent_scan_complete(dev->netdev);
 				NEW_STATE(dev,JOINING);
@@ -4644,6 +4645,8 @@ static int at76c503_open(struct net_device *netdev)
 	dump_mib_mac_addr(dev);
 #endif
 
+	dev->site_survey_state=SITE_SURVEY_IDLE;
+	dev->last_survey = jiffies;
 	dev->nr_submit_rx_tries = NR_SUBMIT_RX_TRIES; /* init counter */
 
 	if((ret=submit_rx_urb(dev)) < 0){
@@ -5299,6 +5302,17 @@ static int at76c503_iw_handler_set_scan(struct net_device *netdev,
 	if (dev->iw_mode == IW_MODE_MONITOR)
 		return -EBUSY;
 
+	/* Timeout old surveys. */
+	if ((jiffies - dev->last_survey) > (20 * HZ))
+		dev->site_survey_state = SITE_SURVEY_IDLE;
+	dev->last_survey = jiffies;
+
+	/* Initiate a scan command */
+	if (dev->site_survey_state == SITE_SURVEY_IN_PROGRESS)
+		return -EBUSY;
+
+	dev->site_survey_state = SITE_SURVEY_IN_PROGRESS;
+
 	// stop pending management stuff
 	del_timer_sync(&(dev->mgmt_timer));
 	
@@ -5366,7 +5380,7 @@ static int at76c503_iw_handler_get_scan(struct net_device *netdev,
 	if (!iwe)
 		return -ENOMEM;
 
-	if (dev->istate == SCANNING)
+	if (dev->site_survey_state != SITE_SURVEY_COMPLETED)
 		/* scan not yet finished */
 		return -EAGAIN;
 
@@ -5383,8 +5397,7 @@ static int at76c503_iw_handler_get_scan(struct net_device *netdev,
 		
 		iwe->u.data.length = curr_bss->ssid_len;
 		iwe->cmd = SIOCGIWESSID;
-		// 1: SSID on , 0: SSID off/any
-		iwe->u.data.flags = (dev->essid_size > 0) ? 1 : 0;
+		iwe->u.data.flags = 1;
 		
 		curr_pos = iwe_stream_add_point(curr_pos, 
 			extra + IW_SCAN_MAX_DATA, iwe, curr_bss->ssid);
@@ -6909,7 +6922,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.88 2006/06/30 08:50:03 agx Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.89 2006/06/30 09:11:26 agx Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
