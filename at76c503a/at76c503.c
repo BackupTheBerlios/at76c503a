@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.84 2006/06/22 21:09:23 agx Exp $
+/* $Id: at76c503.c,v 1.85 2006/06/30 08:42:19 agx Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -808,8 +808,7 @@ static int get_op_mode(struct usb_device *udev)
 }
 
 /* this loads a block of the second part of the firmware */
-static inline
-int load_ext_fw_block(struct usb_device *udev,
+static inline int load_ext_fw_block(struct usb_device *udev,
 		      int i, unsigned char *buf, int bsize)
 {
 	return usb_control_msg(udev, usb_sndctrlpipe(udev,0),
@@ -818,8 +817,7 @@ int load_ext_fw_block(struct usb_device *udev,
 			       buf, bsize, HZ * USB_CTRL_GET_TIMEOUT);
 }
 
-static inline
-int get_hw_cfg_rfmd(struct usb_device *udev,
+static inline int get_hw_cfg_rfmd(struct usb_device *udev,
 	       unsigned char *buf, int buf_size)
 {
 	return usb_control_msg(udev, usb_rcvctrlpipe(udev,0),
@@ -936,8 +934,7 @@ struct reg_domain const *getRegDomain(u16 code)
 	return (i >= tab_len) ? &unknown : &fd_tab[i];
 } /* getFreqDomain */
 
-static inline
-int get_mib(struct usb_device *udev,
+static inline int get_mib(struct usb_device *udev,
 	    u16 mib, u8 *buf, int buf_size)
 {
 	return usb_control_msg(udev, usb_rcvctrlpipe(udev,0),
@@ -946,8 +943,7 @@ int get_mib(struct usb_device *udev,
 			       buf, buf_size, HZ * USB_CTRL_GET_TIMEOUT);
 }
 
-static inline
-int get_cmd_status(struct usb_device *udev,
+static inline int get_cmd_status(struct usb_device *udev,
 		   u8 cmd, u8 *cmd_status)
 {
 	return usb_control_msg(udev, usb_rcvctrlpipe(udev,0),
@@ -997,8 +993,7 @@ static int download_external_fw(struct usb_device *udev, u8 *buf, int size)
 	return ret;
 }
 
-static
-int set_card_command(struct usb_device *udev, int cmd,
+static int set_card_command(struct usb_device *udev, int cmd,
 		    unsigned char *buf, int buf_size)
 {
 	int ret;
@@ -1078,8 +1073,7 @@ int wait_completion(struct at76c503 *dev, int cmd)
 	return ret;
 }
 
-static
-int set_mib(struct at76c503 *dev, struct set_mib_buffer *buf)
+static int set_mib(struct at76c503 *dev, struct set_mib_buffer *buf)
 {
 	struct usb_device *udev = dev->udev;
 	int ret;
@@ -1114,8 +1108,7 @@ int set_mib(struct at76c503 *dev, struct set_mib_buffer *buf)
 }
 
 /* return < 0 on error, == 0 if no command sent, == 1 if cmd sent */
-static
-int set_radio(struct at76c503 *dev, int on_off)
+static int set_radio(struct at76c503 *dev, int on_off)
 {
 	int ret;
 
@@ -1199,8 +1192,7 @@ static int set_listen_interval(struct at76c503 *dev, u16 interval)
 	return ret;
 }
 
-static
-int set_preamble(struct at76c503 *dev, u8 type)
+static int set_preamble(struct at76c503 *dev, u8 type)
 {
 	int ret = 0;
 
@@ -1216,8 +1208,7 @@ int set_preamble(struct at76c503 *dev, u8 type)
 	return ret;
 }
 
-static
-int set_frag(struct at76c503 *dev, u16 size)
+static int set_frag(struct at76c503 *dev, u16 size)
 {
 	int ret = 0;
 
@@ -1233,8 +1224,7 @@ int set_frag(struct at76c503 *dev, u16 size)
 	return ret;
 }
 
-static
-int set_rts(struct at76c503 *dev, u16 size)
+static int set_rts(struct at76c503 *dev, u16 size)
 {
 	int ret = 0;
 
@@ -1250,8 +1240,7 @@ int set_rts(struct at76c503 *dev, u16 size)
 	return ret;
 }
 
-static
-int set_autorate_fallback(struct at76c503 *dev, int onoff)
+static int set_autorate_fallback(struct at76c503 *dev, int onoff)
 {
 	int ret = 0;
 
@@ -1319,8 +1308,7 @@ static int set_group_address(struct at76c503 *dev, u8 *addr, int n)
 }
 #endif
 
-static
-int set_promisc(struct at76c503 *dev, int onoff)
+static int set_promisc(struct at76c503 *dev, int onoff)
 {
 	int ret = 0;
 
@@ -1669,8 +1657,7 @@ int get_current_bssid(struct at76c503 *dev)
 	return ret;
 }
 
-static
-int get_current_channel(struct at76c503 *dev)
+static int get_current_channel(struct at76c503 *dev)
 {
 	int ret = 0;
 	struct mib_phy *phy =
@@ -1697,8 +1684,7 @@ int get_current_channel(struct at76c503 *dev)
   start a scan. use_essid is != 0 if any probe_delay (if scan mode is not 
   passive) should contain the ESSID configured. ir_step describes the
   international roaming step (0, 1) */
-static
-int start_scan(struct at76c503 *dev, int use_essid, int ir_step)
+static int start_scan(struct at76c503 *dev, int use_essid, int ir_step)
 {
 	struct at76c503_start_scan scan;
 
@@ -1756,8 +1742,7 @@ int start_scan(struct at76c503 *dev, int use_essid, int ir_step)
 				(unsigned char*)&scan, sizeof(scan));
 }
 
-static
-int start_ibss(struct at76c503 *dev)
+static int start_ibss(struct at76c503 *dev)
 {
 	struct at76c503_start_bss bss;
 
@@ -1773,8 +1758,7 @@ int start_ibss(struct at76c503 *dev)
 }
 
 /* idx points into dev->bss */
-static
-int join_bss(struct at76c503 *dev, struct bss_info *ptr)
+static int join_bss(struct at76c503 *dev, struct bss_info *ptr)
 {
 	struct at76c503_join join;
 
@@ -2065,8 +2049,7 @@ void handle_mgmt_timeout(struct at76c503 *dev)
 
 /* calc. the padding from txbuf->wlength (which excludes the USB TX header) 
    guess this is needed to compensate a flaw in the AT76C503A USB part ... */
-static inline
-int calc_padding(int wlen)
+static inline int calc_padding(int wlen)
 {
 	/* add the USB TX header */
 	wlen += AT76C503_TX_HDRLEN;
@@ -2084,8 +2067,7 @@ int calc_padding(int wlen)
 
 /* send a management frame on bulk-out.
    txbuf->wlength must be set (in LE format !) */
-static
-int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf)
+static int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf)
 {
 	unsigned long flags;
 	int ret = 0;
@@ -2157,8 +2139,7 @@ int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf)
 
 } /* send_mgmt_bulk */
 
-static
-int disassoc_req(struct at76c503 *dev, struct bss_info *bss)
+static int disassoc_req(struct at76c503 *dev, struct bss_info *bss)
 {
 	struct at76c503_tx_buffer *tx_buffer;
 	struct ieee802_11_mgmt *mgmt;
@@ -2203,8 +2184,7 @@ int disassoc_req(struct at76c503 *dev, struct bss_info *bss)
    we got with seq_nr 2 for shared secret authentication only and
    send in seq_nr 3 WEP encrypted to prove we have the correct WEP key;
    otherwise it is NULL */
-static
-int auth_req(struct at76c503 *dev, struct bss_info *bss, int seq_nr, u8 *challenge)
+static int auth_req(struct at76c503 *dev, struct bss_info *bss, int seq_nr, u8 *challenge)
 {
 	struct at76c503_tx_buffer *tx_buffer;
 	struct ieee802_11_mgmt *mgmt;
@@ -2260,8 +2240,7 @@ int auth_req(struct at76c503 *dev, struct bss_info *bss, int seq_nr, u8 *challen
 
 } /* auth_req */
 
-static
-int assoc_req(struct at76c503 *dev, struct bss_info *bss)
+static int assoc_req(struct at76c503 *dev, struct bss_info *bss)
 {
 	struct at76c503_tx_buffer *tx_buffer;
 	struct ieee802_11_mgmt *mgmt;
@@ -2339,8 +2318,7 @@ int assoc_req(struct at76c503 *dev, struct bss_info *bss)
 
 /* we are currently associated to curr_bss and
    want to reassoc to new_bss */
-static
-int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
+static int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
 		struct bss_info *new_bss)
 {
 	struct at76c503_tx_buffer *tx_buffer;
@@ -2565,8 +2543,7 @@ static void defer_kevent (struct at76c503 *dev, int flag)
 		    dev->netdev->name, flag);
 }
 
-static void
-kevent(void *data)
+static void kevent(void *data)
 {
 	struct at76c503 *dev = data;
 	int ret;
@@ -2953,8 +2930,7 @@ end_internal_fw:
 	return;
 }
 
-static
-int essid_matched(struct at76c503 *dev, struct bss_info *ptr)
+static int essid_matched(struct at76c503 *dev, struct bss_info *ptr)
 {
 	/* common criteria for both modi */
 
@@ -2967,8 +2943,7 @@ int essid_matched(struct at76c503 *dev, struct bss_info *ptr)
 	return retval;
 }
 
-static inline
-int mode_matched(struct at76c503 *dev, struct bss_info *ptr)
+static inline int mode_matched(struct at76c503 *dev, struct bss_info *ptr)
 {
 	int retval;
 
@@ -2982,8 +2957,7 @@ int mode_matched(struct at76c503 *dev, struct bss_info *ptr)
 	return retval;
 }
 
-static
-int rates_matched(struct at76c503 *dev, struct bss_info *ptr)
+static int rates_matched(struct at76c503 *dev, struct bss_info *ptr)
 {
 	int i;
 	u8 *rate;
@@ -3010,8 +2984,7 @@ int rates_matched(struct at76c503 *dev, struct bss_info *ptr)
 		return 1;
 }
 
-static inline
-int wep_matched(struct at76c503 *dev, struct bss_info *ptr)
+static inline int wep_matched(struct at76c503 *dev, struct bss_info *ptr)
 {
 	if (!dev->wep_enabled && 
 	    ptr->capa & IEEE802_11_CAPA_PRIVACY) {
@@ -3025,8 +2998,7 @@ int wep_matched(struct at76c503 *dev, struct bss_info *ptr)
 	return 1;
 }
 
-static inline
-int bssid_matched(struct at76c503 *dev, struct bss_info *ptr)
+static inline int bssid_matched(struct at76c503 *dev, struct bss_info *ptr)
 {
 	if (!dev->wanted_bssid_valid ||
 		!memcmp(ptr->bssid, dev->wanted_bssid, ETH_ALEN)) {
@@ -4493,8 +4465,7 @@ ipaq_init_led (void)
 
 #endif
 
-static int
-at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
+static int at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 {
 	struct at76c503 *dev = (struct at76c503 *)(netdev->priv);
 	struct net_device_stats *stats = &dev->stats;
@@ -4643,8 +4614,7 @@ at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 }
 
 
-static
-void at76c503_tx_timeout(struct net_device *netdev)
+static void at76c503_tx_timeout(struct net_device *netdev)
 {
 	struct at76c503 *dev = (struct at76c503 *)(netdev->priv);
 
@@ -4658,8 +4628,7 @@ void at76c503_tx_timeout(struct net_device *netdev)
 	dev->stats.tx_errors++;
 }
 
-static
-int startup_device(struct at76c503 *dev)
+static int startup_device(struct at76c503 *dev)
 {
 	struct at76c503_card_config *ccfg = &dev->card_config;
 	int ret;
@@ -4785,8 +4754,7 @@ int startup_device(struct at76c503 *dev)
 	return 0;
 }
 
-static
-int at76c503_open(struct net_device *netdev)
+static int at76c503_open(struct net_device *netdev)
 {
 	struct at76c503 *dev = (struct at76c503 *)(netdev->priv);
 	int ret = 0;
@@ -4825,8 +4793,7 @@ int at76c503_open(struct net_device *netdev)
 	return ret < 0 ? ret : 0;
 }
 
-static
-int at76c503_stop(struct net_device *netdev)
+static int at76c503_stop(struct net_device *netdev)
 {
 	struct at76c503 *dev = (struct at76c503 *)(netdev->priv);
 	unsigned long flags;
@@ -4873,16 +4840,14 @@ int at76c503_stop(struct net_device *netdev)
 	return 0;
 }
 
-static
-struct net_device_stats *at76c503_get_stats(struct net_device *netdev)
+static struct net_device_stats *at76c503_get_stats(struct net_device *netdev)
 {
 	struct at76c503 *dev = (struct at76c503 *)netdev->priv;
 
 	return &dev->stats;
 }
 
-static
-struct iw_statistics *at76c503_get_wireless_stats(struct net_device *netdev)
+static struct iw_statistics *at76c503_get_wireless_stats(struct net_device *netdev)
 {
 	struct at76c503 *dev = (struct at76c503 *)netdev->priv;
 
@@ -4893,8 +4858,7 @@ struct iw_statistics *at76c503_get_wireless_stats(struct net_device *netdev)
 	return &dev->wstats;
 }
 
-static
-void at76c503_set_multicast(struct net_device *netdev)
+static void at76c503_set_multicast(struct net_device *netdev)
 {
 	struct at76c503 *dev = (struct at76c503 *)netdev->priv;
 	int promisc;
@@ -4909,8 +4873,7 @@ void at76c503_set_multicast(struct net_device *netdev)
 
 /* we only store the new mac address in netdev struct,
    it got set when the netdev gets opened. */
-static
-int at76c503_set_mac_address(struct net_device *netdev, void *addr)
+static int at76c503_set_mac_address(struct net_device *netdev, void *addr)
 {
 	struct sockaddr *mac = addr;
 	memcpy(netdev->dev_addr, mac->sa_data, ETH_ALEN);
@@ -4919,8 +4882,7 @@ int at76c503_set_mac_address(struct net_device *netdev, void *addr)
 
 /* == PROC iwspy_update == 
   check if we spy on the sender address of buf and update statistics */
-static
-void iwspy_update(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
+static void iwspy_update(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 {
 	struct ieee802_11_hdr *hdr = (struct ieee802_11_hdr *)buf->packet;
 	u16 lev_dbm = buf->rssi * 5 / 2;
@@ -5039,8 +5001,7 @@ static const struct iw_priv_args at76c503_priv_args[] = {
 /*******************************************************************************
  * at76c503 implementations of iw_handler functions:
  */
-static
-int at76c503_iw_handler_commit(struct net_device *netdev,
+static int at76c503_iw_handler_commit(struct net_device *netdev,
 			       struct iw_request_info *info,
 			       void *null,
 			       char *extra)
@@ -5080,8 +5041,7 @@ int at76c503_iw_handler_commit(struct net_device *netdev,
 	return 0;
 }
 
-static 
-int at76c503_iw_handler_get_name(struct net_device *netdev,
+static int at76c503_iw_handler_get_name(struct net_device *netdev,
 				 struct iw_request_info *info,
 				 char *name,
 				 char *extra)
@@ -5093,8 +5053,7 @@ int at76c503_iw_handler_get_name(struct net_device *netdev,
 	return 0;
 }
 
-static 
-int at76c503_iw_handler_set_freq(struct net_device *netdev,
+static int at76c503_iw_handler_set_freq(struct net_device *netdev,
 				 struct iw_request_info *info,
 				 struct iw_freq *freq,
 				 char *extra)
@@ -5151,8 +5110,7 @@ int at76c503_iw_handler_set_freq(struct net_device *netdev,
 	return ret;
 }
 
-static 
-int at76c503_iw_handler_get_freq(struct net_device *netdev,
+static int at76c503_iw_handler_get_freq(struct net_device *netdev,
 				 struct iw_request_info *info,
 				 struct iw_freq *freq,
 				 char *extra)
@@ -5172,8 +5130,7 @@ int at76c503_iw_handler_get_freq(struct net_device *netdev,
 	return 0;
 }
 
-static 
-int at76c503_iw_handler_set_mode(struct net_device *netdev,
+static int at76c503_iw_handler_set_mode(struct net_device *netdev,
 				 struct iw_request_info *info,
 				 __u32 *mode,
 				 char *extra)
@@ -5192,8 +5149,7 @@ int at76c503_iw_handler_set_mode(struct net_device *netdev,
 	return ret;
 }
 
-static 
-int at76c503_iw_handler_get_mode(struct net_device *netdev,
+static int at76c503_iw_handler_get_mode(struct net_device *netdev,
 				 struct iw_request_info *info,
 				 __u32 *mode,
 				 char *extra)
@@ -5207,8 +5163,7 @@ int at76c503_iw_handler_get_mode(struct net_device *netdev,
 	return 0;
 }
 
-static 
-int at76c503_iw_handler_get_range(struct net_device *netdev,
+static int at76c503_iw_handler_get_range(struct net_device *netdev,
 				  struct iw_request_info *info,
 				  struct iw_point *data,
 				  char *extra)
@@ -5321,8 +5276,7 @@ int at76c503_iw_handler_get_range(struct net_device *netdev,
 	return 0;
 }
 
-static 
-int at76c503_iw_handler_get_priv(struct net_device *netdev,
+static int at76c503_iw_handler_get_priv(struct net_device *netdev,
 				 struct iw_request_info *info,
 				 struct iw_point *data,
 				 char *extra)
@@ -5337,8 +5291,7 @@ int at76c503_iw_handler_get_priv(struct net_device *netdev,
 }
 
 
-static 
-int at76c503_iw_handler_set_spy(struct net_device *netdev,
+static int at76c503_iw_handler_set_spy(struct net_device *netdev,
 				struct iw_request_info *info,
 				struct iw_point *data,
 				char *extra)
@@ -5357,8 +5310,7 @@ int at76c503_iw_handler_set_spy(struct net_device *netdev,
 	return ret;
 }
 
-static 
-int at76c503_iw_handler_get_spy(struct net_device *netdev,
+static int at76c503_iw_handler_get_spy(struct net_device *netdev,
 				struct iw_request_info *info,
 				struct iw_point *data,
 				char *extra)
@@ -5378,8 +5330,7 @@ int at76c503_iw_handler_get_spy(struct net_device *netdev,
 	return ret;
 }
 
-static 
-int at76c503_iw_handler_set_thrspy(struct net_device *netdev,
+static int at76c503_iw_handler_set_thrspy(struct net_device *netdev,
 				   struct iw_request_info *info,
 				   struct iw_point *data,
 				   char *extra)
@@ -5398,8 +5349,7 @@ int at76c503_iw_handler_set_thrspy(struct net_device *netdev,
 	return ret;
 }
 
-static 
-int at76c503_iw_handler_get_thrspy(struct net_device *netdev,
+static int at76c503_iw_handler_get_thrspy(struct net_device *netdev,
 				   struct iw_request_info *info,
 				   struct iw_point *data,
 				   char *extra)
@@ -5418,8 +5368,7 @@ int at76c503_iw_handler_get_thrspy(struct net_device *netdev,
 	return ret;
 }
 
-static 
-int at76c503_iw_handler_set_wap(struct net_device *netdev,
+static int at76c503_iw_handler_set_wap(struct net_device *netdev,
 				struct iw_request_info *info,
 				struct sockaddr *ap_addr,
 				char *extra)
@@ -5443,8 +5392,7 @@ int at76c503_iw_handler_set_wap(struct net_device *netdev,
 	return -EIWCOMMIT;
 }
 
-static
-int at76c503_iw_handler_get_wap(struct net_device *netdev,
+static int at76c503_iw_handler_get_wap(struct net_device *netdev,
 				struct iw_request_info *info,
 				struct sockaddr *ap_addr,
 				char *extra)
@@ -5460,17 +5408,8 @@ int at76c503_iw_handler_get_wap(struct net_device *netdev,
 	return 0;
 }
 
-/*static 
-int at76c503_iw_handler_get_waplist(struct net_device *netdev,
-				    struct iw_request_info *info,
-				    struct iw_point *data,
-				    char *extra)
-{
-	return -EOPNOTSUPP;
-}*/
 
-static 
-int at76c503_iw_handler_set_scan(struct net_device *netdev,
+static int at76c503_iw_handler_set_scan(struct net_device *netdev,
 				 struct iw_request_info *info,
 				 union iwreq_data *wrqu,
 				 char *extra)
@@ -5541,8 +5480,7 @@ int at76c503_iw_handler_set_scan(struct net_device *netdev,
 	return ret;
 }
 
-static 
-int at76c503_iw_handler_get_scan(struct net_device *netdev,
+static int at76c503_iw_handler_get_scan(struct net_device *netdev,
 				 struct iw_request_info *info,
 				 struct iw_point *data,
 				 char *extra)
@@ -5656,8 +5594,7 @@ int at76c503_iw_handler_get_scan(struct net_device *netdev,
 }
 
 
-static 
-int at76c503_iw_handler_set_essid(struct net_device *netdev,
+static int at76c503_iw_handler_set_essid(struct net_device *netdev,
 				  struct iw_request_info *info,
 				  struct iw_point *data,
 				  char *extra)
@@ -5689,8 +5626,7 @@ int at76c503_iw_handler_set_essid(struct net_device *netdev,
 	return -EIWCOMMIT;
 }
 
-static 
-int at76c503_iw_handler_get_essid(struct net_device *netdev,
+static int at76c503_iw_handler_get_essid(struct net_device *netdev,
 				  struct iw_request_info *info,
 				  struct iw_point *data,
 				  char *extra)
@@ -5726,8 +5662,7 @@ int at76c503_iw_handler_get_essid(struct net_device *netdev,
 	return 0;
 }
 
-static
-int at76c503_iw_handler_set_nickname(struct net_device *netdev,
+static int at76c503_iw_handler_set_nickname(struct net_device *netdev,
 				     struct iw_request_info *info,
 				     struct iw_point *data,
 				     char *extra)
@@ -5742,8 +5677,7 @@ int at76c503_iw_handler_set_nickname(struct net_device *netdev,
 	return 0;
 }
 
-static
-int at76c503_iw_handler_get_nickname(struct net_device *netdev,
+static int at76c503_iw_handler_get_nickname(struct net_device *netdev,
 				     struct iw_request_info *info,
 				     struct iw_point *data,
 				     char *extra)
@@ -5760,8 +5694,7 @@ int at76c503_iw_handler_get_nickname(struct net_device *netdev,
 	return 0;
 }
 
-static 
-int at76c503_iw_handler_set_rate(struct net_device *netdev,
+static int at76c503_iw_handler_set_rate(struct net_device *netdev,
 				 struct iw_request_info *info,
 				 struct iw_param *bitrate,
 				 char *extra)
@@ -5785,8 +5718,7 @@ int at76c503_iw_handler_set_rate(struct net_device *netdev,
 	return ret;
 }
 
-static 
-int at76c503_iw_handler_get_rate(struct net_device *netdev,
+static int at76c503_iw_handler_get_rate(struct net_device *netdev,
 				 struct iw_request_info *info,
 				 struct iw_param *bitrate,
 				 char *extra)
@@ -5814,8 +5746,7 @@ int at76c503_iw_handler_get_rate(struct net_device *netdev,
 	return ret;
 }
 
-static 
-int at76c503_iw_handler_set_rts(struct net_device *netdev,
+static int at76c503_iw_handler_set_rts(struct net_device *netdev,
 				struct iw_request_info *info,
 				struct iw_param *rts,
 				char *extra)
@@ -5840,8 +5771,7 @@ int at76c503_iw_handler_set_rts(struct net_device *netdev,
 	return ret;
 }
 
-static 
-int at76c503_iw_handler_get_rts(struct net_device *netdev,
+static int at76c503_iw_handler_get_rts(struct net_device *netdev,
 				struct iw_request_info *info,
 				struct iw_param *rts,
 				char *extra)
@@ -5859,8 +5789,7 @@ int at76c503_iw_handler_get_rts(struct net_device *netdev,
 	return 0;
 }
 
-static 
-int at76c503_iw_handler_set_frag(struct net_device *netdev,
+static int at76c503_iw_handler_set_frag(struct net_device *netdev,
 				 struct iw_request_info *info,
 				 struct iw_param *frag,
 				 char *extra)
@@ -5885,8 +5814,7 @@ int at76c503_iw_handler_set_frag(struct net_device *netdev,
 	return ret;
 }
 
-static 
-int at76c503_iw_handler_get_frag(struct net_device *netdev,
+static int at76c503_iw_handler_get_frag(struct net_device *netdev,
 				 struct iw_request_info *info,
 				 struct iw_param *frag,
 				 char *extra)
@@ -5904,8 +5832,7 @@ int at76c503_iw_handler_get_frag(struct net_device *netdev,
 	return 0;
 }
 
-static
-int at76c503_iw_handler_get_txpow(struct net_device *netdev,
+static int at76c503_iw_handler_get_txpow(struct net_device *netdev,
 				  struct iw_request_info *info,
 				  struct iw_param *power,
 				  char *extra)
@@ -5923,8 +5850,7 @@ int at76c503_iw_handler_get_txpow(struct net_device *netdev,
 
 /* jal: short retry is handled by the firmware (at least 0.90.x),
    while long retry is not (?) */
-static 
-int at76c503_iw_handler_set_retry(struct net_device *netdev,
+static int at76c503_iw_handler_set_retry(struct net_device *netdev,
 				  struct iw_request_info *info,
 				  struct iw_param *retry,
 				  char *extra)
@@ -5949,8 +5875,7 @@ int at76c503_iw_handler_set_retry(struct net_device *netdev,
 }
 
 // adapted (ripped) from atmel.c
-static 
-int at76c503_iw_handler_get_retry(struct net_device *netdev,
+static int at76c503_iw_handler_get_retry(struct net_device *netdev,
 				  struct iw_request_info *info,
 				  struct iw_param *retry,
 				  char *extra)
@@ -5977,8 +5902,7 @@ int at76c503_iw_handler_get_retry(struct net_device *netdev,
 	return 0;
 }
 
-static 
-int at76c503_iw_handler_set_encode(struct net_device *netdev,
+static int at76c503_iw_handler_set_encode(struct net_device *netdev,
 				   struct iw_request_info *info,
 				   struct iw_point *encoding,
 				   char *extra)
@@ -6031,8 +5955,7 @@ int at76c503_iw_handler_set_encode(struct net_device *netdev,
 	return -EIWCOMMIT;
 }
 
-static 
-int at76c503_iw_handler_get_encode(struct net_device *netdev,
+static int at76c503_iw_handler_get_encode(struct net_device *netdev,
 				   struct iw_request_info *info,
 				   struct iw_point *encoding,
 				   char *extra)
@@ -6072,8 +5995,7 @@ int at76c503_iw_handler_get_encode(struct net_device *netdev,
 	return 0;
 }
 
-static 
-int at76c503_iw_handler_set_power(struct net_device *netdev,
+static int at76c503_iw_handler_set_power(struct net_device *netdev,
 				  struct iw_request_info *info,
 				  struct iw_param *power,
 				  char *extra)
@@ -6103,8 +6025,7 @@ int at76c503_iw_handler_set_power(struct net_device *netdev,
 	return -EIWCOMMIT;
 }
 
-static 
-int at76c503_iw_handler_get_power(struct net_device *netdev,
+static int at76c503_iw_handler_get_power(struct net_device *netdev,
 				  struct iw_request_info *info,
 				  struct iw_param *power,
 				  char *extra)
@@ -6154,8 +6075,7 @@ int at76c503_iw_handler_get_power(struct net_device *netdev,
 /*******************************************************************************
  * Private IOCTLS
  */
-static 
-int at76c503_iw_handler_PRIV_IOCTL_SET_SHORT_PREAMBLE
+static int at76c503_iw_handler_PRIV_IOCTL_SET_SHORT_PREAMBLE
 	(struct net_device *netdev, struct iw_request_info *info, 
 	 char *name, char *extra)
 {
@@ -6177,8 +6097,7 @@ int at76c503_iw_handler_PRIV_IOCTL_SET_SHORT_PREAMBLE
 	return ret;
 }
 
-static 
-int at76c503_iw_handler_PRIV_IOCTL_SET_DEBUG
+static int at76c503_iw_handler_PRIV_IOCTL_SET_DEBUG
 	(struct net_device *netdev, struct iw_request_info *info, 
 	 struct iw_point *data, char *extra)
 {
@@ -6213,8 +6132,7 @@ int at76c503_iw_handler_PRIV_IOCTL_SET_DEBUG
 	return 0;
 }
 
-static 
-int at76c503_iw_handler_PRIV_IOCTL_SET_POWERSAVE_MODE
+static int at76c503_iw_handler_PRIV_IOCTL_SET_POWERSAVE_MODE
 	(struct net_device *netdev, struct iw_request_info *info, 
 	 char *name, char *extra)
 {
@@ -6235,8 +6153,7 @@ int at76c503_iw_handler_PRIV_IOCTL_SET_POWERSAVE_MODE
 	return ret;
 }
 
-static 
-int at76c503_iw_handler_PRIV_IOCTL_SET_SCAN_TIMES
+static int at76c503_iw_handler_PRIV_IOCTL_SET_SCAN_TIMES
 	(struct net_device *netdev, struct iw_request_info *info, 
 	 char *name, char *extra)
 {
@@ -6263,8 +6180,7 @@ int at76c503_iw_handler_PRIV_IOCTL_SET_SCAN_TIMES
 	return ret;
 }
 
-static 
-int at76c503_iw_handler_PRIV_IOCTL_SET_SCAN_MODE
+static int at76c503_iw_handler_PRIV_IOCTL_SET_SCAN_MODE
 	(struct net_device *netdev, struct iw_request_info *info, 
 	 char *name, char *extra)
 {
@@ -6285,8 +6201,7 @@ int at76c503_iw_handler_PRIV_IOCTL_SET_SCAN_MODE
 	return ret;
 }
 
-static
-int set_iroaming(struct at76c503 *dev, int onoff)
+static int set_iroaming(struct at76c503 *dev, int onoff)
 {
 	int ret = 0;
 
@@ -6303,8 +6218,7 @@ int set_iroaming(struct at76c503 *dev, int onoff)
 	return ret;
 }
 
-static
-int at76c503_iw_handler_PRIV_IOCTL_SET_INTL_ROAMING
+static int at76c503_iw_handler_PRIV_IOCTL_SET_INTL_ROAMING
 	(struct net_device *netdev, struct iw_request_info *info, 
 	 char *name, char *extra)
 {
@@ -6330,8 +6244,7 @@ int at76c503_iw_handler_PRIV_IOCTL_SET_INTL_ROAMING
 
 /* == PROC set_monitor_mode == 
    sets dev->netdev->type */
-static
-void set_monitor_mode(struct at76c503 *dev, int use_prism)
+static void set_monitor_mode(struct at76c503 *dev, int use_prism)
 {
 	if (dev->iw_mode == IW_MODE_MONITOR) {
 		if (use_prism) {
@@ -6350,8 +6263,7 @@ void set_monitor_mode(struct at76c503 *dev, int use_prism)
 	}
 } /* set_monitor_mode */
 
-static
-int at76c503_iw_handler_PRIV_IOCTL_SET_MONITOR_MODE
+static int at76c503_iw_handler_PRIV_IOCTL_SET_MONITOR_MODE
 	(struct net_device *netdev, struct iw_request_info *info, 
 	 char *name, char *extra)
 {
@@ -6491,8 +6403,7 @@ static const struct iw_handler_def at76c503_handler_def =
 
 
 
-static
-int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
+static int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 {
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
 	struct iwreq *wrq = (struct iwreq *)rq;
@@ -7130,7 +7041,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.84 2006/06/22 21:09:23 agx Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.85 2006/06/30 08:42:19 agx Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
