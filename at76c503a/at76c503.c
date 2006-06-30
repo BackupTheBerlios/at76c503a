@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.85 2006/06/30 08:42:19 agx Exp $
+/* $Id: at76c503.c,v 1.86 2006/06/30 08:43:41 agx Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -230,20 +230,6 @@ static const u8 zeros[32];
 #define AUTH_RETRIES  3
 #define ASSOC_RETRIES 3
 #define DISASSOC_RETRIES 3
-
-#ifdef CONFIG_IPAQ_HANDHELD
-#define scan_hook(x)						\
-	do {							\
-		if (machine_is_h5400()) {			\
-			if (x)					\
-				ipaq_led_blink (RED_LED, 1, 2);	\
-			else					\
-				ipaq_led_off (RED_LED);		\
-		}						\
-	} while (0)
-#else
-#define scan_hook(x)
-#endif
 
 #define NEW_STATE(dev,newstate) \
   do {\
@@ -592,6 +578,18 @@ static inline char *mac2str(u8 *mac)
 	sprintf(str, "%02x:%02x:%02x:%02x:%02x:%02x",
 		mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 	return str;
+}
+
+static void scan_hook(int blink)
+{
+#ifdef CONFIG_IPAQ_HANDHELD
+	if (machine_is_h5400()) {
+		if (blink)
+			ipaq_led_blink (RED_LED, 1, 2);
+		else
+			ipaq_led_off (RED_LED);
+	}
+#endif
 }
 
 
@@ -7041,7 +7039,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.85 2006/06/30 08:42:19 agx Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.86 2006/06/30 08:43:41 agx Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
