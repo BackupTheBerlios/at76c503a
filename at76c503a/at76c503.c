@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.87 2006/06/30 08:45:58 agx Exp $
+/* $Id: at76c503.c,v 1.88 2006/06/30 08:50:03 agx Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -2664,8 +2664,8 @@ end_join:
 			       dev->pm_period_beacon = (dev->pm_period_us >> 10) / 
 					dev->curr_bss->beacon_interval;
 
-#if 0 /* only to check if we need to set the listen interval here
-         or could do it in the (re)assoc_req parameter */
+#ifdef DEBUG /* only to check if we need to set the listen interval here
+             or could do it in the (re)assoc_req parameter */
 				dump_mib_mac(dev);
 #endif
 
@@ -2682,7 +2682,7 @@ end_join:
 				set_associd(dev, dev->curr_bss->assoc_id);
 				set_listen_interval(dev, (u16)dev->pm_period_beacon);
 				set_pm_mode(dev, dev->pm_mode);
-#if 0
+#ifdef DEBUG
 				dump_mib_mac(dev);
 				dump_mib_mac_mgmt(dev);
 #endif
@@ -3570,7 +3570,7 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 
 	i802_11_hdr = (struct ieee802_11_hdr *)skb->data;
 
-#if 0
+#ifdef DEBUG
 	{
 		dbg_uc("%s: ENTRY skb len %d data %s", __FUNCTION__,
 		       skb->len, hex2str(dev->obuf, skb->data,
@@ -3640,7 +3640,7 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 		skb->protocol = htons(ETH_P_802_2);
 	}
 
-#if 0
+#ifdef DEBUG
 	{
 		char da[3*ETH_ALEN], sa[3*ETH_ALEN];
 		dbg_uc("%s: EXIT skb da %s sa %s proto x%04x len %d data %s", __FUNCTION__,
@@ -4640,7 +4640,7 @@ static int at76c503_open(struct net_device *netdev)
 			    netdev->name, mac2str(netdev->dev_addr));
 	}
 
-#if 0 //test only !!!
+#ifdef DEBUG //test only !!!
 	dump_mib_mac_addr(dev);
 #endif
 
@@ -4776,7 +4776,7 @@ static int ethtool_ioctl(struct at76c503 *dev, void *useraddr)
 	if (get_user(ethcmd, (u32 *)useraddr))
 		return -EFAULT;
 
-#if 0
+#ifdef DEBUG
 	{
 		dbg_uc("%s: %s: ethcmd=x%x buf: %s",
 		       dev->netdev->name, __FUNCTION__, ethcmd,
@@ -6909,7 +6909,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.87 2006/06/30 08:45:58 agx Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.88 2006/06/30 08:50:03 agx Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
