@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.37 2006/06/22 21:09:23 agx Exp $
+/* $Id: at76c503.h,v 1.38 2006/06/30 08:27:40 agx Exp $
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth
  *           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -46,15 +46,10 @@
 #endif
  
 /* current driver version */
-#define DRIVER_VERSION "v0.13rc1" VERSION_APPEND
+#define DRIVER_VERSION "v0.14dev" VERSION_APPEND
 
 
 #include <linux/workqueue.h>
-
-/* this wasn't even defined in early 2.4.x kernels ... */
-#ifndef SIOCIWFIRSTPRIV
-#  define SIOCIWFIRSTPRIV SIOCDEVPRIVATE
-#endif
 
 /* our private ioctl's */
 /* set preamble length*/
@@ -77,14 +72,6 @@
 #endif
 
 #define ETH_P_80211_RAW        (ETH_P_ECONET + 1)
-
-#ifndef ARPHRD_IEEE80211
-#define ARPHRD_IEEE80211 801     /* kernel 2.4.6 */
-#endif
-
-#ifndef ARPHRD_IEEE80211_PRISM  /* kernel 2.4.18 */
-#define ARPHRD_IEEE80211_PRISM 802
-#endif
 
 #define DEVICE_VENDOR_REQUEST_OUT    0x40
 #define DEVICE_VENDOR_REQUEST_IN     0xc0
