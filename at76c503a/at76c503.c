@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.86 2006/06/30 08:43:41 agx Exp $
+/* $Id: at76c503.c,v 1.87 2006/06/30 08:45:58 agx Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -2398,136 +2398,6 @@ static int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
 
 } /* reassoc_req */
 
-#if 0 /* delete it !!! */
-/* == PROC handle_scan == */
-static
-int handle_scan(struct at76c503 *dev)
-{
-	char obuf1[2*14+1], obuf2[2*14+1]; /* to hexdump tx_powerlevel, 
-					      channel_list */
-	int ret;
-	struct mib_mdomain mdomain;
-
-	if (dev->istate == INIT) {
-		ret = -EPERM;
-		goto end_scan;
-	}
-	assert(dev->istate == SCANNING);
-	
-	/* empty the driver's bss list */
-	free_bss_list(dev);
-
-	if (dev->international_roaming) {
-		if ((ret = start_scan(dev, 1, 0)) < 0) {
-			err("%s: start_scan failed with %d",
-			    dev->netdev->name, ret);
-			goto end_scan;
-		}
-
-		if ((ret = wait_completion(dev,CMD_SCAN)) != CMD_STATUS_COMPLETE) {
-			err("%s: 1.start_scan completed with %d",
-			    dev->netdev->name, ret);
-			goto end_scan;
-		}
-
-
-		if ((ret=get_mib_mdomain(dev, &mdomain)) < 0) {
-			err("get_mib_mdomain returned %d", ret);
-			goto end_scan;
-		}
-
-		dbg(DBG_MIB, "%s: MIB MDOMAIN: channel_list %s tx_powerlevel %s",
-		    dev->netdev->name,
-		    hex2str(obuf1, mdomain.channel_list,
-			    (sizeof(obuf1)-1)/2,'\0'),
-		    hex2str(obuf2, mdomain.tx_powerlevel,
-			    (sizeof(obuf2)-1)/2,'\0'));
-
-		/* dump the results of the scan */
-		dump_bss_table(dev, 0);
-	
-	}
-
-	if ((ret = start_scan(dev, 0, 1)) < 0) {
-		err("%s: start_scan (ANY) failed with %d", 
-		    dev->netdev->name, ret);
-		goto end_scan;
-	}
-	if ((ret = wait_completion(dev,CMD_SCAN)) != CMD_STATUS_COMPLETE) {
-		err("%s: start_scan (ANY) completed with %d", 
-			dev->netdev->name, ret);
-		goto end_scan;
-	}
-	
-	if ((ret = start_scan(dev, 1, 1)) < 0) {
-		err("%s: start_scan (SSID) failed with %d", 
-		    dev->netdev->name, ret);
-		goto end_scan;
-	}
-	if ((ret = wait_completion(dev,CMD_SCAN)) != CMD_STATUS_COMPLETE) {
-		err("%s: start_scan (SSID) completed with %d", 
-			dev->netdev->name, ret);
-		goto end_scan;
-	}
-	
-	/* dump the results of the scan with real ssid */
-	dump_bss_table(dev, 0);
-	
-	iwevent_scan_complete(dev->netdev); /* report the end of scan to user space */
-
-end_scan:
-	return (ret < 0);
-}
-#endif //#if 0
-
-#if 0
-/* == PROC re_register_intf ==
-   re-register the interfaces with the driver core. Taken from
-   usb.c:usb_new_device() after the call to usb_get_configuration() */
-int re_register_intf(struct usb_device *dev)
-{
-	int i;
-
-	dbg(DBG_DEVSTART, "%s: ENTER", __FUNCTION__);
-
-	/* Register all of the interfaces for this device with the driver core.
-	 * Remember, interfaces get bound to drivers, not devices. */
-	for (i = 0; i < dev->actconfig->desc.bNumInterfaces; i++) {
-		struct usb_interface *interface = &dev->actconfig->interface[i];
-		struct usb_interface_descriptor *desc;
-
-		desc = &interface->altsetting [interface->act_altsetting].desc;
-		interface->dev.parent = &dev->dev;
-		interface->dev.driver = NULL;
-		interface->dev.bus = dev->dev.bus; /* &usb_bus_type */
-		interface->dev.dma_mask = dev->dev.parent->dma_mask;
-		sprintf (&interface->dev.bus_id[0], "%d-%s:%d",
-			 dev->bus->busnum, dev->devpath,
-			 desc->bInterfaceNumber);
-		if (!desc->iInterface
-		    || usb_string (dev, desc->iInterface,
-				   interface->dev.name,
-				   sizeof interface->dev.name) <= 0) {
-			/* typically devices won't bother with interface
-			 * descriptions; this is the normal case.  an
-			 * interface's driver might describe it better.
-			 * (also: iInterface is per-altsetting ...)
-			 */
-			sprintf (&interface->dev.name[0],
-				 "usb-%s-%s interface %d",
-				 dev->bus->bus_name, dev->devpath,
-				 desc->bInterfaceNumber);
-		}
-		dev_dbg (&dev->dev, "%s - registering interface %s\n", __FUNCTION__,
-			 interface->dev.bus_id);
-		device_add (&interface->dev);
-//		usb_create_driverfs_intf_files (interface);
-	}
-
-	dbg(DBG_DEVSTART, "%s: EXIT", __FUNCTION__);
-	return 0;
-} /* re_register_intf */
-#endif // #if 0
 
 /* shamelessly copied from usbnet.c (oku) */
 static void defer_kevent (struct at76c503 *dev, int flag)
@@ -7039,7 +6909,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.86 2006/06/30 08:43:41 agx Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.87 2006/06/30 08:45:58 agx Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
