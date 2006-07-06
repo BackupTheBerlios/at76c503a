@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.89 2006/06/30 09:11:26 agx Exp $
+/* $Id: at76c503.c,v 1.90 2006/07/06 00:39:28 proski Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -94,7 +94,6 @@
 #include <linux/spinlock.h>
 #include <linux/list.h>
 #include <linux/smp_lock.h>
-#include <linux/devfs_fs_kernel.h>
 #include <linux/usb.h>
 #include <linux/netdevice.h>
 #include <linux/if_arp.h>
@@ -6922,7 +6921,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.89 2006/06/30 09:11:26 agx Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.90 2006/07/06 00:39:28 proski Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
