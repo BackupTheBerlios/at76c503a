@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.90 2006/07/06 00:39:28 proski Exp $
+/* $Id: at76c503.c,v 1.91 2006/07/08 06:26:55 proski Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -129,10 +129,14 @@
 #define PUT_DEV(udev) usb_put_dev((udev))
 #define SET_NETDEV_OWNER(ndev,owner) /* not needed anymore ??? */
 
-static inline int submit_urb(struct urb *urb, int mem_flags) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 14)
+#define gfp_t int
+#endif
+
+static inline int submit_urb(struct urb *urb, gfp_t mem_flags) {
 	return usb_submit_urb(urb, mem_flags);
 }
-static inline struct urb *alloc_urb(int iso_pk, int mem_flags) {
+static inline struct urb *alloc_urb(int iso_pk, gfp_t mem_flags) {
 	return usb_alloc_urb(iso_pk, mem_flags);
 }
 
@@ -6921,7 +6925,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.90 2006/07/06 00:39:28 proski Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.91 2006/07/08 06:26:55 proski Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
