@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.91 2006/07/08 06:26:55 proski Exp $
+/* $Id: at76c503.c,v 1.92 2006/07/08 06:29:01 proski Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -4775,11 +4775,11 @@ static void iwspy_update(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 	spin_unlock_bh(&(dev->spy_spinlock));
 } /* iwspy_update */
 
-static int ethtool_ioctl(struct at76c503 *dev, void *useraddr)
+static int ethtool_ioctl(struct at76c503 *dev, void __user *useraddr)
 {
 	u32 ethcmd;
 
-	if (get_user(ethcmd, (u32 *)useraddr))
+	if (get_user(ethcmd, (u32 __user *)useraddr))
 		return -EFAULT;
 
 #ifdef DEBUG
@@ -6925,7 +6925,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.91 2006/07/08 06:26:55 proski Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.92 2006/07/08 06:29:01 proski Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
