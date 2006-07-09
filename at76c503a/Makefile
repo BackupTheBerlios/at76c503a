@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.42 2006/06/21 08:50:07 maximsch2 Exp $
+#$Id: Makefile,v 1.43 2006/07/09 21:35:42 proski Exp $
 #
 # Copyright (c) 2002 - 2003 Oliver Kurth
 #           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -71,6 +71,10 @@ DEPMOD = /sbin/depmod
 # if it doesn't assume 2.5 style
 OLDMAKE = $(wildcard $(KERNEL_SRC)/Rules.make)
 
+SPARSE_FLAGS = -Wbitwise -Wcast-to-as -Wcontext -Wdefault-bitfield-sign \
+	-Wno-transparent-union -Wptr-subtraction-blows -Wundef \
+	-D__CHECK_ENDIAN__
+
 ifeq (,$(OLDMAKE))
 # 2.5 style modules, get the kernel makefiles to do the work
 
@@ -85,6 +89,11 @@ modules:
 	mkdir -p .tmp_versions
 	$(MAKE) -C $(KERNEL_SRC) M=$(SRCDIR) MODVERDIR=$(MODVERDIR) \
 		EXTRA_CFLAGS="$(FW_DL)" modules
+
+check:
+	mkdir -p .tmp_versions
+	$(MAKE) -C $(KERNEL_SRC) M=$(SRCDIR) MODVERDIR=$(MODVERDIR) \
+		EXTRA_CFLAGS="$(FW_DL)" modules C=2 CF="$(SPARSE_FLAGS)"
 
 mv_old:
 	for i in $(MODULES:%.o=%.ko); do \
