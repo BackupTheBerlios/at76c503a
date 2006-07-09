@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.39 2006/06/30 09:11:26 agx Exp $
+/* $Id: at76c503.h,v 1.40 2006/07/09 21:16:00 proski Exp $
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth
  *           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -213,8 +213,8 @@ struct at76c503_card_config{
 	u8 promiscuous_mode;
 	u8 short_retry_limit;
 	u8 encryption_type;
-	u16 rts_threshold;
-	u16 fragmentation_threshold;         // 256..2346
+	__le16 rts_threshold;
+	__le16 fragmentation_threshold;         // 256..2346
 	u8 basic_rate_set[4];
 	u8 auto_rate_fallback;                       //0,1
 	u8 channel;
@@ -224,20 +224,20 @@ struct at76c503_card_config{
 	u8 wep_default_key_value[4][WEP_KEY_SIZE];
 	u8 ssid_len;
 	u8 short_preamble;
-	u16 beacon_period;
+	__le16 beacon_period;
 } __attribute__ ((packed));
 
 struct at76c503_command{
 	u8 cmd;
 	u8 reserved;
-	u16 size;
+	__le16 size;
 } __attribute__ ((packed));
 
 /* the length of the Atmel firmware specific rx header before IEEE 802.11 starts */
 #define AT76C503_RX_HDRLEN offsetof(struct at76c503_rx_buffer, packet)
 
 struct at76c503_rx_buffer {
-	u16 wlength;
+	__le16 wlength;
 	u8 rx_rate;
 	u8 newbss;
 	u8 fragmentation;
@@ -252,7 +252,7 @@ struct at76c503_rx_buffer {
 #define AT76C503_TX_HDRLEN offsetof(struct at76c503_tx_buffer, packet)
 
 struct at76c503_tx_buffer {
-	u16 wlength;
+	__le16 wlength;
 	u8 tx_rate;
 	u8 padding;
 	u8 reserved[4];
@@ -268,9 +268,9 @@ struct at76c503_start_scan {
 	u8   essid[32];
 	u8   scan_type;
 	u8   channel;
-	u16  probe_delay;
-	u16  min_channel_time;
-	u16  max_channel_time;
+	__le16 probe_delay;
+	__le16 min_channel_time;
+	__le16 max_channel_time;
 	u8   essid_size;
 	u8   international_scan;
 } __attribute__ ((packed));
@@ -289,7 +289,7 @@ struct at76c503_join {
 	u8 essid[32];
 	u8 bss_type;
 	u8 channel;
-	u16 timeout;
+	__le16 timeout;
 	u8 essid_size;
 	u8 reserved;
 } __attribute__ ((packed));
@@ -322,20 +322,20 @@ struct mib_mac_addr {
 } __attribute__ ((packed));
 
 struct mib_mac {
-        u32 max_tx_msdu_lifetime;
-        u32 max_rx_lifetime;
-        u16 frag_threshold;
-        u16 rts_threshold;
-        u16 cwmin;
-        u16 cwmax;
+        __le32 max_tx_msdu_lifetime;
+        __le32 max_rx_lifetime;
+        __le16 frag_threshold;
+        __le16 rts_threshold;
+        __le16 cwmin;
+        __le16 cwmax;
         u8  short_retry_time;
         u8  long_retry_time;
         u8  scan_type; /* active or passive */
         u8  scan_channel;
-        u16 probe_delay; /* delay before sending a ProbeReq in active scan, RO */
-        u16 min_channel_time;
-        u16 max_channel_time;
-        u16 listen_interval;
+        __le16 probe_delay; /* delay before sending a ProbeReq in active scan, RO */
+        __le16 min_channel_time;
+        __le16 max_channel_time;
+        __le16 listen_interval;
         u8  desired_ssid[32];
         u8  desired_bssid[ETH_ALEN];
         u8  desired_bsstype; /* ad-hoc or infrastructure */
@@ -343,11 +343,11 @@ struct mib_mac {
 } __attribute__ ((packed));
 
 struct mib_mac_mgmt {
-	u16 beacon_period;
-	u16 CFP_max_duration;
-	u16 medium_occupancy_limit;
-	u16 station_id;  /* assoc id */
-	u16 ATIM_window;
+	__le16 beacon_period;
+	__le16 CFP_max_duration;
+	__le16 medium_occupancy_limit;
+	__le16 station_id;  /* assoc id */
+	__le16 ATIM_window;
 	u8  CFP_mode;
 	u8  privacy_option_implemented;
 	u8  DTIM_period;
@@ -370,21 +370,21 @@ struct mib_mac_wep {
         u8 wep_default_key_id;
         u8 wep_key_mapping_len;
         u8 exclude_unencrypted;
-        u32 wep_icv_error_count;
-        u32 wep_excluded_count;
+        __le32 wep_icv_error_count;
+        __le32 wep_excluded_count;
         u8 wep_default_keyvalue[NR_WEP_KEYS][WEP_KEY_SIZE];
         u8 encryption_level; /* 1 for 40bit, 2 for 104bit encryption */
 } __attribute__ ((packed));
 
 struct mib_phy {
-	u32 ed_threshold;
+	__le32 ed_threshold;
   
-	u16 slot_time;
-	u16 sifs_time;
-	u16 preamble_length;
-	u16 plcp_header_length;
-	u16 mpdu_max_length;
-	u16 cca_mode_supported;
+	__le16 slot_time;
+	__le16 sifs_time;
+	__le16 preamble_length;
+	__le16 plcp_header_length;
+	__le16 mpdu_max_length;
+	__le16 cca_mode_supported;
   
 	u8 operation_rate_set[4];
 	u8 channel_id;

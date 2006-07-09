@@ -1,4 +1,4 @@
-/* $Id: at76_ieee802_11.h,v 1.1 2004/08/18 22:01:45 jal2 Exp $ */
+/* $Id: at76_ieee802_11.h,v 1.2 2006/07/09 21:16:00 proski Exp $ */
 
 /* Copyright (c) 2003 Oliver Kurth
  * Copyright (c) 2004 Joerg Albert <joerg.albert@gmx.de>
@@ -16,12 +16,12 @@
 #define _IEEE802_11_H
 
 struct ieee802_11_hdr {
-	u16 frame_ctl;
-	u16 duration_id;
+	__le16 frame_ctl;
+	__le16 duration_id;
 	u8 addr1[ETH_ALEN];
 	u8 addr2[ETH_ALEN];
 	u8 addr3[ETH_ALEN];
-	u16 seq_ctl;
+	__le16 seq_ctl;
 } __attribute__ ((packed));
 
 /* max. length of frame body, incl. IV and ICV fields)

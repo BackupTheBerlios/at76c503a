@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.92 2006/07/08 06:29:01 proski Exp $
+/* $Id: at76c503.c,v 1.93 2006/07/09 21:16:00 proski Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -1217,7 +1217,7 @@ static int set_frag(struct at76c503 *dev, u16 size)
 	dev->mib_buf.type = MIB_MAC;
 	dev->mib_buf.size = 2;
 	dev->mib_buf.index = FRAGMENTATION_OFFSET;
-	*(u16*)dev->mib_buf.data = cpu_to_le16(size);
+	*(__le16*)dev->mib_buf.data = cpu_to_le16(size);
 	ret = set_mib(dev, &dev->mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (frag threshold) failed: %d", dev->netdev->name, ret);
@@ -1233,7 +1233,7 @@ static int set_rts(struct at76c503 *dev, u16 size)
 	dev->mib_buf.type = MIB_MAC;
 	dev->mib_buf.size = 2;
 	dev->mib_buf.index = RTS_OFFSET;
-	*(u16*)dev->mib_buf.data = cpu_to_le16(size);
+	*(__le16*)dev->mib_buf.data = cpu_to_le16(size);
 	ret = set_mib(dev, &dev->mib_buf);
 	if(ret < 0){
 		err("%s: set_mib (rts) failed: %d", dev->netdev->name, ret);
@@ -3667,7 +3667,7 @@ static void ieee80211_fixup(struct sk_buff *skb, int iw_mode)
 	struct ethhdr *eth_hdr_p;
 	u8 *src_addr;
 	u8 *dest_addr;
-	unsigned short proto = 0;
+	__be16 proto = 0;
 
 	i802_11_hdr = (struct ieee802_11_hdr *)skb->data;
 	skb_pull(skb, sizeof(struct ieee802_11_hdr));
@@ -3692,7 +3692,7 @@ static void ieee80211_fixup(struct sk_buff *skb, int iw_mode)
 		 * as part of the HW header and note the protocol. */
 		/* NOTE: prism2 doesn't collapse Appletalk frames (why?). */
 		skb_pull(skb, sizeof(rfc1042sig) + 2);
-		proto = *(unsigned short *)(skb->data - 2);
+		proto = *(__be16 *)(skb->data - 2);
 	}
 
 	if (ntohs(proto) > 1518) {
@@ -3709,7 +3709,7 @@ static void ieee80211_fixup(struct sk_buff *skb, int iw_mode)
 		 * use that (and consider it part of the hardware header). */
 		/* Note that this means we can never support non-SNAP 802.2
 		 * frames (because we can't tell when we get one) */
-		skb->protocol = *(unsigned short *)skb->data;
+		skb->protocol = *(__be16 *)skb->data;
 		skb_pull(skb, 2);
 #endif /* IEEE_STANDARD */
 	}
@@ -6925,7 +6925,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.92 2006/07/08 06:29:01 proski Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.93 2006/07/09 21:16:00 proski Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -7035,7 +7035,7 @@ static int at76c503_get_fw_info(u8 *fw_data, int fw_size,
   1c       4       length of external fw part
 */
 
-	u32 val;
+	__le32 val;
 	
 	if (fw_size < 0x21) {
 		err("fw too short (x%x)",fw_size);
