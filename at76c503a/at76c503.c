@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.93 2006/07/09 21:16:00 proski Exp $
+/* $Id: at76c503.c,v 1.94 2006/07/12 23:13:05 proski Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -340,14 +340,14 @@ const u8 hw_rates[4] = {0x82,0x84,0x0b,0x16};
 
 /* a ieee820.11 frame header without addr4 */
 struct ieee802_11_mgmt {
-	u16 frame_ctl;
-	u16 duration_id;
+	__le16 frame_ctl;
+	__le16 duration_id;
 	u8 addr1[ETH_ALEN]; /* destination addr */
 	u8 addr2[ETH_ALEN]; /* source addr */
 	u8 addr3[ETH_ALEN]; /* BSSID */
-	u16 seq_ctl;
+	__le16 seq_ctl;
 	u8 data[1508];
-	u32 fcs;
+	__le32 fcs;
 } __attribute__ ((packed));
 
 /* the size of the ieee802.11 header (excl. the at76c503 tx header) */
@@ -356,16 +356,16 @@ struct ieee802_11_mgmt {
 #define BEACON_MAX_DATA_LENGTH 1500
 /* beacon in ieee802_11_mgmt.data */
 struct ieee802_11_beacon_data {
-	u8   timestamp[8];           // TSFTIMER
-	u16  beacon_interval;         // Kms between TBTTs (Target Beacon Transmission Times)
-	u16  capability_information;
-	u8   data[BEACON_MAX_DATA_LENGTH]; /* contains: SSID (tag,length,value), 
-					  Supported Rates (tlv), channel */
+	u8	timestamp[8];           // TSFTIMER
+	__le16	beacon_interval;         // Kms between TBTTs (Target Beacon Transmission Times)
+	__le16	capability_information;
+	u8	data[BEACON_MAX_DATA_LENGTH]; /* contains: SSID (tag,length,value), 
+						 Supported Rates (tlv), channel */
 } __attribute__ ((packed));
 
 /* disassoc frame in ieee802_11_mgmt.data */
 struct ieee802_11_disassoc_frame {
-	u16 reason;
+	__le16 reason;
 } __attribute__ ((packed));
 #define DISASSOC_FRAME_SIZE \
   (AT76C503_TX_HDRLEN + IEEE802_11_MGMT_HEADER_SIZE +\
@@ -373,9 +373,9 @@ struct ieee802_11_disassoc_frame {
 
 /* assoc request in ieee802_11_mgmt.data */
 struct ieee802_11_assoc_req {
-	u16  capability;
-	u16  listen_interval;
-	u8   data[1]; /* variable number of bytes for SSID 
+	__le16	capability;
+	__le16	listen_interval;
+	u8	data[1]; /* variable number of bytes for SSID 
 			 and supported rates (tlv coded) */
 };
 /* the maximum size of an AssocReq packet */
@@ -386,11 +386,11 @@ struct ieee802_11_assoc_req {
 
 /* reassoc request in ieee802_11_mgmt.data */
 struct ieee802_11_reassoc_req {
-	u16  capability;
-	u16  listen_interval;
-	u8   curr_ap[ETH_ALEN]; /* the bssid of the AP we are
+	__le16	capability;
+	__le16	listen_interval;
+	u8	curr_ap[ETH_ALEN]; /* the bssid of the AP we are
 				   currently associated to */
-	u8   data[1]; /* variable number of bytes for SSID 
+	u8	data[1]; /* variable number of bytes for SSID 
 			 and supported rates (tlv coded) */
 } __attribute__ ((packed));
 
@@ -403,18 +403,18 @@ struct ieee802_11_reassoc_req {
 
 /* assoc/reassoc response */
 struct ieee802_11_assoc_resp {
-	u16  capability;
-	u16  status;
-	u16  assoc_id;
-	u8   data[1]; /* variable number of bytes for 
+	__le16	capability;
+	__le16	status;
+	__le16	assoc_id;
+	u8	data[1]; /* variable number of bytes for 
 			 supported rates (tlv coded) */
 } __attribute__ ((packed));
 
 /* auth. request/response in ieee802_11_mgmt.data */
 struct ieee802_11_auth_frame {
-	u16 algorithm;
-	u16 seq_nr;
-	u16 status;
+	__le16 algorithm;
+	__le16 seq_nr;
+	__le16 status;
 	u8 challenge[0];
 } __attribute__ ((packed));
 /* for shared secret auth, add the challenge text size */
@@ -424,7 +424,7 @@ struct ieee802_11_auth_frame {
 
 /* deauth frame in ieee802_11_mgmt.data */
 struct ieee802_11_deauth_frame {
-	u16 reason;
+	__le16 reason;
 } __attribute__ ((packed));
 #define DEAUTH_FRAME_SIZE \
   (AT76C503_TX_HDRLEN + IEEE802_11_MGMT_HEADER_SIZE +\
@@ -3569,7 +3569,7 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 	struct ethhdr *eth_hdr_p;
 	u8 *src_addr;
 	u8 *dest_addr;
-	unsigned short proto = 0;
+	__be16 proto = 0;
 	int build_ethhdr = 1;
 
 	i802_11_hdr = (struct ieee802_11_hdr *)skb->data;
@@ -3599,7 +3599,7 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 	} else if (!memcmp(skb->data, snapsig, sizeof(snapsig))) {
 		/* SNAP frame - collapse it */
 		skb_pull(skb, sizeof(rfc1042sig)+2);
-		proto = *(unsigned short *)(skb->data - 2);
+		proto = *(__be16 *)(skb->data - 2);
 	} else {
 #ifdef IEEE_STANDARD
 		/* According to all standards, we should assume the data
@@ -3617,7 +3617,7 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 		/* jal: This isn't true. My WRT54G happily sends SNAP.
 		   Difficult to speak for all APs, so I don't dare to define
 		   IEEE_STANDARD ... */
-		proto = *(unsigned short *)(skb->data);
+		proto = *(__be16 *)(skb->data);
 		skb_pull(skb, 2);
 #endif /* IEEE_STANDARD */
 	}
@@ -4383,7 +4383,7 @@ static int at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	   enough space */
 	//  dbg(DBG_TX, "skb->data - skb->head = %d", skb->data - skb->head);
 
-	if (ntohs(*(u16 *)(skb->data + 2*ETH_ALEN)) <= 1518) {
+	if (ntohs(*(__be16 *)(skb->data + 2*ETH_ALEN)) <= 1518) {
 		/* this is a 802.3 packet */
 		if (skb->data[2*ETH_ALEN+2] == rfc1042sig[0] &&
 		    skb->data[2*ETH_ALEN+2+1] == rfc1042sig[1]) {
@@ -6925,7 +6925,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.93 2006/07/09 21:16:00 proski Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.94 2006/07/12 23:13:05 proski Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
