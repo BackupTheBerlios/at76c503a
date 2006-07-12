@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.94 2006/07/12 23:13:05 proski Exp $
+/* $Id: at76c503.c,v 1.95 2006/07/12 23:21:29 proski Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -2103,8 +2103,7 @@ static int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf
 
 		txbuf->tx_rate = 0;
 //		txbuf->padding = 0;
-		txbuf->padding = 
-		   cpu_to_le16(calc_padding(le16_to_cpu(txbuf->wlength)));
+		txbuf->padding = calc_padding(le16_to_cpu(txbuf->wlength));
 
 		if (dev->next_mgmt_bulk) {
 			err("%s: %s URB status %d, but mgmt is pending",
@@ -2113,7 +2112,7 @@ static int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf
 
 		dbg(DBG_TX_MGMT, "%s: tx mgmt: wlen %d tx_rate %d pad %d %s",
 		    dev->netdev->name, le16_to_cpu(txbuf->wlength),
-		    txbuf->tx_rate, le16_to_cpu(txbuf->padding),
+		    txbuf->tx_rate, txbuf->padding,
 		    hex2str(dev->obuf, txbuf->packet,
 			    min((sizeof(dev->obuf)-1)/2,
 				(size_t)le16_to_cpu(txbuf->wlength)),'\0'));
@@ -2126,7 +2125,7 @@ static int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf
 					      dev->bulk_out_endpointAddr),
 			      dev->bulk_out_buffer,
 			      le16_to_cpu(txbuf->wlength) + 
-			      le16_to_cpu(txbuf->padding) +
+			      txbuf->padding +
 			      AT76C503_TX_HDRLEN,
 			      (usb_complete_t)at76c503_write_bulk_callback, dev);
 		ret = submit_urb(dev->write_urb, GFP_ATOMIC);
@@ -2909,7 +2908,7 @@ static void dump_bss_table(struct at76c503 *dev, int force_output)
 			    hex2str(dev->obuf, ptr->ssid,
 				    min((sizeof(dev->obuf)-1)/2,
 					(size_t)ptr->ssid_len),'\0'),
-			    le16_to_cpu(ptr->capa),
+			    ptr->capa,
 			    hex2str(dev->obuf_s, ptr->rates, 
 				    min(sizeof(dev->obuf_s)/3,
 					(size_t)ptr->rates_len), ' '),
@@ -3229,7 +3228,7 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 		(struct ieee802_11_beacon_data *)mgmt->data;
 
 	/* length of var length beacon parameters */
-	int varpar_len = min((int)buf->wlength -
+	int varpar_len = min(le16_to_cpu(buf->wlength) -
 			     (int)(offsetof(struct ieee802_11_mgmt, data) +
 			      offsetof(struct ieee802_11_beacon_data, data)),
 			     BEACON_MAX_DATA_LENGTH);
@@ -4295,8 +4294,7 @@ static void at76c503_write_bulk_callback (struct urb *urb)
 					      dev->bulk_out_endpointAddr),
 			      dev->bulk_out_buffer,
 			      le16_to_cpu(mgmt_buf->wlength) + 
-			      le16_to_cpu(mgmt_buf->padding) +
-			      AT76C503_TX_HDRLEN,
+			      mgmt_buf->padding + AT76C503_TX_HDRLEN,
 			      (usb_complete_t)at76c503_write_bulk_callback, dev);
 		ret = submit_urb(dev->write_urb, GFP_ATOMIC);
 		if (ret) {
@@ -4436,9 +4434,8 @@ static int at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	
 	memset(tx_buffer->reserved, 0, 4);
 
-	tx_buffer->padding = cpu_to_le16(calc_padding(wlen));
-	submit_len = wlen + AT76C503_TX_HDRLEN + 
-		le16_to_cpu(tx_buffer->padding);
+	tx_buffer->padding = calc_padding(wlen);
+	submit_len = wlen + AT76C503_TX_HDRLEN + tx_buffer->padding;
 
 	{
 		dbg(DBG_TX_DATA_CONTENT, "%s skb->data %s", dev->netdev->name,
@@ -4447,7 +4444,7 @@ static int at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 		dbg(DBG_TX_DATA, "%s tx  wlen x%x pad x%x rate %d hdr %s",
 		    dev->netdev->name,
 		    le16_to_cpu(tx_buffer->wlength),
-		    le16_to_cpu(tx_buffer->padding), tx_buffer->tx_rate, 
+		    tx_buffer->padding, tx_buffer->tx_rate, 
 		    hex2str(dev->obuf, (u8 *)i802_11_hdr, 
 			    min((sizeof(dev->obuf)-1)/2, 
 				sizeof(struct ieee802_11_hdr)),'\0'));
@@ -6925,7 +6922,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.94 2006/07/12 23:13:05 proski Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.95 2006/07/12 23:21:29 proski Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
