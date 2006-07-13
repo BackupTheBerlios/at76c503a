@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.95 2006/07/12 23:21:29 proski Exp $
+/* $Id: at76c503.c,v 1.96 2006/07/13 00:25:33 proski Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -322,18 +322,18 @@ MODULE_PARM_DESC(monitor_scan_max_time, "scan max channel time in MONITOR MODE (
 #define MIN_FRAG_THRESHOLD 256
 
 /* The frequency of each channel in MHz */
-const long channel_frequency[] = {
+static const long channel_frequency[] = {
         2412, 2417, 2422, 2427, 2432, 2437, 2442,
         2447, 2452, 2457, 2462, 2467, 2472, 2484
 };
 #define NUM_CHANNELS ( sizeof(channel_frequency) / sizeof(channel_frequency[0]) )
 
 /* the broadcast address */
-const u8 bc_addr[ETH_ALEN] = {0xff,0xff,0xff,0xff,0xff,0xff};
-const u8 off_addr[ETH_ALEN] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const u8 bc_addr[ETH_ALEN] = {0xff,0xff,0xff,0xff,0xff,0xff};
+static const u8 off_addr[ETH_ALEN] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 /* the supported rates of this hardware, bit7 marks a mandantory rate */
-const u8 hw_rates[4] = {0x82,0x84,0x0b,0x16};
+static const u8 hw_rates[4] = {0x82,0x84,0x0b,0x16};
 
 /* the max padding size for tx in bytes (see calc_padding)*/
 #define MAX_PADDING_SIZE 53
@@ -780,7 +780,7 @@ err:
 #endif	/* #if  LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8) */
 
 
-int at76c503_remap(struct usb_device *udev)
+static int at76c503_remap(struct usb_device *udev)
 {
 	int ret;
 	ret = usb_control_msg(udev, usb_sndctrlpipe(udev,0),
@@ -908,7 +908,7 @@ static int get_hw_config(struct at76c503 *dev)
 }
 
 /* == PROC getRegDomain == */
-struct reg_domain const *getRegDomain(u16 code)
+static struct reg_domain const *getRegDomain(u16 code)
 {
 	static struct reg_domain const fd_tab[] = {
 		{0x10, "FCC (U.S)", 0x7ff}, /* ch 1-11 */
@@ -1043,7 +1043,7 @@ static const char* get_cmd_status_string(u8 cmd_status)
 }
 
 /* TODO: should timeout */
-int wait_completion(struct at76c503 *dev, int cmd)
+static int wait_completion(struct at76c503 *dev, int cmd)
 {
 	u8 *cmd_status = kmalloc(40, GFP_KERNEL);
 	struct net_device *netdev = dev->netdev;
@@ -1782,7 +1782,7 @@ static int join_bss(struct at76c503 *dev, struct bss_info *ptr)
 } /* join_bss */
 
 /* the firmware download timeout (after remap) */
-void fw_dl_timeout(unsigned long par)
+static void fw_dl_timeout(unsigned long par)
 {
 	struct at76c503 *dev = (struct at76c503 *)par;
 	defer_kevent(dev, KEVENT_RESET_DEVICE);
@@ -1790,14 +1790,14 @@ void fw_dl_timeout(unsigned long par)
 
 
 /* the restart timer timed out */
-void restart_timeout(unsigned long par)
+static void restart_timeout(unsigned long par)
 {
 	struct at76c503 *dev = (struct at76c503 *)par;
 	defer_kevent(dev, KEVENT_RESTART);
 }
 
 /* we got to check the bss_list for old entries */
-void bss_list_timeout(unsigned long par)
+static void bss_list_timeout(unsigned long par)
 {
 	struct at76c503 *dev = (struct at76c503 *)par;
 	unsigned long flags;
@@ -1826,7 +1826,7 @@ void bss_list_timeout(unsigned long par)
 }
 
 /* we got a timeout for a infrastructure mgmt packet */
-void mgmt_timeout(unsigned long par)
+static void mgmt_timeout(unsigned long par)
 {
 	struct at76c503 *dev = (struct at76c503 *)par;
 	defer_kevent(dev, KEVENT_MGMT_TIMEOUT);
@@ -1835,7 +1835,7 @@ void mgmt_timeout(unsigned long par)
 /* == PROC handle_mgmt_timeout_scan == */
 /* called in istate SCANNING on expiry of the mgmt_timer, when a scan was run before
    (dev->scan_runs > 0) */
-void handle_mgmt_timeout_scan(struct at76c503 *dev)
+static void handle_mgmt_timeout_scan(struct at76c503 *dev)
 {
 
 	u8 *cmd_status;
@@ -1947,7 +1947,7 @@ void handle_mgmt_timeout_scan(struct at76c503 *dev)
 }
 
 /* the deferred procedure called from kevent() */
-void handle_mgmt_timeout(struct at76c503 *dev)
+static void handle_mgmt_timeout(struct at76c503 *dev)
 {
 
 	if ((dev->istate != SCANNING && dev->istate != MONITORING) || 
@@ -6805,8 +6805,9 @@ static int at76c503_alloc_urbs(struct at76c503 *dev)
 	return 0;
 }
 
-struct at76c503 *alloc_new_device(struct usb_device *udev, int board_type,
-				     const char *netdev_name)
+static struct at76c503 *alloc_new_device(struct usb_device *udev,
+					 int board_type,
+					 const char *netdev_name)
 {
 	struct net_device *netdev;
 	struct at76c503 *dev = NULL;
@@ -6881,7 +6882,7 @@ struct at76c503 *alloc_new_device(struct usb_device *udev, int board_type,
 /* We may have to move the register_netdev into alloc_new_device,
    because hotplug may try to configure the netdev _before_
    (or parallel to) the download of firmware */
-int init_new_device(struct at76c503 *dev)
+static int init_new_device(struct at76c503 *dev)
 {
 	struct net_device *netdev = dev->netdev;
 	int ret;
@@ -6922,7 +6923,7 @@ int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.95 2006/07/12 23:21:29 proski Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.96 2006/07/13 00:25:33 proski Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -7203,27 +7204,6 @@ error:
 	PUT_DEV(udev);
 	*devptr = NULL;
 	return ret;
-}
-
-/**
- * 	at76c503_usbdfu_post
- *
- * 	Called by usbdfu driver after the firmware has been downloaded, before
- * 	the final reset.
- * 	(this is called in a usb probe (khubd) context)
- */
-
-int at76c503_usbdfu_post(struct usb_device *udev)
-{
-	int result;
-
-	dbg(DBG_DEVSTART, "Sending remap command...");
-	result = at76c503_remap(udev);
-	if (result < 0) {
-		err("Remap command failed (%d)", result);
-		return result;
-	}
-	return 0;
 }
 
 

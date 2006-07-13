@@ -1,4 +1,4 @@
-/* $Id: fw-pkg-505a-rfmd2958-1.102.0-113.h,v 1.1 2004/06/15 19:53:42 jal2 Exp $ */
+/* $Id: fw-pkg-505a-rfmd2958-1.102.0-113.h,v 1.2 2006/07/13 00:25:34 proski Exp $ */
 /* AT76C505A, RFMD2958, 1.102.0#113 */
 /******************************************************************************/
 /*   Copyright (c) 2004-07-05 Atmel Corporation.  All Rights Reserved.	      */
@@ -37,7 +37,7 @@
 /*  OR IN COMBINATION WITH THE FIRMWARE.				      */
 /******************************************************************************/
 
-u8 fw_bin[] = {
+static u8 fw_bin[] = {
   0x29, 0xa6, 0x13, 0xed, 0x07, 0x00, 0x00, 0x00
 , 0x71, 0x00, 0x66, 0x01, 0x20, 0x00, 0x00, 0x00
 , 0x68, 0x00, 0x00, 0x00, 0x0c, 0x4f, 0x00, 0x00
@@ -4667,4 +4667,4 @@ u8 fw_bin[] = {
 , 0x00
 };
 
-const struct firmware static_fw = {37009, fw_bin};
+static const struct firmware static_fw = {37009, fw_bin};

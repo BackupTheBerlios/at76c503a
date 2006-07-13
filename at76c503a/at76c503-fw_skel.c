@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-fw_skel.c,v 1.10 2006/07/08 06:05:10 proski Exp $
+ * $Id: at76c503-fw_skel.c,v 1.11 2006/07/13 00:25:33 proski Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  *
@@ -36,7 +36,7 @@
 MODULE_DEVICE_TABLE (usb, dev_table);
 
 /* this is the firmware we use */
-const struct firmware *fw;
+static const struct firmware *fw;
 
 /* Module paramaters */
 
