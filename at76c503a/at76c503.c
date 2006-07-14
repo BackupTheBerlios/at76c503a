@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.103 2006/07/14 06:48:22 proski Exp $
+/* $Id: at76c503.c,v 1.104 2006/07/14 22:21:43 proski Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -87,7 +87,6 @@
 #include <linux/signal.h>
 #include <linux/errno.h>
 #include <linux/poll.h>
-#include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/fcntl.h>
 #include <linux/module.h>
@@ -102,9 +101,7 @@
 #include <asm/uaccess.h>
 #include <linux/wireless.h>
 #include <net/iw_handler.h>
-
 #include <linux/rtnetlink.h>  /* for rtnl_lock() */
-#include <net/iw_handler.h>
 
 #ifdef CONFIG_IPAQ_HANDHELD
 #include <asm/mach-types.h>
@@ -6501,7 +6498,7 @@ static int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.103 2006/07/14 06:48:22 proski Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.104 2006/07/14 22:21:43 proski Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
