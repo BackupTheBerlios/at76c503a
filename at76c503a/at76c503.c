@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.96 2006/07/13 00:25:33 proski Exp $
+/* $Id: at76c503.c,v 1.97 2006/07/14 02:06:20 proski Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -485,8 +485,8 @@ static void set_monitor_mode(struct at76c503 *dev, int use_prism);
 /* disassemble the firmware image */
 static int at76c503_get_fw_info(u8 *fw_data, int fw_size,
 				u32 *board, u32 *version, char **str,
-				u8 **ext_fw, u32 *ext_fw_size,
-				u8 **int_fw, u32 *int_fw_size);
+				u8 **ext_fw, int *ext_fw_size,
+				u8 **int_fw, int *int_fw_size);
 
 /* second step of initialisation (after fw download) */
 static int init_new_device(struct at76c503 *dev);
@@ -6923,7 +6923,7 @@ static int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.96 2006/07/13 00:25:33 proski Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.97 2006/07/14 02:06:20 proski Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -7016,8 +7016,8 @@ static int init_new_device(struct at76c503 *dev)
    internal and external fw part. returns 0 on success, < 0 on error */
 static int at76c503_get_fw_info(u8 *fw_data, int fw_size,
 				u32 *board, u32 *version, char **str,
-				u8 **int_fw, u32 *int_fw_size,
-				u8 **ext_fw, u32 *ext_fw_size)
+				u8 **int_fw, int *int_fw_size,
+				u8 **ext_fw, int *ext_fw_size)
 {
 /* fw structure (all numbers are little_endian)
    offset  length  description
