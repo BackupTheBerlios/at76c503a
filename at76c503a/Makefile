@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.45 2006/07/14 06:51:46 proski Exp $
+#$Id: Makefile,v 1.46 2006/07/14 22:16:58 proski Exp $
 #
 # Copyright (c) 2002 - 2003 Oliver Kurth
 #           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -67,16 +67,9 @@ DEL_MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNEL_VERSION)
 MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNEL_VERSION)/kernel/drivers/net/wireless/at76c503
 DEPMOD = /sbin/depmod
 
-# if Rules.make exists in the kernel tree, we assume 2.4 style modules
-# if it doesn't assume 2.5 style
-OLDMAKE = $(wildcard $(KERNEL_SRC)/Rules.make)
-
 SPARSE_FLAGS = -Wbitwise -Wcast-to-as -Wcontext -Wdefault-bitfield-sign \
 	-Wtransparent-union -Wptr-subtraction-blows -Wundef -Wdecl \
 	-Wone-bit-signed-bitfield -Wtypesign -D__CHECK_ENDIAN__
-
-ifeq (,$(OLDMAKE))
-# 2.5 style modules, get the kernel makefiles to do the work
 
 SRCDIR = $(shell pwd)
 MODVERDIR = $(SRCDIR)/.tmp_versions
@@ -108,56 +101,6 @@ install: mv_old install-modules
 
 uninstall:
 	for f in $(MODULES:%.o=%.ko); do rm $(MODULE_DIR)/$$f; done
-
-else
-# 2.4 style modules
-
-CPPFLAGS = -D__KERNEL__ \
-	-DMODULE -DEXPORT_SYMTAB \
-	-I$(KERNEL_HEADERS)
-CFLAGS = -O2 -Wall -Wstrict-prototypes -pipe -fno-strict-aliasing \
-	 $(FW_DL) \
-         -fno-common -Wno-sign-compare -Wno-unused
-
-MODVER = $(shell if cat $(KERNEL_HEADERS)/linux/autoconf.h 2>/dev/null | \
-grep -q '^[[:space:]]*\#define[[:space:]]*CONFIG_MODVERSIONS[[:space:]]*1'; \
-then echo 1; else echo 0; fi)
-
-ifeq ($(MODVER),1)
-MFLAG = -DMODVERSIONS -include $(KERNEL_HEADERS)/linux/modversions.h
-endif
-
-CCDEP = $(CC) $(CFLAGS) -M
-TAR = tar
-
-all: $(MODULES)
-
-mv_old:
-	for i in $(MODULES); do \
-	  find $(DEL_MODULE_DIR) -name $$i -exec rm -f {} {}.orig \; ;done 
-
-install-modules: all
-	mkdir -p $(MODULE_DIR)
-	for f in $(MODULES); do install -m 644 -o 0 -g 0 $$f $(MODULE_DIR)/$$f; done
-
-install: mv_old install-modules
-	$(DEPMOD) -ae
-
-uninstall:
-	for f in $(MODULES); do rm $(MODULE_DIR)/$$f; done
-
-%.o: %.c
-	$(CC) -MD $(CFLAGS) $(CPPFLAGS) $(MFLAG) -c $<
-
-%.s: %.c
-	$(CC) -MD $(CFLAGS) $(CPPFLAGS) -S $<
-
-%.i: %.c
-	$(CC) -MD $(CPPFLAGS) -E $< -o $@
-
--include $(SRCS:%.c=%.d)
-
-endif
 
 .PHONY: all dist kernel_patch rmmod mv_old install-modules install modules
 
