@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.100 2006/07/14 03:48:02 proski Exp $
+/* $Id: at76c503.c,v 1.101 2006/07/14 05:43:47 proski Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -4859,7 +4859,7 @@ static int at76c503_iw_handler_get_name(struct net_device *netdev,
 				 char *name,
 				 char *extra)
 {
-	strcpy(name, "IEEE 802.11-DS");
+	strcpy(name, "IEEE 802.11b");
 	
 	dbg(DBG_IOCTL, "%s: SIOCGIWNAME - name %s", netdev->name, name);
 	
@@ -6501,7 +6501,7 @@ static int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.100 2006/07/14 03:48:02 proski Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.101 2006/07/14 05:43:47 proski Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
