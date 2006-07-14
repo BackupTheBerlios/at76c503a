@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.99 2006/07/14 03:02:05 proski Exp $
+/* $Id: at76c503.c,v 1.100 2006/07/14 03:48:02 proski Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -4770,62 +4770,6 @@ static void iwspy_update(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 	spin_unlock_bh(&(dev->spy_spinlock));
 } /* iwspy_update */
 
-static int ethtool_ioctl(struct at76c503 *dev, void __user *useraddr)
-{
-	u32 ethcmd;
-
-	if (get_user(ethcmd, (u32 __user *)useraddr))
-		return -EFAULT;
-
-#ifdef DEBUG
-	{
-		dbg_uc("%s: %s: ethcmd=x%x buf: %s",
-		       dev->netdev->name, __FUNCTION__, ethcmd,
-		       hex2str(dev->obuf,useraddr,
-			       min((int)(sizeof(dev->obuf)-1)/2,32), '\0'));
-	}
-#endif	
-
-	switch (ethcmd) {
-	case ETHTOOL_GDRVINFO:
-	{
-		struct ethtool_drvinfo *info = 
-			kmalloc(sizeof(struct ethtool_drvinfo), GFP_KERNEL);
-		if (!info)
-			return -ENOMEM;
-
-		info->cmd = ETHTOOL_GDRVINFO;
-		strncpy(info->driver, "at76c503", 
-			sizeof(info->driver)-1);
-		
-		strncpy(info->version, DRIVER_VERSION, sizeof(info->version));
-		info->version[sizeof(info->version)-1] = '\0';
-
-		snprintf(info->bus_info, sizeof(info->bus_info)-1,
-			 "usb%d:%d", dev->udev->bus->busnum,
-			 dev->udev->devnum);
-
-		snprintf(info->fw_version, sizeof(info->fw_version)-1,
-			 "%d.%d.%d-%d",
-			 dev->fw_version.major, dev->fw_version.minor,
-			 dev->fw_version.patch, dev->fw_version.build);
-		if (copy_to_user (useraddr, info, sizeof (*info))) {
-			kfree(info);
-			return -EFAULT;
-		}
-
-		kfree(info);
-		return 0;
-	}
-	break;
-
-	default:
-		break;
-	}
-
-	return -EOPNOTSUPP;
-}
-
 
 /*******************************************************************************
  * structure that describes the private ioctls/iw handlers of this driver
@@ -6265,37 +6209,29 @@ static const struct iw_handler_def at76c503_handler_def =
 };
 
 
-
-
-static int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
+static void at76c503_get_drvinfo(struct net_device *netdev,
+				 struct ethtool_drvinfo *info)
 {
-	struct at76c503 *dev = (struct at76c503*)netdev->priv;
-	int ret = 0;
+	struct at76c503 *dev = (struct at76c503 *)netdev->priv;
 
-	if (! netif_device_present(netdev))
-		return -ENODEV;
-	
-	if (down_interruptible(&dev->sem))
-                return -EINTR;
-	
-	switch (cmd) {
-		
-	// rudimentary ethtool support for hotplug of SuSE 8.3
-	case SIOCETHTOOL:
-	{
-		ret = ethtool_ioctl(dev,rq->ifr_data);
-	}
-	break;
-	
-	default:
-		dbg(DBG_IOCTL, "%s: ioctl not supported (0x%x)", netdev->name, 
-			cmd);
-		ret = -EOPNOTSUPP;
-	}
-	
-	up(&dev->sem);
-	return ret;
+	strncpy(info->driver, "at76c503", sizeof(info->driver) - 1);
+
+	strncpy(info->version, DRIVER_VERSION, sizeof(info->version));
+	info->version[sizeof(info->version)-1] = '\0';
+
+	snprintf(info->bus_info, sizeof(info->bus_info) - 1, "usb%d:%d",
+		 dev->udev->bus->busnum, dev->udev->devnum);
+
+	snprintf(info->fw_version, sizeof(info->fw_version) - 1,
+		 "%d.%d.%d-%d",
+		 dev->fw_version.major, dev->fw_version.minor,
+		 dev->fw_version.patch, dev->fw_version.build);
 }
+
+static struct ethtool_ops at76c503_ethtool_ops = {
+	.get_drvinfo = at76c503_get_drvinfo,
+};
+
 
 void at76c503_delete_device(struct at76c503 *dev)
 {
@@ -6565,7 +6501,7 @@ static int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.99 2006/07/14 03:02:05 proski Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.100 2006/07/14 03:48:02 proski Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -6610,6 +6546,7 @@ static int init_new_device(struct at76c503 *dev)
 	netdev->open = at76c503_open;
 	netdev->stop = at76c503_stop;
 	netdev->get_stats = at76c503_get_stats;
+	netdev->ethtool_ops = &at76c503_ethtool_ops;
 
 #if WIRELESS_EXT > 16
 	/* Add pointers to enable iwspy support. */
@@ -6624,7 +6561,6 @@ static int init_new_device(struct at76c503 *dev)
 	netdev->watchdog_timeo = 2 * HZ;
 	netdev->wireless_handlers = 
 		(struct iw_handler_def*)&at76c503_handler_def;
-	netdev->do_ioctl = at76c503_ioctl;
 	netdev->set_multicast_list = at76c503_set_multicast;
 	netdev->set_mac_address = at76c503_set_mac_address;
 	//  netdev->hard_header_len = 8 + sizeof(struct ieee802_11_hdr);
