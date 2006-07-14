@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.40 2006/07/09 21:16:00 proski Exp $
+/* $Id: at76c503.h,v 1.41 2006/07/14 06:29:24 proski Exp $
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth
  *           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -482,8 +482,8 @@ struct rx_data_buf {
 #define NR_SUBMIT_RX_TRIES 8
 
 struct at76c503 {
-	struct usb_device *udev;			/* save off the usb device pointer */
-	struct net_device *netdev;			/* save off the net device pointer */
+	struct usb_device *udev;			/* USB device pointer */
+	struct net_device *netdev;			/* net device pointer */
 	struct net_device_stats stats;
 	struct iw_statistics wstats;
 	struct usb_interface *interface;		/* the interface for this device */

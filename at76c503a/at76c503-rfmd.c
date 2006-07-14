@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-rfmd.c,v 1.25 2004/08/18 22:01:45 jal2 Exp $
+ * $Id: at76c503-rfmd.c,v 1.26 2006/07/14 06:29:24 proski Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using RFMD radio chips
@@ -127,7 +127,7 @@ static struct firmware static_fw = {0,NULL};
 #define PRODUCT_ID_PLANEX_GW_US11S      0x3220 /* Planex GW-US11S */
 
 #define VENDOR_ID_COMPAQ                0x049f
-#define PRODUCT_ID_IPAQ_INT_WLAN        0x0032 /* internal wlan adapter in h5[4,5]xx series iPAQs */
+#define PRODUCT_ID_IPAQ_INT_WLAN        0x0032 /* internal WLAN adapter in h5[4,5]xx series iPAQs */
 
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID_ATMEL,    PRODUCT_ID_ATMEL_503R        ) },

@@ -1,4 +1,4 @@
-/* $Id: gen_fw.c,v 1.6 2004/06/15 19:53:42 jal2 Exp $ */
+/* $Id: gen_fw.c,v 1.7 2006/07/14 06:29:24 proski Exp $ */
 
 /* This file includes the old style firmwares and outputs new, binary files. */
 
@@ -40,9 +40,9 @@ typedef struct {
         u32 version;         // firmware version code
         u32 str_offset;      // printable string offset (copyright)
         u32 internal_offset; // internal firmware image offset
-        u32 internal_len;    // internal firmawre image len
+        u32 internal_len;    // internal firmware image length
         u32 external_offset; // external firmware image offset
-        u32 external_len;    // external firmware image len
+        u32 external_len;    // external firmware image length
 } at76c50x_fw_t __attribute__((packed));
 
 #define cpu_to_le32(x) (x)

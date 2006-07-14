@@ -26,13 +26,13 @@ This is another driver for the Atmel AT76C503A based USB WLAN adapters.
 #if [ ! -e /usr/src/linux-2.4/.config ]; then
 #  echo "You need to run 'make menuconfig' once in /usr/src/linux-2.4"
 #  echo "Then exit immediately and save the configuration. The "
-#  echo "config file is needed to compile hostap. Thanx."
+#  echo "config file is needed to compile hostap. Thanks."
 #  exit 1
 #fi
 
 %build
 echo "=================================================================="
-echo "Building atmel driver %{PACKVER} for %{KERNELVER}"
+echo "Building Atmel driver %{PACKVER} for %{KERNELVER}"
 echo "Target is %{_target}"
 echo "=================================================================="
 sleep 5
@@ -62,5 +62,5 @@ rm -rf $RPM_BUILD_ROOT
 %changelog
 * Mon Jul 28 2003 Tim Niemueller <tim@niemueller.de>
 - Initial rpm release
-- Wrote spec file and compiled for current RedHat 9 kernel
+- Wrote spec file and compiled for current Red Hat 9 kernel
 

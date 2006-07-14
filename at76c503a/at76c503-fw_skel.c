@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-fw_skel.c,v 1.11 2006/07/13 00:25:33 proski Exp $
+ * $Id: at76c503-fw_skel.c,v 1.12 2006/07/14 06:29:24 proski Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  *
@@ -62,7 +62,7 @@ static int at76c50x_probe(struct usb_interface *interface,
 static void at76c50x_disconnect(struct usb_interface *interface);
 
 
-/* structure for registering this driver with the usb subsystem */
+/* structure for registering this driver with the USB subsystem */
 
 static struct usb_driver module_usb = {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,20) && LINUX_VERSION_CODE < KERNEL_VERSION(2,6,16)

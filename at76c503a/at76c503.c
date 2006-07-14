@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.101 2006/07/14 05:43:47 proski Exp $
+/* $Id: at76c503.c,v 1.102 2006/07/14 06:29:24 proski Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -189,7 +189,7 @@ static inline struct urb *alloc_urb(int iso_pk, gfp_t mem_flags) {
 #define DBG_RX_FRAGS        0x00002000 /* rx data fragment handling */
 #define DBG_DEVSTART        0x00004000 /* fw download, device start */
 #define DBG_URB             0x00008000 /* rx urb status, ... */
-#define DBG_RX_ATMEL_HDR    0x00010000 /* the atmel specific header of each rx packet */
+#define DBG_RX_ATMEL_HDR    0x00010000 /* the Atmel specific header of each rx packet */
 #define DBG_PROC_ENTRY      0x00020000 /* procedure entries and exits */
 #define DBG_PM              0x00040000 /* power management settings */
 #define DBG_BSS_MATCH       0x00080000 /* show why a certain bss did not match */
@@ -330,7 +330,7 @@ static const long channel_frequency[] = {
 static const u8 bc_addr[ETH_ALEN] = {0xff,0xff,0xff,0xff,0xff,0xff};
 static const u8 off_addr[ETH_ALEN] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-/* the supported rates of this hardware, bit7 marks a mandantory rate */
+/* the supported rates of this hardware, bit7 marks a basic rate */
 static const u8 hw_rates[4] = {0x82,0x84,0x0b,0x16};
 
 /* the max padding size for tx in bytes (see calc_padding)*/
@@ -1318,7 +1318,7 @@ static int set_promisc(struct at76c503 *dev, int onoff)
 	dev->mib_buf.data[0] = onoff ? 1 : 0;
 	ret = set_mib(dev, &dev->mib_buf);
 	if(ret < 0){
-		err("%s: set_mib (promiscous_mode) failed: %d", dev->netdev->name, ret);
+		err("%s: set_mib (promiscuous_mode) failed: %d", dev->netdev->name, ret);
 	}
 	return ret;
 }
@@ -1950,7 +1950,7 @@ static void handle_mgmt_timeout(struct at76c503 *dev)
 
 	if ((dev->istate != SCANNING && dev->istate != MONITORING) || 
 	     (debug & DBG_MGMT_TIMER))
-		/* this is normal behaviour in states MONITORING, SCANNING ... */
+		/* this is normal behavior in states MONITORING, SCANNING ... */
 		dbg(DBG_PROGRESS, "%s: timeout, state %d", dev->netdev->name,
 		    dev->istate);
 
@@ -1969,7 +1969,7 @@ static void handle_mgmt_timeout(struct at76c503 *dev)
 			   BEACON_TIMEOUT seconds */
 		info("%s: lost beacon bssid %s",
 		     dev->netdev->name, mac2str(dev->curr_bss->bssid));
-		/* jal: starting mgmt_timer in adhoc mode is questionable, 
+		/* jal: starting mgmt_timer in ad-hoc mode is questionable, 
 		   but I'll leave it here to track down another lockup problem */
 		if (dev->iw_mode != IW_MODE_ADHOC) {
 			netif_carrier_off(dev->netdev);
@@ -2266,7 +2266,7 @@ static int assoc_req(struct at76c503 *dev, struct bss_info *bss)
 	memcpy(mgmt->addr3, bss->bssid, ETH_ALEN);
 	mgmt->seq_ctl = cpu_to_le16(0);
 
-	/* we must set the Privacy bit in the capabilites to assure an
+	/* we must set the Privacy bit in the capabilities to assure an
 	   Agere-based AP with optional WEP transmits encrypted frames
 	   to us.  AP only set the Privacy bit in their capabilities
 	   if WEP is mandatory in the BSS! */
@@ -2349,7 +2349,7 @@ static int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
 	memcpy(mgmt->addr3, new_bss->bssid, ETH_ALEN);
 	mgmt->seq_ctl = cpu_to_le16(0);
 
-	/* we must set the Privacy bit in the capabilites to assure an
+	/* we must set the Privacy bit in the capabilities to assure an
 	   Agere-based AP with optional WEP transmits encrypted frames
 	   to us.  AP only set the Privacy bit in their capabilities
 	   if WEP is mandatory in the BSS! */
@@ -2436,7 +2436,7 @@ static void kevent(void *data)
 			err("usb_clear_halt() failed: %d", ret);
 		else{
 			clear_bit(KEVENT_CTRL_HALT, &dev->kevent_flags);
-			info("usb_clear_halt() succesful");
+			info("usb_clear_halt() successful");
 		}
 	}
 	if(test_bit(KEVENT_NEW_BSS, &dev->kevent_flags)){
@@ -3170,7 +3170,7 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 		    __FUNCTION__, __LINE__);
 		mod_timer(&dev->mgmt_timer,jiffies+HZ);
 	}
-	/* else: ignore AuthFrames to other receipients */
+	/* else: ignore AuthFrames to other recipients */
 } /* rx_mgmt_auth */
 
 static void rx_mgmt_deauth(struct at76c503 *dev,
@@ -3323,7 +3323,7 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 	// It does not support any more IE_ID types as although IE_ID_TIM may 
 	// be supported (on my AP at least).  
 	// The bdata->data array is about 1500 bytes long but only ~36 of those 
-	// bytes are useful, hence the have_ssid etc optimistaions.
+	// bytes are useful, hence the have_ssid etc optimizations.
 
 	while (keep_going &&
 	       ((int)(data_end(element) - bdata->data) <= varpar_len)) {
@@ -3439,7 +3439,7 @@ static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 
 	/* update wstats */
 	if (dev->istate != INIT && dev->istate != SCANNING) {
-		/* jal: this is a dirty hack needed by Tim in adhoc mode */
+		/* jal: this is a dirty hack needed by Tim in ad-hoc mode */
 		if (dev->iw_mode == IW_MODE_ADHOC ||
 		    (dev->curr_bss != NULL &&
 		     !memcmp(mgmt->addr3, dev->curr_bss->bssid, ETH_ALEN))) {
@@ -4423,7 +4423,7 @@ static int at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	i802_11_hdr->duration_id = cpu_to_le16(0);
 	i802_11_hdr->seq_ctl = cpu_to_le16(0);
 
-	/* setup 'atmel' header */
+	/* setup 'Atmel' header */
 	tx_buffer->wlength = cpu_to_le16(wlen);
 	tx_buffer->tx_rate = dev->txrate; 
         /* for broadcast destination addresses, the firmware 0.100.x 
@@ -5176,7 +5176,7 @@ static int at76c503_iw_handler_set_wap(struct net_device *netdev,
 	dbg(DBG_IOCTL, "%s: SIOCSIWAP - wap/bssid %s", netdev->name, 
 		mac2str(ap_addr->sa_data));
 	
-	// if the incomming address == ff:ff:ff:ff:ff:ff, the user has 
+	// if the incoming address == ff:ff:ff:ff:ff:ff, the user has 
 	// chosen any or auto AP preference
 	if (!memcmp(ap_addr->sa_data, bc_addr, ETH_ALEN)
 		|| !memcmp(ap_addr->sa_data, off_addr, ETH_ALEN)) {
@@ -6391,7 +6391,7 @@ static struct at76c503 *alloc_new_device(struct usb_device *udev,
 	struct at76c503 *dev = NULL;
 	int i;
 
-	/* allocate memory for our device state and intialize it */
+	/* allocate memory for our device state and initialize it */
 	netdev = alloc_etherdev(sizeof(struct at76c503));
 	if (netdev == NULL) {
 		err("out of memory");
@@ -6501,7 +6501,7 @@ static int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.101 2006/07/14 05:43:47 proski Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.102 2006/07/14 06:29:24 proski Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,

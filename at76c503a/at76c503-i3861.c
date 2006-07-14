@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-i3861.c,v 1.20 2004/08/18 22:01:45 jal2 Exp $
+ * $Id: at76c503-i3861.c,v 1.21 2006/07/14 06:29:24 proski Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using Intersil 3861 radio chips
@@ -102,7 +102,7 @@ Wireless USB Adapter SMC2662W (v1) */
 /* also Compex WLU11 */
 
 #define VENDOR_ID_INTEL               0x8086 /* Intel */
-#define PRODUCT_ID_INTEL_AP310        0x0200 /* AP310 AnyPoint II usb */
+#define PRODUCT_ID_INTEL_AP310        0x0200 /* AP310 AnyPoint II USB */
 
 #define VENDOR_ID_CONCEPTRONIC        0x0d8e
 #define PRODUCT_ID_CONCEPTRONIC_C11U  0x7100 /* also Dynalink L11U */
