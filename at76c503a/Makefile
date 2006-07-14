@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.44 2006/07/13 00:15:28 proski Exp $
+#$Id: Makefile,v 1.45 2006/07/14 06:51:46 proski Exp $
 #
 # Copyright (c) 2002 - 2003 Oliver Kurth
 #           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -73,7 +73,7 @@ OLDMAKE = $(wildcard $(KERNEL_SRC)/Rules.make)
 
 SPARSE_FLAGS = -Wbitwise -Wcast-to-as -Wcontext -Wdefault-bitfield-sign \
 	-Wtransparent-union -Wptr-subtraction-blows -Wundef -Wdecl \
-	-Wone-bit-signed-bitfield -D__CHECK_ENDIAN__
+	-Wone-bit-signed-bitfield -Wtypesign -D__CHECK_ENDIAN__
 
 ifeq (,$(OLDMAKE))
 # 2.5 style modules, get the kernel makefiles to do the work
