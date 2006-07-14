@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.98 2006/07/14 02:16:41 proski Exp $
+/* $Id: at76c503.c,v 1.99 2006/07/14 03:02:05 proski Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -5145,21 +5145,6 @@ static int at76c503_iw_handler_get_range(struct net_device *netdev,
 	return 0;
 }
 
-static int at76c503_iw_handler_get_priv(struct net_device *netdev,
-				 struct iw_request_info *info,
-				 struct iw_point *data,
-				 char *extra)
-{
-	dbg(DBG_IOCTL, "%s: SIOCGIWPRIV", netdev->name);
-	
-	memcpy(extra, at76c503_priv_args, sizeof(at76c503_priv_args));
-	data->length = sizeof(at76c503_priv_args) / 
-			sizeof(at76c503_priv_args[0]);
-	
-	return 0;
-}
-
-
 static int at76c503_iw_handler_set_spy(struct net_device *netdev,
 				struct iw_request_info *info,
 				struct iw_point *data,
@@ -6285,9 +6270,7 @@ static const struct iw_handler_def at76c503_handler_def =
 static int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 {
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
-	struct iwreq *wrq = (struct iwreq *)rq;
 	int ret = 0;
-	char *extra;
 
 	if (! netif_device_present(netdev))
 		return -ENODEV;
@@ -6304,349 +6287,10 @@ static int at76c503_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	}
 	break;
 	
-	case SIOCGIWNAME:
-	{
-		at76c503_iw_handler_get_name(netdev, NULL, 
-			wrq->u.name, NULL);
-	}
-	break;
-	
-	case SIOCSIWFREQ:
-	{
-		ret = at76c503_iw_handler_set_freq(netdev, NULL, 
-			&(wrq->u.freq), NULL);
-	}
-	break;
-	
-	case SIOCGIWFREQ:
-	{ 
-		at76c503_iw_handler_get_freq(netdev, NULL, 
-			&(wrq->u.freq), NULL);
-	}
-	break;
-	
-	case SIOCSIWMODE:
-	{
-		ret = at76c503_iw_handler_set_mode(netdev, NULL, 
-			&(wrq->u.mode), NULL);
-	}
-	break;
-	
-	case SIOCGIWMODE:
-	{
-		at76c503_iw_handler_get_mode(netdev, NULL, 
-			&(wrq->u.mode), NULL);
-	}
-	break;
-	
-	case SIOCGIWRANGE:
-		if (!(extra=kmalloc(sizeof(struct iw_range), GFP_KERNEL))) {
-			ret = -ENOMEM;
-			break;
-		}
-		at76c503_iw_handler_get_range(netdev, NULL, 
-			&(wrq->u.data), extra);
-		
-		if (copy_to_user(wrq->u.data.pointer, extra, 
-				sizeof(struct iw_range))) {
-			ret = -EFAULT;
-		}
-		
-		kfree(extra);
-		break;
-	
-	case SIOCGIWPRIV:
-		if (!(extra=kmalloc(sizeof(at76c503_priv_args), GFP_KERNEL))) {
-			ret = -ENOMEM;
-			break;
-		}
-
-		at76c503_iw_handler_get_priv(netdev, NULL, 
-			&(wrq->u.data), extra);
-		
-		if (copy_to_user(wrq->u.data.pointer, extra, 
-				sizeof(at76c503_priv_args))) {
-			ret = -EFAULT;
-		}
-		
-		kfree(extra);
-		break;
-	
-	case SIOCSIWAP:
-		at76c503_iw_handler_set_wap(netdev, NULL, 
-			&(wrq->u.ap_addr), NULL);
-		break;
-	
-	case SIOCGIWAP:
-		at76c503_iw_handler_get_wap(netdev, NULL, 
-			&(wrq->u.ap_addr), NULL);
-		break;
-	
-	/*case SIOCGIWAPLIST:
-	  break;*/
-	
-	case SIOCSIWSCAN:
-		ret = at76c503_iw_handler_set_scan(netdev, NULL, NULL, NULL);
-		break;
-	
-	case SIOCGIWSCAN:
-		if (!(extra=kmalloc(IW_SCAN_MAX_DATA, GFP_KERNEL))) {
-			ret = -ENOMEM;
-			break;
-		}
-		
-		at76c503_iw_handler_get_scan(netdev, NULL, 
-			&(wrq->u.data), extra);
-		
-		if (copy_to_user(wrq->u.data.pointer, extra, 
-				wrq->u.data.length)) {
-			ret = -EFAULT;
-		}
-		
-		kfree(extra);
-		break;
-	
-	case SIOCSIWESSID:
-		if (!(extra=kmalloc(IW_ESSID_MAX_SIZE + 1, GFP_KERNEL))) {
-			ret = -ENOMEM;
-			break;
-		}
-		
-		if (wrq->u.data.length > IW_ESSID_MAX_SIZE) {
-			ret = -E2BIG;
-			goto sessiderror;
-		}
-		
-		if (copy_from_user(extra, wrq->u.data.pointer, 
-				wrq->u.data.length)) {
-			ret = -EFAULT;
-			goto sessiderror;
-		}
-		
-		ret = at76c503_iw_handler_set_essid(netdev, NULL, 
-			&(wrq->u.data), extra);
-sessiderror:
-		kfree(extra);
-		break;
-	
-	case SIOCGIWESSID:
-		if (!(extra=kmalloc(IW_ESSID_MAX_SIZE + 1, GFP_KERNEL))) {
-			ret = -ENOMEM;
-			break;
-		}
-		
-		at76c503_iw_handler_get_essid(netdev, NULL, 
-			&(wrq->u.data), extra);
-		
-		if (copy_to_user(wrq->u.data.pointer, extra, 
-				wrq->u.data.length)) {
-			ret = -EFAULT;
-		}
-		
-		kfree(extra);
-		break;
-	
-	case SIOCSIWNICKN:
-		if (!(extra=(char*)kmalloc(IW_ESSID_MAX_SIZE + 1, GFP_KERNEL))) {
-			ret = -ENOMEM;
-			break;
-		}
-		
-		if (wrq->u.data.length > IW_ESSID_MAX_SIZE) {
-			ret = -E2BIG;
-			goto snickerror;
-		}
-		
-		if (copy_from_user(extra, wrq->u.data.pointer, 
-				wrq->u.data.length)) {
-			ret = -EFAULT;
-			goto snickerror;
-		}
-		
-		ret = at76c503_iw_handler_set_nickname(netdev, NULL, 
-			&(wrq->u.data), extra);
-snickerror:
-		kfree(extra);
-		break;
-	
-	case SIOCGIWNICKN:
-		if (!(extra=kmalloc(IW_ESSID_MAX_SIZE + 1, GFP_KERNEL))) {
-			ret = -ENOMEM;
-			break;
-		}
-		
-		at76c503_iw_handler_get_nickname(netdev, NULL, 
-			&(wrq->u.data), extra);
-		
-		if (copy_to_user(wrq->u.data.pointer, extra, 
-				wrq->u.data.length)) {
-			ret = -EFAULT;
-		}
-		
-		kfree(extra);
-		break;
-	
-	case SIOCSIWRATE:
-		ret = at76c503_iw_handler_set_rate(netdev, NULL, 
-			&(wrq->u.bitrate), NULL);
-		break;
-	
-	case SIOCGIWRATE:
-		at76c503_iw_handler_get_rate(netdev, NULL, 
-			&(wrq->u.bitrate), NULL);
-		break;
-	
-	case SIOCSIWRTS:
-		ret = at76c503_iw_handler_set_rts(netdev, NULL, 
-			&(wrq->u.rts), NULL);
-		break;
-	
-	case SIOCGIWRTS:
-		at76c503_iw_handler_get_rts(netdev, NULL, 
-			&(wrq->u.rts), NULL);
-		break;
-	
-	case SIOCSIWFRAG:
-		ret = at76c503_iw_handler_set_frag(netdev, NULL, 
-			&(wrq->u.frag), NULL);
-		break;
-	
-	case SIOCGIWFRAG:
-		at76c503_iw_handler_get_frag(netdev, NULL, 
-			&(wrq->u.frag), NULL);
-		break;
-	
-	/*case SIOCSIWTXPOW:
-	break;*/
-		
-	case SIOCGIWTXPOW:
-		at76c503_iw_handler_get_txpow(netdev, NULL, 
-			&(wrq->u.power), NULL);
-		break;
-	
-	case SIOCSIWRETRY:
-		ret = at76c503_iw_handler_set_retry(netdev, NULL, 
-			&(wrq->u.retry), NULL);
-		break;
-	
-	case SIOCGIWRETRY:
-		at76c503_iw_handler_get_retry(netdev, NULL, 
-			&(wrq->u.retry), NULL);
-		break;
-	
-	case SIOCSIWENCODE:
-		if (!(extra=kmalloc(WEP_KEY_SIZE + 1, GFP_KERNEL))) {
-			ret = -ENOMEM;
-			break;
-		}
-		
-		if (wrq->u.data.length > WEP_KEY_SIZE) {
-			ret = -E2BIG;
-			goto sencodeerror;
-		}
-		
-		if (copy_from_user(extra, wrq->u.data.pointer, 
-				wrq->u.data.length)) {
-			ret = -EFAULT;
-			goto sencodeerror;
-		}
-		
-		ret = at76c503_iw_handler_set_encode(netdev, NULL, 
-			&(wrq->u.encoding), extra);
-sencodeerror:
-		kfree(extra);
-		break;
-	
-	case SIOCGIWENCODE:
-		if (!(extra=kmalloc(WEP_KEY_SIZE + 1, GFP_KERNEL))) {
-			ret = -ENOMEM;
-			break;
-		}
-		
-		at76c503_iw_handler_get_encode(netdev, NULL, 
-			&(wrq->u.encoding), extra);
-		
-		if (copy_to_user(wrq->u.data.pointer, extra, 
-				wrq->u.data.length)) {
-			ret = -EFAULT;
-		}
-		
-		kfree(extra);
-		break;
-	
-	case SIOCSIWPOWER:
-		ret = at76c503_iw_handler_set_power(netdev, NULL, 
-			&(wrq->u.power), NULL);
-		break;
-		
-	case SIOCGIWPOWER:
-		at76c503_iw_handler_get_power(netdev, NULL, 
-			&(wrq->u.power), NULL);
-		break;
-		
-	case PRIV_IOCTL_SET_SHORT_PREAMBLE:
-		ret = at76c503_iw_handler_PRIV_IOCTL_SET_SHORT_PREAMBLE
-			(netdev, NULL, wrq->u.name, NULL);
-		break;
-
-	case PRIV_IOCTL_SET_DEBUG:
-		if (!(extra=kmalloc(wrq->u.data.length, GFP_KERNEL))) {
-			ret = -ENOMEM;
-			break;
-		}
-		
-		if (copy_from_user(extra, wrq->u.data.pointer, 
-				wrq->u.data.length)) {
-			ret = -EFAULT;
-			goto set_debug_end;
-		}       
-		
-		at76c503_iw_handler_PRIV_IOCTL_SET_DEBUG
-			(netdev, NULL, &(wrq->u.data), extra);
-set_debug_end:
-		kfree(extra);
-		break;
-	
-	case PRIV_IOCTL_SET_POWERSAVE_MODE:
-		ret = at76c503_iw_handler_PRIV_IOCTL_SET_POWERSAVE_MODE
-			(netdev, NULL, wrq->u.name, NULL);
-		break;
-	
-	case PRIV_IOCTL_SET_SCAN_TIMES:
-		ret = at76c503_iw_handler_PRIV_IOCTL_SET_SCAN_TIMES
-			(netdev, NULL, wrq->u.name, NULL);
-		break;
-	
-	case PRIV_IOCTL_SET_SCAN_MODE:
-		ret = at76c503_iw_handler_PRIV_IOCTL_SET_SCAN_MODE
-			(netdev, NULL, wrq->u.name, NULL);
-		break;
-
-	case PRIV_IOCTL_SET_INTL_ROAMING:
-		ret = at76c503_iw_handler_PRIV_IOCTL_SET_INTL_ROAMING
-			(netdev, NULL, wrq->u.name, NULL);
-		break;
-
-	case PRIV_IOCTL_SET_MONITOR_MODE:
-		ret = at76c503_iw_handler_PRIV_IOCTL_SET_MONITOR_MODE
-			(netdev, NULL, wrq->u.name, NULL);
-		break;
-	
 	default:
 		dbg(DBG_IOCTL, "%s: ioctl not supported (0x%x)", netdev->name, 
 			cmd);
 		ret = -EOPNOTSUPP;
-	}
-	
-	// we only restart the device if it was changed and already opened 
-	// before
-	if (ret == -EIWCOMMIT) {
-		if (dev->open_count > 0) {
-			at76c503_iw_handler_commit(netdev, NULL, NULL, NULL);
-		}
-		
-		// reset ret so that this ioctl can return success
-		ret = 0;
 	}
 	
 	up(&dev->sem);
@@ -6921,7 +6565,7 @@ static int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.98 2006/07/14 02:16:41 proski Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.99 2006/07/14 03:02:05 proski Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
