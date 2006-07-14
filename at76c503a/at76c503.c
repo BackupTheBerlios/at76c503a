@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.102 2006/07/14 06:29:24 proski Exp $
+/* $Id: at76c503.c,v 1.103 2006/07/14 06:48:22 proski Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -486,7 +486,7 @@ static int at76c503_get_fw_info(u8 *fw_data, int fw_size,
 				u8 **ext_fw, int *ext_fw_size,
 				u8 **int_fw, int *int_fw_size);
 
-/* second step of initialisation (after fw download) */
+/* second step of initialization (after fw download) */
 static int init_new_device(struct at76c503 *dev);
 
 /* some abbrev. for wireless events */
@@ -1291,7 +1291,7 @@ static int set_group_address(struct at76c503 *dev, u8 *addr, int n)
         }
 
 #if 1
-	/* I do not know anything about the group_addr_status field... (oku)*/
+	/* I do not know anything about the group_addr_status field... (oku) */
         memset(&dev->mib_buf, 0, sizeof(struct set_mib_buffer));
         dev->mib_buf.type = MIB_MAC_ADD;
         dev->mib_buf.size = 1;
@@ -2922,7 +2922,7 @@ static void dump_bss_table(struct at76c503 *dev, int force_output)
    NULL if none found */
 /* last is the last bss tried, last == NULL signals a new round,
    starting with list_entry(dev->bss_list.next, ...) */
-/* this proc must be called inside an aquired dev->bss_list_spinlock
+/* this proc must be called inside an acquired dev->bss_list_spinlock
    otherwise the timeout on bss may remove the newly chosen entry ! */
 static struct bss_info *find_matching_bss(struct at76c503 *dev,
 					  struct bss_info *last)
@@ -3077,7 +3077,7 @@ static void rx_mgmt_disassoc(struct at76c503 *dev,
 			!memcmp(bc_addr, mgmt->addr1, ETH_ALEN))) {
 		/* this is a DisAssoc from the BSS we are connected or
 		   trying to connect to, directed to us or broadcasted */
-		/* jal: TODO: can the Disassoc also come from the BSS
+		/* jal: TODO: can the DisAssoc also come from the BSS
 		   we've sent a ReAssocReq to (i.e. from dev->new_bss) ? */
 		if (dev->istate == DISASSOCIATING ||
 		    dev->istate == ASSOCIATING  ||
@@ -3395,7 +3395,7 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 		// advance to the next 'element' of data
 		element = (struct data_element*)data_end(element);
 
-		// Optimisation: after all, the bdata->data array is  
+		// Optimization: after all, the bdata->data array is  
 		// varpar_len bytes long, whereas we get all of the useful 
 		// information after only ~36 bytes, this saves us a lot of 
 		// time (and trouble as the remaining portion of the array 
@@ -6501,7 +6501,7 @@ static int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.102 2006/07/14 06:29:24 proski Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.103 2006/07/14 06:48:22 proski Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,

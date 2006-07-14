@@ -23,8 +23,8 @@ extfile="$3"
 
 cat <<EOF
 /****************************************************************************
- * The following firmware has been taken (and reformatted slighly) from the *
- * Atmel (atmelwlandriver) driver source.                                   *
+ * The following firmware has been taken (and reformatted slightly) from    *
+ * the Atmel (atmelwlandriver) driver source.                               *
  *                                                                          *
  *   Target:                                                                *
  *   Version:                                                               *

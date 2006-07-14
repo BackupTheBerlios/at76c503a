@@ -1,4 +1,4 @@
-/* $Id: at76_ieee802_11.h,v 1.2 2006/07/09 21:16:00 proski Exp $ */
+/* $Id: at76_ieee802_11.h,v 1.3 2006/07/14 06:48:22 proski Exp $ */
 
 /* Copyright (c) 2003 Oliver Kurth
  * Copyright (c) 2004 Joerg Albert <joerg.albert@gmx.de>
@@ -46,7 +46,7 @@ struct ieee802_11_hdr {
 #define IE_ID_IBSS_PARAM_SET 6
 #define IE_ID_CHALLENGE_TEXT 16
 
-/* we must convert frame_control to cpu endianess before reading it. */
+/* we must convert frame_control to CPU endianess before reading it. */
 
 /* Frame control field constants, see 802.11 std, chapter 7.1.3, pg. 36 */
 #define IEEE802_11_FCTL_VERS		0x0002

@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.41 2006/07/14 06:29:24 proski Exp $
+/* $Id: at76c503.h,v 1.42 2006/07/14 06:48:22 proski Exp $
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth
  *           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -14,8 +14,8 @@
  *
  *  http://sourceforge.net/projects/atmelwlandriver/
  *
- *  althrough the code was completely re-written.
- *  It would have been impossible without Atmel's decision to
+ *  Although the code was completely re-written,
+ *  it would have been impossible without Atmel's decision to
  *  release an Open Source driver (unfortunately the firmware was
  *  kept binary only). Thanks for that decision to Atmel!
  *  
@@ -451,7 +451,7 @@ struct bss_info{
 	u16 capa; /* the capabilities of the BSS (in original endianess -
 		     we only check IEEE802_11 bits in it) */
 	u16 beacon_interval; /* the beacon interval in units of TU (1.024 ms)
-				(in cpu endianess - we must calc. values from it) */
+				(in CPU endianess - we must calc. values from it) */
 	u8 rates[BSS_LIST_MAX_RATE_LEN]; /* supported rates (list of bytes: 
 				   (basic_rate ? 0x80 : 0) + rate/(500 Kbit/s); e.g. 
 				   x82,x84,x8b,x96 for basic rates 1,2,5.5,11 MBit/s) */
@@ -553,7 +553,7 @@ struct at76c503 {
 				     curr_bss and new_bss */
 	struct list_head bss_list; /* the list of bss we received beacons from */
 	struct timer_list bss_list_timer; /* a timer removing old entries from
-					     the bss_list. It must aquire bss_list_spinlock
+					     the bss_list. It must acquire bss_list_spinlock
 					     before and must not remove curr_bss nor
 					     new_bss ! */
 	struct bss_info *curr_bss; /* if istate == AUTH, ASSOC, REASSOC, JOIN or CONN 
