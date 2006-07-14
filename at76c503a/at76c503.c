@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.97 2006/07/14 02:06:20 proski Exp $
+/* $Id: at76c503.c,v 1.98 2006/07/14 02:16:41 proski Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -313,8 +313,6 @@ MODULE_PARM_DESC(monitor_scan_max_time, "scan max channel time in MONITOR MODE (
 #define DEF_FRAG_THRESHOLD 1536
 #define DEF_SHORT_RETRY_LIMIT 8
 //#define DEF_LONG_RETRY_LIMIT 4
-#define DEF_ESSID ""
-#define DEF_ESSID_LEN 0
 #define DEF_CHANNEL 10
 
 #define MAX_RTS_THRESHOLD 2347
@@ -6923,7 +6921,7 @@ static int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.97 2006/07/14 02:06:20 proski Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.98 2006/07/14 02:16:41 proski Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -6949,9 +6947,7 @@ static int init_new_device(struct at76c503 *dev)
 	dev->iw_mode = default_iw_mode;
 	dev->monitor_prism_header = 1;
 	memset(dev->essid, 0, IW_ESSID_MAX_SIZE);
-	memcpy(dev->essid, DEF_ESSID, DEF_ESSID_LEN);
-	dev->essid_size = DEF_ESSID_LEN;
-	strncpy(dev->nickn, DEF_ESSID, sizeof(dev->nickn));
+	memset(dev->nickn, 0, sizeof(dev->nickn));
 	dev->rts_threshold = DEF_RTS_THRESHOLD;
 	dev->frag_threshold = DEF_FRAG_THRESHOLD;
 	dev->short_retry_limit = DEF_SHORT_RETRY_LIMIT;
