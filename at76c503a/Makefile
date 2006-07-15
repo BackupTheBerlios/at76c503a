@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.49 2006/07/15 03:12:32 proski Exp $
+#$Id: Makefile,v 1.50 2006/07/15 03:51:10 proski Exp $
 #
 # Copyright (c) 2002 - 2003 Oliver Kurth
 #           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -48,7 +48,7 @@ obj-m = at76c503-i3861.o at76c503-rfmd.o at76c503-rfmd-acc.o \
 SRCS = at76c503.c at76_usbdfu.c at76c503-rfmd.c at76c505-rfmd.c at76c503-rfmd-acc.c \
        at76c503-i3861.c at76c503-i3863.c at76c505-rfmd2958.c at76c505a-rfmd2958.c
 
-HDRS = at76c503.h at76_ieee802_11.h at76_usbdfu.h at76c503-fw_skel.c
+HDRS = at76c503.h at76_usbdfu.h at76c503-fw_skel.c
 FW_HDRS = fw-pkg-505-rfmd2958-1.101.0-86.h fw-pkg-i3863.h \
 	fw-pkg-rfmd-1.101.0-84.h fw-pkg-i3861.h \
 	fw-pkg-rfmd-0.90.2-140.h \

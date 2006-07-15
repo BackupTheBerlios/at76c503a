@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.42 2006/07/14 06:48:22 proski Exp $
+/* $Id: at76c503.h,v 1.43 2006/07/15 03:51:11 proski Exp $
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth
  *           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -31,9 +31,8 @@
 #include <linux/etherdevice.h>
 #include <linux/wireless.h>
 #include <net/iw_handler.h>
+#include <net/ieee80211.h>
 #include <linux/version.h>
-
-#include "at76_ieee802_11.h" /* we need some constants here */
 
 #ifndef COMPILE_FIRMWARE_INTO_DRIVER
 # define CONFIG_AT76C503_FIRMWARE_DOWNLOAD
@@ -245,7 +244,7 @@ struct at76c503_rx_buffer {
 	u8 link_quality;
 	u8 noise_level;
 	u8 rx_time[4];
-	u8 packet[IEEE802_11_MAX_FRAME_LEN];
+	u8 packet[IEEE80211_FRAME_LEN + IEEE80211_FCS_LEN];
 } __attribute__ ((packed));
 
 /* the length of the Atmel firmware specific tx header before IEEE 802.11 starts */
@@ -256,7 +255,7 @@ struct at76c503_tx_buffer {
 	u8 tx_rate;
 	u8 padding;
 	u8 reserved[4];
-	u8 packet[IEEE802_11_MAX_FRAME_LEN];
+	u8 packet[IEEE80211_FRAME_LEN + IEEE80211_FCS_LEN];
 } __attribute__ ((packed));
 
 /* defines for scan_type below */

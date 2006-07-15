@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.104 2006/07/14 22:21:43 proski Exp $
+/* $Id: at76c503.c,v 1.105 2006/07/15 03:51:10 proski Exp $
  *
  * USB at76c503/at76c505 driver
  *
@@ -109,7 +109,6 @@
 #endif
 
 #include "at76c503.h"
-#include "at76_ieee802_11.h"
 #include "at76_usbdfu.h"
 
 /* timeout in seconds for the usb_control_msg in get_cmd_status
@@ -312,9 +311,7 @@ MODULE_PARM_DESC(monitor_scan_max_time, "scan max channel time in MONITOR MODE (
 //#define DEF_LONG_RETRY_LIMIT 4
 #define DEF_CHANNEL 10
 
-#define MAX_RTS_THRESHOLD 2347
-#define MAX_FRAG_THRESHOLD 2346
-#define MIN_FRAG_THRESHOLD 256
+#define MAX_RTS_THRESHOLD (MAX_FRAG_THRESHOLD + 1)
 
 /* The frequency of each channel in MHz */
 static const long channel_frequency[] = {
@@ -2154,7 +2151,7 @@ static int disassoc_req(struct at76c503 *dev, struct bss_info *bss)
 	req  = (struct ieee802_11_disassoc_frame *)&(mgmt->data);
 
 	/* make wireless header */
-	mgmt->frame_ctl = cpu_to_le16(IEEE802_11_FTYPE_MGMT|IEEE802_11_STYPE_AUTH);
+	mgmt->frame_ctl = cpu_to_le16(IEEE80211_FTYPE_MGMT|IEEE80211_STYPE_AUTH);
 	mgmt->duration_id = cpu_to_le16(0x8000);
 	memcpy(mgmt->addr1, bss->bssid, ETH_ALEN);
 	memcpy(mgmt->addr2, dev->netdev->dev_addr, ETH_ALEN);
@@ -2201,8 +2198,8 @@ static int auth_req(struct at76c503 *dev, struct bss_info *bss, int seq_nr, u8 *
 
 	/* make wireless header */
 	/* first auth msg is not encrypted, only the second (seq_nr == 3) */
-	mgmt->frame_ctl = cpu_to_le16(IEEE802_11_FTYPE_MGMT | IEEE802_11_STYPE_AUTH |
-		(seq_nr == 3 ? IEEE802_11_FCTL_WEP : 0));
+	mgmt->frame_ctl = cpu_to_le16(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_AUTH |
+		(seq_nr == 3 ? IEEE80211_FCTL_PROTECTED : 0));
 
 	mgmt->duration_id = cpu_to_le16(0x8000);
 	memcpy(mgmt->addr1, bss->bssid, ETH_ALEN);
@@ -2255,7 +2252,7 @@ static int assoc_req(struct at76c503 *dev, struct bss_info *bss)
 	tlv = req->data;
 
 	/* make wireless header */
-	mgmt->frame_ctl = cpu_to_le16(IEEE802_11_FTYPE_MGMT|IEEE802_11_STYPE_ASSOC_REQ);
+	mgmt->frame_ctl = cpu_to_le16(IEEE80211_FTYPE_MGMT|IEEE80211_STYPE_ASSOC_REQ);
 
 	mgmt->duration_id = cpu_to_le16(0x8000);
 	memcpy(mgmt->addr1, bss->bssid, ETH_ALEN);
@@ -2268,20 +2265,20 @@ static int assoc_req(struct at76c503 *dev, struct bss_info *bss)
 	   to us.  AP only set the Privacy bit in their capabilities
 	   if WEP is mandatory in the BSS! */
 	req->capability = cpu_to_le16(bss->capa | 
-				      (dev->wep_enabled ? IEEE802_11_CAPA_PRIVACY : 0) |
+				      (dev->wep_enabled ? WLAN_CAPABILITY_PRIVACY : 0) |
 				      (dev->preamble_type == PREAMBLE_TYPE_SHORT ?
-				       IEEE802_11_CAPA_SHORT_PREAMBLE : 0));
+				       WLAN_CAPABILITY_SHORT_PREAMBLE : 0));
 
 	req->listen_interval = cpu_to_le16(2 * bss->beacon_interval);
 	
 	/* write TLV data elements */
 
-	*tlv++ = IE_ID_SSID;
+	*tlv++ = MFIE_TYPE_SSID;
 	*tlv++ = bss->ssid_len;
 	memcpy(tlv, bss->ssid, bss->ssid_len);
 	tlv += bss->ssid_len;
 
-	*tlv++ = IE_ID_SUPPORTED_RATES;
+	*tlv++ = MFIE_TYPE_RATES;
 	*tlv++ = sizeof(hw_rates);
 	memcpy(tlv, hw_rates, sizeof(hw_rates));
 	tlv += sizeof(hw_rates); /* tlv points behind the supp_rates field */
@@ -2339,7 +2336,7 @@ static int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
 
 	/* make wireless header */
 	/* jal: encrypt this packet if wep_enabled is TRUE ??? */
-	mgmt->frame_ctl = cpu_to_le16(IEEE802_11_FTYPE_MGMT|IEEE802_11_STYPE_REASSOC_REQ);
+	mgmt->frame_ctl = cpu_to_le16(IEEE80211_FTYPE_MGMT|IEEE80211_STYPE_REASSOC_REQ);
 	mgmt->duration_id = cpu_to_le16(0x8000);
 	memcpy(mgmt->addr1, new_bss->bssid, ETH_ALEN);
 	memcpy(mgmt->addr2, dev->netdev->dev_addr, ETH_ALEN);
@@ -2351,9 +2348,9 @@ static int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
 	   to us.  AP only set the Privacy bit in their capabilities
 	   if WEP is mandatory in the BSS! */
 	req->capability = cpu_to_le16(new_bss->capa | 
-				      (dev->wep_enabled ? IEEE802_11_CAPA_PRIVACY : 0) |
+				      (dev->wep_enabled ? WLAN_CAPABILITY_PRIVACY : 0) |
 				      (dev->preamble_type == PREAMBLE_TYPE_SHORT ?
-				       IEEE802_11_CAPA_SHORT_PREAMBLE : 0));
+				       WLAN_CAPABILITY_SHORT_PREAMBLE : 0));
 
 	req->listen_interval = cpu_to_le16(2 * new_bss->beacon_interval);
 	
@@ -2361,12 +2358,12 @@ static int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
 
 	/* write TLV data elements */
 
-	*tlv++ = IE_ID_SSID;
+	*tlv++ = MFIE_TYPE_SSID;
 	*tlv++ = new_bss->ssid_len;
 	memcpy(tlv,new_bss->ssid, new_bss->ssid_len);
 	tlv += new_bss->ssid_len;
 
-	*tlv++ = IE_ID_SUPPORTED_RATES;
+	*tlv++ = MFIE_TYPE_RATES;
 	*tlv++ = sizeof(hw_rates);
 	memcpy(tlv, hw_rates, sizeof(hw_rates));
 	tlv += sizeof(hw_rates); /* tlv points behind the supp_rates field */
@@ -2814,9 +2811,9 @@ static inline int mode_matched(struct at76c503 *dev, struct bss_info *ptr)
 	int retval;
 
 	if (dev->iw_mode == IW_MODE_ADHOC)
-		retval =  ptr->capa & IEEE802_11_CAPA_IBSS;
+		retval =  ptr->capa & WLAN_CAPABILITY_IBSS;
 	else
-		retval =  ptr->capa & IEEE802_11_CAPA_ESS;
+		retval =  ptr->capa & WLAN_CAPABILITY_ESS;
 	if (!retval)
 		dbg(DBG_BSS_MATCH, "%s bss table entry %p: mode didn't match",
 		    dev->netdev->name, ptr);
@@ -2842,7 +2839,7 @@ static int rates_matched(struct at76c503 *dev, struct bss_info *ptr)
 		}
 	/* if we use short preamble, the bss must support it */
 	if (dev->preamble_type == PREAMBLE_TYPE_SHORT &&
-	    !(ptr->capa & IEEE802_11_CAPA_SHORT_PREAMBLE)) {
+	    !(ptr->capa & WLAN_CAPABILITY_SHORT_PREAMBLE)) {
 		dbg(DBG_BSS_MATCH, "%s: %p does not support short preamble",
 		    dev->netdev->name, ptr);
 		return 0;
@@ -2853,7 +2850,7 @@ static int rates_matched(struct at76c503 *dev, struct bss_info *ptr)
 static inline int wep_matched(struct at76c503 *dev, struct bss_info *ptr)
 {
 	if (!dev->wep_enabled && 
-	    ptr->capa & IEEE802_11_CAPA_PRIVACY) {
+	    ptr->capa & WLAN_CAPABILITY_PRIVACY) {
 		/* we have disabled WEP, but the BSS signals privacy */
 		dbg(DBG_BSS_MATCH, "%s: bss table entry %p: requires encryption",
 		    dev->netdev->name, ptr);
@@ -2971,7 +2968,7 @@ static void rx_mgmt_assoc(struct at76c503 *dev,
 		if (dev->curr_bss == NULL)
 			return;
 
-		if (status == IEEE802_11_STATUS_SUCCESS) {
+		if (status == WLAN_STATUS_SUCCESS) {
 			struct bss_info *ptr = dev->curr_bss;
 			ptr->assoc_id = assoc_id & 0x3fff;
 			/* update iwconfig params */
@@ -3013,7 +3010,7 @@ static void rx_mgmt_reassoc(struct at76c503 *dev,
 		if (dev->new_bss == NULL)
 			return;
 
-		if (status == IEEE802_11_STATUS_SUCCESS) {
+		if (status == WLAN_STATUS_SUCCESS) {
 			struct bss_info *bptr = dev->new_bss;
 			bptr->assoc_id = assoc_id;
 			NEW_STATE(dev,CONNECTED);
@@ -3115,7 +3112,7 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 	    hex2str(dev->obuf, mgmt->addr1,
 		    min((int)sizeof(dev->obuf)/3, ETH_ALEN), ':'));
 
-	if (alg == IEEE802_11_AUTH_ALG_SHARED_SECRET &&
+	if (alg == WLAN_AUTH_SHARED_KEY &&
 	    seq_nr == 2) {
 		dbg(DBG_RX_MGMT, "%s: AuthFrame challenge %s ...",
 		    dev->netdev->name,
@@ -3142,7 +3139,7 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 	    !memcmp(dev->netdev->dev_addr, mgmt->addr1, ETH_ALEN)) {
 		/* this is a AuthFrame from the BSS we are connected or
 		   trying to connect to, directed to us */
-		if (status != IEEE802_11_STATUS_SUCCESS) {
+		if (status != WLAN_STATUS_SUCCESS) {
 			del_timer_sync(&dev->mgmt_timer);
 			/* try to join next bss */
 			NEW_STATE(dev,JOINING);
@@ -3150,7 +3147,7 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 			return;
 		}
 
-		if (dev->auth_mode == IEEE802_11_AUTH_ALG_OPEN_SYSTEM ||
+		if (dev->auth_mode == WLAN_AUTH_OPEN ||
 			seq_nr == 4) {
 			dev->retries = ASSOC_RETRIES;
 			NEW_STATE(dev,ASSOCIATING);
@@ -3317,7 +3314,7 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 	// usually arrive in consecutively, but there have been some 
 	// reports of some of the useful information fields arriving in a 
 	// different order).
-	// It does not support any more IE_ID types as although IE_ID_TIM may 
+	// It does not support any more IE types although MFIE_TYPE_TIM may 
 	// be supported (on my AP at least).  
 	// The bdata->data array is about 1500 bytes long but only ~36 of those 
 	// bytes are useful, hence the have_ssid etc optimizations.
@@ -3327,7 +3324,7 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 
 		switch (element->type) {
 		
-		case IE_ID_SSID:
+		case MFIE_TYPE_SSID:
 			len = min(IW_ESSID_MAX_SIZE, (int)element->length);
 			if (!have_ssid && ((new_entry) || 
                                            !is_cloaked_ssid(&(element->data_head), len))) {
@@ -3348,7 +3345,7 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 			have_ssid = 1;
 			break;
 		
-		case IE_ID_SUPPORTED_RATES:
+		case MFIE_TYPE_RATES:
 			if (!have_rates) {
 				match->rates_len = 
 					min((int)sizeof(match->rates), 
@@ -3365,7 +3362,7 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 			}
 			break;
 		
-		case IE_ID_DS_PARAM_SET:
+		case MFIE_TYPE_DS_SET:
 			if (!have_channel) {
 				match->channel = element->data_head;
 				have_channel = 1;
@@ -3374,9 +3371,9 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 			}
 			break;
 		
-		case IE_ID_CF_PARAM_SET:
-		case IE_ID_TIM:
-		case IE_ID_IBSS_PARAM_SET:
+		case MFIE_TYPE_CF_SET:
+		case MFIE_TYPE_TIM:
+		case MFIE_TYPE_IBSS_SET:
 		default:
 		{
 			dbg(DBG_RX_BEACON, "%s: beacon IE id %d len %d %s",
@@ -3432,7 +3429,7 @@ static void update_wstats(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 {
 	struct ieee802_11_mgmt *mgmt = ( struct ieee802_11_mgmt *)buf->packet;
-	u16 subtype = le16_to_cpu(mgmt->frame_ctl) & IEEE802_11_FCTL_STYPE;
+	u16 subtype = le16_to_cpu(mgmt->frame_ctl) & IEEE80211_FCTL_STYPE;
 
 	/* update wstats */
 	if (dev->istate != INIT && dev->istate != SCANNING) {
@@ -3458,28 +3455,28 @@ static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 	}
 
 	switch (subtype) {
-	case IEEE802_11_STYPE_BEACON:
-	case IEEE802_11_STYPE_PROBE_RESP:
+	case IEEE80211_STYPE_BEACON:
+	case IEEE80211_STYPE_PROBE_RESP:
 		rx_mgmt_beacon(dev,buf);
 		break;
 
-	case IEEE802_11_STYPE_ASSOC_RESP:
+	case IEEE80211_STYPE_ASSOC_RESP:
 		rx_mgmt_assoc(dev,buf);
 		break;
 
-	case IEEE802_11_STYPE_REASSOC_RESP:
+	case IEEE80211_STYPE_REASSOC_RESP:
 		rx_mgmt_reassoc(dev,buf);
 		break;
 
-	case IEEE802_11_STYPE_DISASSOC:
+	case IEEE80211_STYPE_DISASSOC:
 		rx_mgmt_disassoc(dev,buf);
 		break;
 
-	case IEEE802_11_STYPE_AUTH:
+	case IEEE80211_STYPE_AUTH:
 		rx_mgmt_auth(dev,buf);
 		break;
 
-	case IEEE802_11_STYPE_DEAUTH:
+	case IEEE80211_STYPE_DEAUTH:
 		rx_mgmt_deauth(dev,buf);
 		break;
 
@@ -3559,14 +3556,14 @@ SNAP (802.3 with 802.2 and SNAP headers)
  */
 static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 {
-	struct ieee802_11_hdr *i802_11_hdr;
+	struct ieee80211_hdr_3addr *i802_11_hdr;
 	struct ethhdr *eth_hdr_p;
 	u8 *src_addr;
 	u8 *dest_addr;
 	__be16 proto = 0;
 	int build_ethhdr = 1;
 
-	i802_11_hdr = (struct ieee802_11_hdr *)skb->data;
+	i802_11_hdr = (struct ieee80211_hdr_3addr *)skb->data;
 
 #ifdef DEBUG
 	{
@@ -3576,7 +3573,7 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 	}
 #endif
 
-	skb_pull(skb, sizeof(struct ieee802_11_hdr));
+	skb_pull(skb, sizeof(struct ieee80211_hdr_3addr));
 //	skb_trim(skb, skb->len - 4); /* Trim CRC */
 
 	src_addr = iw_mode == IW_MODE_ADHOC ? i802_11_hdr->addr2
@@ -3657,14 +3654,14 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
  */ 
 static void ieee80211_fixup(struct sk_buff *skb, int iw_mode)
 {
-	struct ieee802_11_hdr *i802_11_hdr;
+	struct ieee80211_hdr_3addr *i802_11_hdr;
 	struct ethhdr *eth_hdr_p;
 	u8 *src_addr;
 	u8 *dest_addr;
 	__be16 proto = 0;
 
-	i802_11_hdr = (struct ieee802_11_hdr *)skb->data;
-	skb_pull(skb, sizeof(struct ieee802_11_hdr));
+	i802_11_hdr = (struct ieee80211_hdr_3addr *)skb->data;
+	skb_pull(skb, sizeof(struct ieee80211_hdr_3addr));
 //	skb_trim(skb, skb->len - 4); /* Trim CRC */
 
 	src_addr = iw_mode == IW_MODE_ADHOC ? i802_11_hdr->addr2
@@ -3720,8 +3717,8 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 {	
 	struct sk_buff *skb = (struct sk_buff *)dev->rx_skb;
 	struct at76c503_rx_buffer *buf = (struct at76c503_rx_buffer *)skb->data;
-	struct ieee802_11_hdr *i802_11_hdr =
-		(struct ieee802_11_hdr *)buf->packet;
+	struct ieee80211_hdr_3addr *i802_11_hdr =
+		(struct ieee80211_hdr_3addr *)buf->packet;
 	/* seq_ctrl, fragment_number, sequence number of new packet */
 	u16 sctl = le16_to_cpu(i802_11_hdr->seq_ctl);
 	u16 fragnr = sctl & 0xf;
@@ -3733,7 +3730,7 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 	int length = le16_to_cpu(buf->wlength) - dev->rx_data_fcs_len;
 	
 	/* where does the data payload start in skb->data ? */
-	u8 *data = (u8 *)i802_11_hdr + sizeof(struct ieee802_11_hdr);
+	u8 *data = (u8 *)i802_11_hdr + sizeof(struct ieee80211_hdr_3addr);
 
 	/* length of payload, excl. the trailing FCS */
 	int data_len = length - (data - (u8 *)i802_11_hdr);
@@ -3761,7 +3758,7 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 		return NULL;
 	}
 
-	if (fragnr == 0 && !(frame_ctl & IEEE802_11_FCTL_MOREFRAGS)) {
+	if (fragnr == 0 && !(frame_ctl & IEEE80211_FCTL_MOREFRAGS)) {
 		/* unfragmented packet received */
 		if (length < rx_copybreak && (skb = dev_alloc_skb(length)) != NULL) {
 			memcpy(skb_put(skb, length),
@@ -3842,7 +3839,7 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 					       data, data_len);
 				bptr->fragnr = fragnr;
 				if (!(frame_ctl &
-				      IEEE802_11_FCTL_MOREFRAGS)) {
+				      IEEE80211_FCTL_MOREFRAGS)) {
 					/* this was the last fragment - send it */
 					skb = bptr->skb;
 					bptr->skb = NULL; /* free the entry */
@@ -3931,7 +3928,7 @@ static void rx_data(struct at76c503 *dev)
 	struct net_device_stats *stats = &dev->stats;
 	struct sk_buff *skb = dev->rx_skb;
 	struct at76c503_rx_buffer *buf = (struct at76c503_rx_buffer *)skb->data;
-	struct ieee802_11_hdr *i802_11_hdr;
+	struct ieee80211_hdr_3addr *i802_11_hdr;
 	int length = le16_to_cpu(buf->wlength);
 
 	if (debug & DBG_RX_DATA) {
@@ -3946,7 +3943,7 @@ static void rx_data(struct at76c503 *dev)
 		return;
 
 	/* if an skb is returned, the at76c503a_rx_header and the FCS is already removed */
-	i802_11_hdr = (struct ieee802_11_hdr *)skb->data;
+	i802_11_hdr = (struct ieee80211_hdr_3addr *)skb->data;
 
 	skb->dev = netdev;
 	skb->ip_summed = CHECKSUM_NONE; /* TODO: should check CRC */
@@ -4168,7 +4165,7 @@ static void rx_tasklet(unsigned long param)
 	struct urb *urb;
 	struct net_device *netdev;
 	struct at76c503_rx_buffer *buf;
-	struct ieee802_11_hdr *i802_11_hdr;
+	struct ieee80211_hdr_3addr *i802_11_hdr;
 	u16 frame_ctl;
 
 	if (!dev) return;
@@ -4189,7 +4186,7 @@ static void rx_tasklet(unsigned long param)
 
 	if (!buf) return;
 
-	i802_11_hdr = (struct ieee802_11_hdr *)buf->packet;
+	i802_11_hdr = (struct ieee80211_hdr_3addr *)buf->packet;
 	if (!i802_11_hdr) return;
 
 	frame_ctl = le16_to_cpu(i802_11_hdr->frame_ctl);
@@ -4224,12 +4221,12 @@ static void rx_tasklet(unsigned long param)
 		defer_kevent(dev, KEVENT_NEW_BSS);
 	}
 
-	switch (frame_ctl & IEEE802_11_FCTL_FTYPE) {
-	case IEEE802_11_FTYPE_DATA:
+	switch (frame_ctl & IEEE80211_FCTL_FTYPE) {
+	case IEEE80211_FTYPE_DATA:
 		rx_data(dev);
 		break;
 
-	case IEEE802_11_FTYPE_MGMT:
+	case IEEE80211_FTYPE_MGMT:
 		/* jal: TODO: find out if we can update iwspy also on
 		   other frames than management (might depend on the
 		   radio chip / firmware version !) */
@@ -4239,7 +4236,7 @@ static void rx_tasklet(unsigned long param)
 		rx_mgmt(dev, buf);
 		break;
 
-	case IEEE802_11_FTYPE_CTL:
+	case IEEE80211_FTYPE_CTL:
 		dbg(DBG_RX_CTRL, "%s: ignored ctrl frame: %04x", dev->netdev->name,
 		    frame_ctl);
 		break;
@@ -4247,7 +4244,7 @@ static void rx_tasklet(unsigned long param)
 	default:
 		info("%s: it's a frame from mars: %2x", dev->netdev->name,
 		     frame_ctl);
-	} /* switch (frame_ctl & IEEE802_11_FCTL_FTYPE) */
+	} /* switch (frame_ctl & IEEE80211_FCTL_FTYPE) */
 finish:
 	submit_rx_urb(dev);
  no_more_urb:
@@ -4339,9 +4336,9 @@ static int at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	int submit_len;
 	struct at76c503_tx_buffer *tx_buffer =
 		(struct at76c503_tx_buffer *)dev->bulk_out_buffer;
-	struct ieee802_11_hdr *i802_11_hdr =
-		(struct ieee802_11_hdr *)&(tx_buffer->packet);
-	u8 *payload = tx_buffer->packet + sizeof(struct ieee802_11_hdr);
+	struct ieee80211_hdr_3addr *i802_11_hdr =
+		(struct ieee80211_hdr_3addr *)&(tx_buffer->packet);
+	u8 *payload = tx_buffer->packet + sizeof(struct ieee80211_hdr_3addr);
 
 	if (netif_queue_stopped(netdev)) {
 		err("%s: %s called while netdev is stopped", netdev->name,
@@ -4372,7 +4369,7 @@ static int at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 #endif
 
 	/* we can get rid of memcpy, if we set netdev->hard_header_len
-	   to 8 + sizeof(struct ieee802_11_hdr), because then we have
+	   to 8 + sizeof(struct ieee80211_hdr_3addr), because then we have
 	   enough space */
 	//  dbg(DBG_TX, "skb->data - skb->head = %d", skb->data - skb->head);
 
@@ -4382,7 +4379,7 @@ static int at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 		    skb->data[2*ETH_ALEN+2+1] == rfc1042sig[1]) {
 			/* higher layer delivered SNAP header - keep it */
 			memcpy(payload, skb->data + 2*ETH_ALEN+2, skb->len - 2*ETH_ALEN -2);
-			wlen = sizeof(struct ieee802_11_hdr) + skb->len - 2*ETH_ALEN -2;
+			wlen = sizeof(struct ieee80211_hdr_3addr) + skb->len - 2*ETH_ALEN -2;
 		} else {
 			err("%s: %s: no support for non-SNAP 802.2 packets "
 			    "(DSAP x%02x SSAP x%02x cntrl x%02x)",
@@ -4397,15 +4394,15 @@ static int at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 		memcpy(payload, rfc1042sig, sizeof(rfc1042sig));
 		memcpy(payload + sizeof(rfc1042sig),
 		       skb->data + 2*ETH_ALEN, skb->len - 2*ETH_ALEN);
-		wlen = sizeof(struct ieee802_11_hdr) + sizeof(rfc1042sig) + 
+		wlen = sizeof(struct ieee80211_hdr_3addr) + sizeof(rfc1042sig) + 
 			skb->len - 2*ETH_ALEN;
 	}
 
 	/* make wireless header */
 	i802_11_hdr->frame_ctl =
-		cpu_to_le16(IEEE802_11_FTYPE_DATA |
-			    (dev->wep_enabled ? IEEE802_11_FCTL_WEP : 0) |
-			    (dev->iw_mode == IW_MODE_INFRA ? IEEE802_11_FCTL_TODS : 0));
+		cpu_to_le16(IEEE80211_FTYPE_DATA |
+			    (dev->wep_enabled ? IEEE80211_FCTL_PROTECTED : 0) |
+			    (dev->iw_mode == IW_MODE_INFRA ? IEEE80211_FCTL_TODS : 0));
 
 	if(dev->iw_mode == IW_MODE_ADHOC){
 		memcpy(i802_11_hdr->addr1, skb->data, ETH_ALEN); /* destination */
@@ -4442,7 +4439,7 @@ static int at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 		    tx_buffer->padding, tx_buffer->tx_rate, 
 		    hex2str(dev->obuf, (u8 *)i802_11_hdr, 
 			    min((sizeof(dev->obuf)-1)/2, 
-				sizeof(struct ieee802_11_hdr)),'\0'));
+				sizeof(struct ieee80211_hdr_3addr)),'\0'));
 		dbg(DBG_TX_DATA_CONTENT, "%s payload %s", dev->netdev->name,
 		    hex2str(dev->obuf, payload, 
 			    min((int)(sizeof(dev->obuf)-1)/2,48),'\0'));
@@ -4530,7 +4527,7 @@ static int startup_device(struct at76c503 *dev)
 		       "scan_times %d %d scan_mode %s international_roaming %d",
 		       dev->netdev->name,		       
 		       dev->pm_mode, dev->pm_period_us,
-		       dev->auth_mode == IEEE802_11_AUTH_ALG_OPEN_SYSTEM ?
+		       dev->auth_mode == WLAN_AUTH_OPEN ?
 		       "open" : "shared_secret",
 		       dev->scan_min_time, dev->scan_max_time,
 		       dev->scan_mode == SCAN_TYPE_ACTIVE ? "active" : "passive",
@@ -4750,7 +4747,7 @@ static int at76c503_set_mac_address(struct net_device *netdev, void *addr)
   check if we spy on the sender address of buf and update statistics */
 static void iwspy_update(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 {
-	struct ieee802_11_hdr *hdr = (struct ieee802_11_hdr *)buf->packet;
+	struct ieee80211_hdr_3addr *hdr = (struct ieee80211_hdr_3addr *)buf->packet;
 	u16 lev_dbm = buf->rssi * 5 / 2;
 	struct iw_quality wstats = {
 		.qual = buf->link_quality,
@@ -5327,9 +5324,9 @@ static int at76c503_iw_handler_get_scan(struct net_device *netdev,
 			extra + IW_SCAN_MAX_DATA, iwe, curr_bss->ssid);
 		
 		iwe->cmd = SIOCGIWMODE;
-		iwe->u.mode = (curr_bss->capa & IEEE802_11_CAPA_IBSS) ? 
+		iwe->u.mode = (curr_bss->capa & WLAN_CAPABILITY_IBSS) ? 
 			IW_MODE_ADHOC :
-			(curr_bss->capa & IEEE802_11_CAPA_ESS) ? 
+			(curr_bss->capa & WLAN_CAPABILITY_ESS) ? 
 			IW_MODE_MASTER :
 			IW_MODE_AUTO;
 			// IW_MODE_AUTO = 0 which I thought is 
@@ -5344,7 +5341,7 @@ static int at76c503_iw_handler_get_scan(struct net_device *netdev,
 			extra + IW_SCAN_MAX_DATA, iwe, IW_EV_FREQ_LEN);
 		
 		iwe->cmd = SIOCGIWENCODE;
-		if (curr_bss->capa & IEEE802_11_CAPA_PRIVACY) {
+		if (curr_bss->capa & WLAN_CAPABILITY_PRIVACY) {
 			iwe->u.data.flags = IW_ENCODE_ENABLED | IW_ENCODE_NOKEY;
 		} else {
 			iwe->u.data.flags = IW_ENCODE_DISABLED;
@@ -5723,7 +5720,7 @@ static int at76c503_iw_handler_set_encode(struct net_device *netdev,
 	       "auth_mode %s",
 	       netdev->name, (dev->wep_enabled) ? "true" : "false", 
 	       dev->wep_key_id, 
-	       (dev->auth_mode == IEEE802_11_AUTH_ALG_SHARED_SECRET) ? 
+	       (dev->auth_mode == WLAN_AUTH_SHARED_KEY) ? 
 			"restricted" : "open");
 	
 	// take the old default key if index is invalid
@@ -5746,15 +5743,15 @@ static int at76c503_iw_handler_set_encode(struct net_device *netdev,
 	dev->wep_enabled = ((encoding->flags & IW_ENCODE_DISABLED) == 0);
 	
 	if (encoding->flags & IW_ENCODE_RESTRICTED)
-		dev->auth_mode = IEEE802_11_AUTH_ALG_SHARED_SECRET;
+		dev->auth_mode = WLAN_AUTH_SHARED_KEY;
 	if (encoding->flags & IW_ENCODE_OPEN)
-		dev->auth_mode = IEEE802_11_AUTH_ALG_OPEN_SYSTEM;
+		dev->auth_mode = WLAN_AUTH_OPEN;
 	
 	dbg(DBG_IOCTL, "%s: SIOCSIWENCODE - new wepstate: enabled %s key_id %d "
 		"key_len %d auth_mode %s",
 		netdev->name, (dev->wep_enabled) ? "true" : "false", 
 		dev->wep_key_id + 1, dev->wep_keys_len[dev->wep_key_id],
-		(dev->auth_mode == IEEE802_11_AUTH_ALG_SHARED_SECRET) ? 
+		(dev->auth_mode == WLAN_AUTH_SHARED_KEY) ? 
 			"restricted" : "open");
 	
 	return -EIWCOMMIT;
@@ -5772,7 +5769,7 @@ static int at76c503_iw_handler_get_encode(struct net_device *netdev,
 		index = dev->wep_key_id;
 	
 	encoding->flags = 
-		(dev->auth_mode == IEEE802_11_AUTH_ALG_SHARED_SECRET) ? 
+		(dev->auth_mode == WLAN_AUTH_SHARED_KEY) ? 
 		  IW_ENCODE_RESTRICTED : IW_ENCODE_OPEN;
 	
 	if (!dev->wep_enabled)
@@ -5794,7 +5791,7 @@ static int at76c503_iw_handler_get_encode(struct net_device *netdev,
 		"key_len %d auth_mode %s",
 		netdev->name, (dev->wep_enabled) ? "true" : "false", 
 		dev->wep_key_id + 1, dev->wep_keys_len[dev->wep_key_id],
-		(dev->auth_mode == IEEE802_11_AUTH_ALG_SHARED_SECRET) ? 
+		(dev->auth_mode == WLAN_AUTH_SHARED_KEY) ? 
 			"restricted" : "open");
 	
 	return 0;
@@ -6498,7 +6495,7 @@ static int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.104 2006/07/14 22:21:43 proski Exp $ compiled %s %s", __DATE__, __TIME__);
+	info("$Id: at76c503.c,v 1.105 2006/07/15 03:51:10 proski Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,
@@ -6531,8 +6528,8 @@ static int init_new_device(struct at76c503 *dev)
 	//dev->long_retr_limit = DEF_LONG_RETRY_LIMIT;
 	dev->txrate = TX_RATE_AUTO;
 	dev->preamble_type = preamble_type;
-	dev->auth_mode = auth_mode ? IEEE802_11_AUTH_ALG_SHARED_SECRET :
-	  IEEE802_11_AUTH_ALG_OPEN_SYSTEM;
+	dev->auth_mode = auth_mode ? WLAN_AUTH_SHARED_KEY :
+	  WLAN_AUTH_OPEN;
 	dev->scan_min_time = scan_min_time;
 	dev->scan_max_time = scan_max_time;
 	dev->scan_mode = scan_mode;
@@ -6560,7 +6557,7 @@ static int init_new_device(struct at76c503 *dev)
 		(struct iw_handler_def*)&at76c503_handler_def;
 	netdev->set_multicast_list = at76c503_set_multicast;
 	netdev->set_mac_address = at76c503_set_mac_address;
-	//  netdev->hard_header_len = 8 + sizeof(struct ieee802_11_hdr);
+	//  netdev->hard_header_len = 8 + sizeof(struct ieee80211_hdr_3addr);
 	/*
 //    netdev->hard_header = at76c503_header;
 */
