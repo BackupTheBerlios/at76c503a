@@ -1,6 +1,6 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c505-rfmd.c,v 1.14 2004/08/18 22:01:45 jal2 Exp $
+ * $Id: at76c505-rfmd.c,v 1.15 2006/07/15 03:58:14 proski Exp $
  *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using at76c505 with RFMD radio chips
@@ -30,19 +30,7 @@
 #include <linux/module.h>
 #include <linux/usb.h>
 #include <linux/init.h>
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,23)
 #include <linux/firmware.h>
-#else
-# ifdef CONFIG_AT76C503_FIRMWARE_DOWNLOAD
-#  error firmware download from user space unavail. with this kernel
-# endif
-# define FIRMWARE_NAME_MAX 30 
-struct firmware {
-	size_t size;
-	u8 *data;
-};
-#endif
 
 #include "at76c503.h"
 
