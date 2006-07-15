@@ -1,7 +1,7 @@
 at76c503 - Linux Driver for Atmel at76c503 Based USB WLAN Adapters
 ==================================================================
 
-(* $Id: README,v 1.14 2006/07/14 06:26:12 proski Exp $ *)
+(* $Id: README,v 1.15 2006/07/15 02:09:16 proski Exp $ *)
 
 This is another driver for the Atmel based USB WLAN adapters.  I am
 developing this driver in private.  I am not associated with Atmel or
@@ -30,10 +30,20 @@ Requirements
 Installation
 ------------
 
-  make
-  make install
+To compile the driver, just run "make".  The build system defaults to
+compiling the driver against the sources of the currently running
+kernel.  If you want to compile for a different kernel, you may need to
+specify KERNEL_PATH on the command line.
 
-The later command must be run as root.
+If the kernel was compiled in a separate directory, KERNEL_PATH should
+point to that directory, not to the source tree.  The driver itself will
+always compile in its source directory.
+
+When cross-compiling, you may also need to set ARCH and CROSS_COMPILE
+appropriately.  See the top-level kernel Makefile for details.
+
+To install the driver, run "make install" as root.  If you supplied some
+extra variables to "make", add them to "make install" as well.
 
 
 Running
