@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.47 2006/07/15 01:58:14 proski Exp $
+#$Id: Makefile,v 1.48 2006/07/15 02:31:09 proski Exp $
 #
 # Copyright (c) 2002 - 2003 Oliver Kurth
 #           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -49,7 +49,7 @@ SRCS = at76c503.c at76_usbdfu.c at76c503-rfmd.c at76c505-rfmd.c at76c503-rfmd-ac
        at76c503-i3861.c at76c503-i3863.c at76c505-rfmd2958.c at76c505a-rfmd2958.c
 
 HDRS = at76c503.h at76_ieee802_11.h at76_usbdfu.h at76c503-fw_skel.c
-FW_HDRS= fw-pkg-505-rfmd2958-1.101.0-86.h  fw-pkg-i3863.h  \
+FW_HDRS = fw-pkg-505-rfmd2958-1.101.0-86.h fw-pkg-i3863.h \
 	fw-pkg-rfmd-1.101.0-84.h fw-pkg-i3861.h \
 	fw-pkg-rfmd-0.90.2-140.h \
 	fw-pkg-r505.h fw-pkg-rfmd-acc-1.101.0-84.h \
@@ -57,13 +57,15 @@ FW_HDRS= fw-pkg-505-rfmd2958-1.101.0-86.h  fw-pkg-i3863.h  \
 
 SCRIPTS = fwbin2h fwbin2pkg.sh fwconvert fwversion
 
-DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING \
+DISTFILES = $(SRCS) $(HDRS) $(FW_HDRS) Makefile README COPYING \
             CHANGELOG gen_fw.c kernel_patch.sh Makefile.k26
 
 # get the version from at76c503.h
+ifndef M
 VERSION = $(shell sed -n 's/^\#define.*DRIVER_VERSION.*"\(.*\)".*$$/\1/p' at76c503.h)
 DISTNAME = at76c503-$(VERSION)
 DISTDIR = $(DISTNAME)
+endif
 
 # delete any old module in this tree before installing a new one
 DEL_MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNELRELEASE)
@@ -120,11 +122,13 @@ clean:
 dist:
 	[ -d $(DISTNAME) ] && rm -rf $(DISTNAME) || true
 	mkdir $(DISTNAME)
-	cp -aR $(DISTFILES) $(DISTNAME)
+	cp -f $(DISTFILES) $(DISTNAME)
 	mkdir $(DISTNAME)/scripts
-	(cd scripts ; cp -aR $(SCRIPTS) ../$(DISTNAME)/scripts)
+	for f in $(SCRIPTS); do \
+		cp -f scripts/$$f $(DISTNAME)/scripts/ || exit 1; \
+	done
 	tar zcvf $(DISTNAME).tar.gz $(DISTNAME)
-	cd $(DISTNAME) ; rm $(FW_HDRS) ; cd ..
+	rm -f $(DISTNAME)/fw-pkg-*.h
 	mv $(DISTNAME) $(DISTNAME)-fwdl
 	tar zcvf $(DISTNAME)-fwdl.tar.gz $(DISTNAME)-fwdl
 	rm -rf $(DISTNAME)-fwdl
