@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.48 2006/07/15 02:31:09 proski Exp $
+#$Id: Makefile,v 1.49 2006/07/15 03:12:32 proski Exp $
 #
 # Copyright (c) 2002 - 2003 Oliver Kurth
 #           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -41,9 +41,9 @@ ifneq ($(wildcard fw-pkg*.h),)
 FW_DL += -DCOMPILE_FIRMWARE_INTO_DRIVER
 endif
 
-MODULES = at76c503-i3861.o at76c503-rfmd.o at76c503-rfmd-acc.o \
-          at76c505-rfmd.o at76c503-i3863.o at76c505-rfmd2958.o at76c505a-rfmd2958.o \
-	  at76c503.o at76_usbdfu.o 
+obj-m = at76c503-i3861.o at76c503-rfmd.o at76c503-rfmd-acc.o \
+	at76c505-rfmd.o at76c503-i3863.o at76c505-rfmd2958.o \
+	at76c505a-rfmd2958.o at76c503.o at76_usbdfu.o 
 
 SRCS = at76c503.c at76_usbdfu.c at76c503-rfmd.c at76c505-rfmd.c at76c503-rfmd-acc.c \
        at76c503-i3861.c at76c503-i3863.c at76c505-rfmd2958.c at76c505a-rfmd2958.c
@@ -67,47 +67,36 @@ DISTNAME = at76c503-$(VERSION)
 DISTDIR = $(DISTNAME)
 endif
 
-# delete any old module in this tree before installing a new one
-DEL_MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNELRELEASE)
-MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNELRELEASE)/kernel/drivers/net/wireless/at76c503
+INSTALL_MOD_DIR = kernel/drivers/net/wireless/at76c503
+MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNELRELEASE)/$(INSTALL_MOD_DIR)
 DEPMOD = /sbin/depmod
 
 SPARSE_FLAGS = -Wbitwise -Wcast-to-as -Wcontext -Wdefault-bitfield-sign \
 	-Wtransparent-union -Wptr-subtraction-blows -Wundef -Wdecl \
 	-Wone-bit-signed-bitfield -Wtypesign -D__CHECK_ENDIAN__
 
-SRCDIR = $(shell pwd)
-MODVERDIR = $(SRCDIR)/.tmp_versions
+PWD = $(shell pwd)
+KBUILD_FLAGS = -C $(KERNEL_PATH) M=$(PWD) KERNELRELEASE=$(KERNELRELEASE) \
+	EXTRA_CFLAGS="$(EXTRA_CFLAGS) $(FW_DL)"
 
-obj-m := $(MODULES)
 
 all: modules
 
 modules:
-	mkdir -p .tmp_versions
-	$(MAKE) -C $(KERNEL_PATH) M=$(SRCDIR) MODVERDIR=$(MODVERDIR) \
-		EXTRA_CFLAGS="$(FW_DL)" modules
+	$(MAKE) $(KBUILD_FLAGS) modules
 
 check:
-	mkdir -p .tmp_versions
-	$(MAKE) -C $(KERNEL_PATH) M=$(SRCDIR) MODVERDIR=$(MODVERDIR) \
-		EXTRA_CFLAGS="$(FW_DL)" modules C=2 CF="$(SPARSE_FLAGS)"
+	$(MAKE) $(KBUILD_FLAGS) C=2 CF="$(SPARSE_FLAGS)"
 
-mv_old:
-	for i in $(MODULES:%.o=%.ko); do \
-	  find $(DEL_MODULE_DIR) -name $$i -exec rm -f {} {}.orig \; ;done 
-
-install-modules: all
-	mkdir -p $(MODULE_DIR)
-	install -m 644 -o 0 -g 0 $(MODULES:%.o=%.ko) $(MODULE_DIR)
-
-install: mv_old install-modules
+install:
+	$(MAKE) $(KBUILD_FLAGS) modules_install \
+		INSTALL_MOD_DIR="$(INSTALL_MOD_DIR)"
 	$(DEPMOD) -ae
 
 uninstall:
-	for f in $(MODULES:%.o=%.ko); do rm $(MODULE_DIR)/$$f; done
+	for f in $(obj-m:%.o=%.ko); do rm -f $(MODULE_DIR)/$$f; done
 
-.PHONY: all dist kernel_patch rmmod mv_old install-modules install modules
+.PHONY: all dist kernel_patch rmmod install modules
 
 TAGS:
 	rm -f TAGS
@@ -137,4 +126,4 @@ kernel_patch:
 	 DRV_SRC="$(SRCS)" DRV_HDR="$(HDRS)" ./kernel_patch.sh $(KERNEL_PATH)
 
 rmmod:
-	-rmmod $(MODULES:%.o=%)	
+	-rmmod $(obj-m:%.o=%)	
