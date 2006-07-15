@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.46 2006/07/14 22:16:58 proski Exp $
+#$Id: Makefile,v 1.47 2006/07/15 01:58:14 proski Exp $
 #
 # Copyright (c) 2002 - 2003 Oliver Kurth
 #           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -9,22 +9,30 @@
 #	the License, or (at your option) any later version.
 #
 
-CC=gcc
+# KERNEL_PATH is the path to the Linux kernel build tree.  It is usually
+# the same as the kernel tree, except when a separate directory was used
+# for the binaries.  By default, we try to compile the modules for the
+# currently running kernel.
+KERNEL_PATH ?= $(shell readlink -f /lib/modules/`uname -r`/build)
 
-ifneq (,$(KVERS))
- KERNEL_VERSION=$(KVERS)
-else
- KERNEL_VERSION = $(shell uname -r)
+ifeq (,$(KERNEL_PATH))
+$(error Kernel tree not found - please set KERNEL_PATH)
 endif
 
-
-ifneq (,$(KSRC))
- KERNEL_SRC = $(KSRC)
-else
- KERNEL_SRC = /lib/modules/$(KERNEL_VERSION)/build
+VERSION_HEADER = $(KERNEL_PATH)/include/linux/utsrelease.h
+ifeq (,$(wildcard $(VERSION_HEADER)))
+VERSION_HEADER = $(KERNEL_PATH)/include/linux/version.h
+ifeq (,$(wildcard $(VERSION_HEADER)))
+$(error Kernel in $(KERNEL_PATH) is not configured)
+endif
 endif
 
-KERNEL_HEADERS = $(KERNEL_SRC)/include
+# Kernel Makefile doesn't always know the exact kernel version, so we
+# get it from the kernel headers instead and pass it to make.
+KERNELRELEASE = $(shell sed -ne 's/"//g;s/^\#define UTS_RELEASE //p' \
+		  $(VERSION_HEADER))
+
+
 FW_DL=
 
 # compile for firmware download from user space
@@ -51,20 +59,15 @@ SCRIPTS = fwbin2h fwbin2pkg.sh fwconvert fwversion
 
 DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING \
             CHANGELOG gen_fw.c kernel_patch.sh Makefile.k26
-TOPDISTFILES = 
 
 # get the version from at76c503.h
-# for 2.6.x kernels the shell command is evaluated too late, 
-#  looking for at76c503.h in the kernel root dir :-(
-#VERSION = -
-#VERSION += $(shell grep '\#define DRIVER_VERSION' at76c503.h | sed 's/\#define.*DRIVER_VERSION.*"\(.*\)"/\1/g' )
-VERSION = 
-DISTNAME = at76c503$(VERSION)
-DISTDIR = ../dist
+VERSION = $(shell sed -n 's/^\#define.*DRIVER_VERSION.*"\(.*\)".*$$/\1/p' at76c503.h)
+DISTNAME = at76c503-$(VERSION)
+DISTDIR = $(DISTNAME)
 
 # delete any old module in this tree before installing a new one
-DEL_MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNEL_VERSION)
-MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNEL_VERSION)/kernel/drivers/net/wireless/at76c503
+DEL_MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNELRELEASE)
+MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNELRELEASE)/kernel/drivers/net/wireless/at76c503
 DEPMOD = /sbin/depmod
 
 SPARSE_FLAGS = -Wbitwise -Wcast-to-as -Wcontext -Wdefault-bitfield-sign \
@@ -80,12 +83,12 @@ all: modules
 
 modules:
 	mkdir -p .tmp_versions
-	$(MAKE) -C $(KERNEL_SRC) M=$(SRCDIR) MODVERDIR=$(MODVERDIR) \
+	$(MAKE) -C $(KERNEL_PATH) M=$(SRCDIR) MODVERDIR=$(MODVERDIR) \
 		EXTRA_CFLAGS="$(FW_DL)" modules
 
 check:
 	mkdir -p .tmp_versions
-	$(MAKE) -C $(KERNEL_SRC) M=$(SRCDIR) MODVERDIR=$(MODVERDIR) \
+	$(MAKE) -C $(KERNEL_PATH) M=$(SRCDIR) MODVERDIR=$(MODVERDIR) \
 		EXTRA_CFLAGS="$(FW_DL)" modules C=2 CF="$(SPARSE_FLAGS)"
 
 mv_old:
@@ -127,7 +130,7 @@ dist:
 	rm -rf $(DISTNAME)-fwdl
 
 kernel_patch:
-	 DRV_SRC="$(SRCS)" DRV_HDR="$(HDRS)" ./kernel_patch.sh $(KERNEL_SRC)
+	 DRV_SRC="$(SRCS)" DRV_HDR="$(HDRS)" ./kernel_patch.sh $(KERNEL_PATH)
 
 rmmod:
 	-rmmod $(MODULES:%.o=%)	
