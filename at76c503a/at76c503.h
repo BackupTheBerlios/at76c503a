@@ -1,5 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.43 2006/07/15 03:51:11 proski Exp $
+/* $Id: at76c503.h,v 1.44 2006/07/16 12:14:59 maximsch2 Exp $
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth
  *           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -566,7 +566,11 @@ struct at76c503 {
 	
 	/* some data for infrastructure mode only */
 	spinlock_t mgmt_spinlock; /* this spinlock protects access to
-				     next_mgmt_bulk and istate */
+				     next_mgmt_bulk */
+	spinlock_t istate_spinlock; /* this spinlock protects access to
+	                             istate */
+
+	
 	struct at76c503_tx_buffer *next_mgmt_bulk; /* pending management msg to
 						     send via bulk out */
 	enum infra_state istate;
