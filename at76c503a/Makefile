@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.50 2006/07/15 03:51:10 proski Exp $
+#$Id: Makefile,v 1.51 2006/07/18 22:40:33 proski Exp $
 #
 # Copyright (c) 2002 - 2003 Oliver Kurth
 #           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -107,6 +107,9 @@ clean:
 	rm -f *.ko *.mod.c .*.cmd
 	rm -f *.s *.i
 	rm -rf .tmp_versions
+
+ChangeLog: CVS/Entries
+	cvs2cl
 
 dist:
 	[ -d $(DISTNAME) ] && rm -rf $(DISTNAME) || true
