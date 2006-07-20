@@ -17,7 +17,7 @@ OUTF=$3
 
 [ $DEBUG -eq 1 ] && echo "#DBG comment $COMMENT, converting $INF into $OUTF"
 
-echo '/* $Id: fwbin2pkg.sh,v 1.1 2006/07/20 04:46:06 proski Exp $ */' > $OUTF
+echo '/* $Id: fwbin2pkg.sh,v 1.2 2006/07/20 05:13:29 proski Exp $ */' > $OUTF
 echo "/* $COMMENT */" >> $OUTF
 echo '/**************************************************************************/' >> $OUTF
 echo '/*                                                                        */' >> $OUTF
@@ -42,11 +42,11 @@ echo '/*  San Jose, CA 95131                 http://www.atmel.com               
 echo '/*                                                                        */' >> $OUTF
 echo '/**************************************************************************/' >> $OUTF
 echo '' >> $OUTF
-echo 'u8 fw_bin[] = {' >> $OUTF
+echo 'static u8 fw_bin[] = {' >> $OUTF
 
 od -An -tx1 -v -w8 $INF | sed 's/\([0-9a-f][0-9a-f]\)/0x\1,/g' >> $OUTF
 echo '};' >> $OUTF
 echo '' >> $OUTF
-echo "const struct firmware static_fw = {`ls -l $INF | awk '{print $5}'`, fw_bin};" >> $OUTF
+echo "static const struct firmware static_fw = {`ls -l $INF | awk '{print $5}'`, fw_bin};" >> $OUTF
 echo '' >> $OUTF
 
