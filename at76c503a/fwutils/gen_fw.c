@@ -1,5 +1,3 @@
-/* $Id: gen_fw.c,v 1.3 2006/07/20 02:31:27 proski Exp $ */
-
 /* This file includes the old style firmwares and outputs new, binary files. */
 
 #include <stdio.h>

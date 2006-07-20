@@ -1,5 +1,4 @@
 /* -*- linux-c -*- */
-/* $Id: at76_usbdfu.c,v 1.3 2006/06/21 08:50:07 maximsch2 Exp $ */
 /*
  * USB Device Firmware Upgrade (DFU) handler
  *

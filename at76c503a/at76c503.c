@@ -1,6 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.c,v 1.106 2006/07/16 12:14:58 maximsch2 Exp $
- *
+/*
  * USB at76c503/at76c505 driver
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth
@@ -6563,7 +6562,6 @@ static int init_new_device(struct at76c503 *dev)
 	else
 		dev->rx_data_fcs_len = 4;
 
-	info("$Id: at76c503.c,v 1.106 2006/07/16 12:14:58 maximsch2 Exp $ compiled %s %s", __DATE__, __TIME__);
 	info("firmware version %d.%d.%d #%d (fcs_len %d)",
 	     dev->fw_version.major, dev->fw_version.minor,
 	     dev->fw_version.patch, dev->fw_version.build,

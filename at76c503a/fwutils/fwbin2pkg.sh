@@ -17,7 +17,6 @@ OUTF=$3
 
 [ $DEBUG -eq 1 ] && echo "#DBG comment $COMMENT, converting $INF into $OUTF"
 
-echo '/* $Id: fwbin2pkg.sh,v 1.2 2006/07/20 05:13:29 proski Exp $ */' > $OUTF
 echo "/* $COMMENT */" >> $OUTF
 echo '/**************************************************************************/' >> $OUTF
 echo '/*                                                                        */' >> $OUTF

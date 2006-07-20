@@ -1,6 +1,5 @@
 /* -*- linux-c -*- */
-/* $Id: at76c503.h,v 1.44 2006/07/16 12:14:59 maximsch2 Exp $
- *
+/*
  * Copyright (c) 2002 - 2003 Oliver Kurth
  *           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
  *

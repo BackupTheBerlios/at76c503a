@@ -1,7 +1,5 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-i3863.c,v 1.12 2006/07/15 03:58:14 proski Exp $
- *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using a Intersil 3863 radio chip
  *

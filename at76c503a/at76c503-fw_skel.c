@@ -1,7 +1,5 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-fw_skel.c,v 1.13 2006/07/15 03:58:14 proski Exp $
- *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  *
  * Copyright (c) 2002 - 2003 Oliver Kurth

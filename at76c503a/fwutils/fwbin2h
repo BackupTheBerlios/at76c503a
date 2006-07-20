@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 #
-# $Id: fwbin2h,v 1.1 2006/07/20 04:46:06 proski Exp $
-#
 # file: fwbin2h
 #
 # This file converts binary firmware files (e.g. extracted

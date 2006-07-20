@@ -1,7 +1,5 @@
 /* -*- linux-c -*- */
 /*
- * $Id: at76c503-rfmd.c,v 1.27 2006/07/15 03:58:14 proski Exp $
- *
  * Driver for at76c503-based devices based on the Atmel "Fast-Vnet" reference
  * design using RFMD radio chips
  *

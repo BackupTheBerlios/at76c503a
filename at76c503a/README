@@ -1,8 +1,6 @@
 at76c503 - Linux Driver for Atmel at76c503 Based USB WLAN Adapters
 ==================================================================
 
-(* $Id: README,v 1.15 2006/07/15 02:09:16 proski Exp $ *)
-
 This is another driver for the Atmel based USB WLAN adapters.  I am
 developing this driver in private.  I am not associated with Atmel or
 any corporation that builds devices with this chip.  My only information

@@ -1,5 +1,3 @@
-#$Id: Makefile,v 1.53 2006/07/20 04:46:04 proski Exp $
-#
 # Copyright (c) 2002 - 2003 Oliver Kurth
 #           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
 #
