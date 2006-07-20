@@ -1,9 +1,9 @@
-/* $Id: gen_fw.c,v 1.2 2006/07/20 02:13:03 proski Exp $ */
+/* $Id: gen_fw.c,v 1.3 2006/07/20 02:31:27 proski Exp $ */
 
 /* This file includes the old style firmwares and outputs new, binary files. */
 
 #include <stdio.h>
-#include <assert.h>
+#include <string.h>
 
 typedef unsigned char u8;
 typedef unsigned int u32;
@@ -43,7 +43,7 @@ typedef struct {
         u32 internal_len;    // internal firmware image length
         u32 external_offset; // external firmware image offset
         u32 external_len;    // external firmware image length
-} at76c50x_fw_t __attribute__((packed));
+} at76c50x_fw_t;
 
 #define cpu_to_le32(x) (x)
 // round to next multiple of four
@@ -139,7 +139,6 @@ static u32 crc32 (u32 crc, u8 const *p, size_t len)
 int main(void)
 {
 	int i;
-	u32 val, offs;
 	FILE *f;
 	struct fw *fw;
 	at76c50x_fw_t hd;
@@ -167,7 +166,7 @@ int main(void)
 		/* the header */
 		hd.crc = crc32(hd.crc, (u8 *)&hd.board_id, 0x20-0x4);
 		/* the string */
-		hd.crc = crc32(hd.crc, fw->str_id, strlen(fw->str_id) +1);
+		hd.crc = crc32(hd.crc, (u8 *)fw->str_id, strlen(fw->str_id) +1);
 		/* zeros in gap */
 		hd.crc = crc32(hd.crc, zeros, hd.internal_offset - 
 			       (hd.str_offset + strlen(fw->str_id)  + 1));
