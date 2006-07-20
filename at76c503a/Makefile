@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.52 2006/07/20 02:00:39 proski Exp $
+#$Id: Makefile,v 1.53 2006/07/20 04:46:04 proski Exp $
 #
 # Copyright (c) 2002 - 2003 Oliver Kurth
 #           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -54,8 +54,6 @@ FW_HDRS = fw-pkg-505-rfmd2958-1.101.0-86.h fw-pkg-i3863.h \
 	fw-pkg-rfmd-0.90.2-140.h \
 	fw-pkg-r505.h fw-pkg-rfmd-acc-1.101.0-84.h \
 	fw-pkg-505a-rfmd2958-1.102.0-113.h
-
-SCRIPTS = fwbin2h fwbin2pkg.sh fwconvert fwversion
 
 DISTFILES = $(SRCS) $(HDRS) $(FW_HDRS) Makefile README COPYING \
             CHANGELOG kernel_patch.sh Makefile.k26
@@ -115,10 +113,6 @@ dist:
 	[ -d $(DISTNAME) ] && rm -rf $(DISTNAME) || true
 	mkdir $(DISTNAME)
 	cp -f $(DISTFILES) $(DISTNAME)
-	mkdir $(DISTNAME)/scripts
-	for f in $(SCRIPTS); do \
-		cp -f scripts/$$f $(DISTNAME)/scripts/ || exit 1; \
-	done
 	tar zcvf $(DISTNAME).tar.gz $(DISTNAME)
 	rm -f $(DISTNAME)/fw-pkg-*.h
 	mv $(DISTNAME) $(DISTNAME)-fwdl
