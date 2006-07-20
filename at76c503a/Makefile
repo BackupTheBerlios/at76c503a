@@ -1,4 +1,4 @@
-#$Id: Makefile,v 1.51 2006/07/18 22:40:33 proski Exp $
+#$Id: Makefile,v 1.52 2006/07/20 02:00:39 proski Exp $
 #
 # Copyright (c) 2002 - 2003 Oliver Kurth
 #           (c) 2003 - 2004 Jörg Albert <joerg.albert@gmx.de>
@@ -58,7 +58,7 @@ FW_HDRS = fw-pkg-505-rfmd2958-1.101.0-86.h fw-pkg-i3863.h \
 SCRIPTS = fwbin2h fwbin2pkg.sh fwconvert fwversion
 
 DISTFILES = $(SRCS) $(HDRS) $(FW_HDRS) Makefile README COPYING \
-            CHANGELOG gen_fw.c kernel_patch.sh Makefile.k26
+            CHANGELOG kernel_patch.sh Makefile.k26
 
 # get the version from at76c503.h
 ifndef M

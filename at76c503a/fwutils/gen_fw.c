@@ -1,4 +1,4 @@
-/* $Id: gen_fw.c,v 1.7 2006/07/14 06:29:24 proski Exp $ */
+/* $Id: gen_fw.c,v 1.1 2006/07/20 02:00:50 proski Exp $ */
 
 /* This file includes the old style firmwares and outputs new, binary files. */
 
