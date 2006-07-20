@@ -1,4 +1,4 @@
-/* $Id: gen_fw.c,v 1.1 2006/07/20 02:00:50 proski Exp $ */
+/* $Id: gen_fw.c,v 1.2 2006/07/20 02:13:03 proski Exp $ */
 
 /* This file includes the old style firmwares and outputs new, binary files. */
 
@@ -29,9 +29,9 @@ u8 extfw_503rfmd_0_90_2[] = FW_503RFMD_EXTERNAL;
 #include "fw-r505.h"
 #include "fw-505rfmd2958-1.101.0-86.h"
 
-#define atuwi_fw_rfmd2958_smc_int intfw_505a_rfmd2958
-#define atuwi_fw_rfmd2958_smc_ext extfw_505a_rfmd2958
-#include "atuwi_rfmd2958-smc_fw.h"
+#define atmel_fw_rfmd2958_smc_int intfw_505a_rfmd2958
+#define atmel_fw_rfmd2958_smc_ext extfw_505a_rfmd2958
+#include "atmel_rfmd2958-smc_fw.h"
 
 /* The struct of the firmware header: */
 typedef struct {
