@@ -17,7 +17,7 @@ OUTF=$3
 
 [ $DEBUG -eq 1 ] && echo "#DBG comment $COMMENT, converting $INF into $OUTF"
 
-echo "/* $COMMENT */" >> $OUTF
+echo "/* $COMMENT */" > $OUTF
 echo '/**************************************************************************/' >> $OUTF
 echo '/*                                                                        */' >> $OUTF
 echo '/*            Copyright (c) 1999-2000 by Atmel Corporation                */' >> $OUTF
