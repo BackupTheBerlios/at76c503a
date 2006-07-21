@@ -177,9 +177,9 @@ int main(void)
 		hd.crc = crc32(hd.crc, fw->extfw, fw->extfw_sz);
 
 #define FWRITE(ptr,len,fp) \
-  if (len > 0) {\
+  if ((len) > 0) {\
     if (fwrite(ptr,len,1,fp) < 1) {\
-      fprintf(stderr,"#ERR failed to write %d bytes, errno %m\n", len);\
+      fprintf(stderr,"#ERR failed to write %d bytes, errno %m\n", (int)(len));\
       fclose(fp);\
       continue;\
     }\
