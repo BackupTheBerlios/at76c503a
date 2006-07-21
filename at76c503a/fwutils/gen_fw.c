@@ -34,7 +34,7 @@ u8 extfw_503rfmd_0_90_2[] = FW_503RFMD_EXTERNAL;
 #include "atmel_rfmd2958-smc_fw.h"
 
 /* The struct of the firmware header: */
-typedef struct {
+struct at76c50x_fw_header {
         u32 crc;             // CRC32 of the whole image (seed ~0, no post-process)
         u32 board_id;        // BOARDTYPE_xxx
         u32 version;         // firmware version code
@@ -43,7 +43,7 @@ typedef struct {
         u32 internal_len;    // internal firmware image length
         u32 external_offset; // external firmware image offset
         u32 external_len;    // external firmware image length
-} at76c50x_fw_t;
+};
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #define cpu_to_le32(x) (x)
@@ -149,7 +149,7 @@ int main(void)
 	int i;
 	FILE *f;
 	struct fw *fw;
-	at76c50x_fw_t hd;
+	struct at76c50x_fw_header hd;
 	u32 internal_offset, external_offset, str_offset, crc;
 
 	for(i=0,fw=fws; i < nr_fws; fw++,i++) {
@@ -163,7 +163,7 @@ int main(void)
 		hd.board_id = cpu_to_le32(fw->board_id);
 		hd.version = cpu_to_le32(fw->version);
 		// string area starts after header
-		str_offset = sizeof(at76c50x_fw_t);
+		str_offset = sizeof(struct at76c50x_fw_header);
 		hd.str_offset = cpu_to_le32(str_offset);
 		internal_offset = str_offset + strlen(fw->str_id) + 1;
 		internal_offset = QUAD(internal_offset);
