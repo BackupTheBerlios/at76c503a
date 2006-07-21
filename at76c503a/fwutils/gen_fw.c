@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <byteswap.h>
+#include <endian.h>
 
 typedef unsigned char u8;
 typedef unsigned int u32;
@@ -43,7 +45,15 @@ typedef struct {
         u32 external_len;    // external firmware image length
 } at76c50x_fw_t;
 
+#if __BYTE_ORDER == __LITTLE_ENDIAN
 #define cpu_to_le32(x) (x)
+#elif __BYTE_ORDER == __BIG_ENDIAN
+#define cpu_to_le32(x) bswap_32(x)
+#else
+#error "Unknown endianess"
+#endif
+
+
 // round to next multiple of four
 #define QUAD(x) ((x) % 4 ? (x) + (4 - ((x)%4)) : (x))
 
@@ -140,6 +150,7 @@ int main(void)
 	FILE *f;
 	struct fw *fw;
 	at76c50x_fw_t hd;
+	u32 internal_offset, external_offset, str_offset, crc;
 
 	for(i=0,fw=fws; i < nr_fws; fw++,i++) {
 		if ((f=fopen(fw->filename, "w")) == NULL) {
@@ -148,33 +159,37 @@ int main(void)
 			continue;
 		}
 
-		hd.crc = ~0; /* the initial seed */
+		crc = ~0; /* the initial seed */
 		hd.board_id = cpu_to_le32(fw->board_id);
 		hd.version = cpu_to_le32(fw->version);
 		// string area starts after header
-		hd.str_offset = cpu_to_le32(sizeof(at76c50x_fw_t));
-		hd.internal_offset = hd.str_offset + strlen(fw->str_id) + 1;
-		hd.internal_offset = QUAD(hd.internal_offset);
-		hd.internal_len = fw->intfw_sz;
-		hd.external_offset = hd.internal_offset + hd.internal_len;
-		hd.external_offset = QUAD(hd.external_offset);
-		hd.external_len = fw->extfw_sz;
+		str_offset = sizeof(at76c50x_fw_t);
+		hd.str_offset = cpu_to_le32(str_offset);
+		internal_offset = str_offset + strlen(fw->str_id) + 1;
+		internal_offset = QUAD(internal_offset);
+		hd.internal_offset = cpu_to_le32(internal_offset);
+		hd.internal_len = cpu_to_le32(fw->intfw_sz);
+		external_offset = internal_offset + fw->intfw_sz;
+		external_offset = QUAD(external_offset);
+		hd.external_offset = cpu_to_le32(external_offset);
+		hd.external_len = cpu_to_le32(fw->extfw_sz);
 
 		/* calc crc */
 		/* the header */
-		hd.crc = crc32(hd.crc, (u8 *)&hd.board_id, 0x20-0x4);
+		crc = crc32(crc, (u8 *)&hd.board_id, 0x20-0x4);
 		/* the string */
-		hd.crc = crc32(hd.crc, (u8 *)fw->str_id, strlen(fw->str_id) +1);
+		crc = crc32(crc, (u8 *)fw->str_id, strlen(fw->str_id) +1);
 		/* zeros in gap */
-		hd.crc = crc32(hd.crc, zeros, hd.internal_offset - 
-			       (hd.str_offset + strlen(fw->str_id)  + 1));
+		crc = crc32(crc, zeros, internal_offset - 
+			       (str_offset + strlen(fw->str_id)  + 1));
 		/* internal fw */
-		hd.crc = crc32(hd.crc, fw->intfw, fw->intfw_sz);
+		crc = crc32(crc, fw->intfw, fw->intfw_sz);
 		/* zeros in gap */
-		hd.crc = crc32(hd.crc, zeros, hd.external_offset - 
-			       (hd.internal_offset + fw->intfw_sz));
+		crc = crc32(crc, zeros, external_offset - 
+			       (internal_offset + fw->intfw_sz));
 		/* external fw */
-		hd.crc = crc32(hd.crc, fw->extfw, fw->extfw_sz);
+		crc = crc32(crc, fw->extfw, fw->extfw_sz);
+		hd.crc = cpu_to_le32(crc);
 
 #define FWRITE(ptr,len,fp) \
   if ((len) > 0) {\
@@ -187,11 +202,11 @@ int main(void)
 
 		FWRITE((u8 *)&hd, sizeof(hd),f);
 		FWRITE(fw->str_id, strlen(fw->str_id)+1, f);
-		FWRITE(zeros, hd.internal_offset - 
-		       (hd.str_offset + strlen(fw->str_id)  + 1), f);
+		FWRITE(zeros, internal_offset - 
+		       (str_offset + strlen(fw->str_id)  + 1), f);
 		FWRITE(fw->intfw, fw->intfw_sz, f);
-		FWRITE(zeros, hd.external_offset - 
-		       (hd.internal_offset + fw->intfw_sz), f);
+		FWRITE(zeros, external_offset - 
+		       (internal_offset + fw->intfw_sz), f);
 		FWRITE(fw->extfw, fw->extfw_sz, f);
 
 		fclose(f);
