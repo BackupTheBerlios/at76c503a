@@ -5,6 +5,7 @@ BINFILES = \
 	atmel_at76c503-i3861.bin \
 	atmel_at76c503-i3863.bin \
 	atmel_at76c503-rfmd-0.90.2-140.bin \
+	atmel_at76c503-rfmd-0.100.4-16.bin \
 	atmel_at76c503-rfmd-acc.bin \
 	atmel_at76c503-rfmd.bin \
 	atmel_at76c505-rfmd.bin \

@@ -22,6 +22,12 @@ u8 extfw_503rfmd_0_90_2[] = FW_503RFMD_EXTERNAL;
 #undef FW_503RFMD_INTERNAL
 #undef FW_503RFMD_EXTERNAL
 
+#include "fw-rfmd-0.100.4-16.h"
+u8 intfw_503rfmd_0_100_4[] = FW_503RFMD_INTERNAL;
+u8 extfw_503rfmd_0_100_4[] = FW_503RFMD_EXTERNAL;
+#undef FW_503RFMD_INTERNAL
+#undef FW_503RFMD_EXTERNAL
+
 #include "fw-rfmd-1.101.0-84.h"
 #include "fw-rfmd-acc-1.101.0-84.h"
 #include "fw-i3861.h"
@@ -85,6 +91,12 @@ struct fw {
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
 	  intfw_503rfmd_0_90_2, sizeof(intfw_503rfmd_0_90_2),
           extfw_503rfmd_0_90_2, sizeof(extfw_503rfmd_0_90_2)},
+
+	{ "atmel_at76c503-rfmd-0.100.4-16.bin", BOARDTYPE_503_RFMD,
+	  0x00640410, "0.100.4-16 503 RFMD "
+	  "Copyright (c) 1999-2000 by Atmel Corporation",
+	  intfw_503rfmd_0_100_4, sizeof(intfw_503rfmd_0_100_4),
+          extfw_503rfmd_0_100_4, sizeof(extfw_503rfmd_0_100_4)},
 
 	{ "atmel_at76c503-rfmd.bin", BOARDTYPE_503_RFMD,
 	  0x01650054, "1.101.0-84 503 RFMD "
