@@ -24,12 +24,12 @@ u8 extfw_503rfmd_0_100_4[] = FW_503RFMD_EXTERNAL;
 #undef FW_503RFMD_EXTERNAL
 
 #include "fw-rfmd-1.101.0-84.h"
-#include "fw-rfmd-acc-1.101.0-84.h"
 #include "fw-i3861.h"
 #include "fw-i3863.h"
 #include "fw-r505.h"
 #include "fw-505rfmd2958-1.101.0-86.h"
 #include "atmel_at76c503_rfmd2_fw.h"
+#include "atmel_at76c503_rfmd_acc_fw.h"
 #include "atmel_rfmd2958-smc_fw.h"
 
 /* The struct of the firmware header: */
@@ -58,8 +58,6 @@ struct at76c50x_fw_header {
 
 u8 intfw_503rfmd[] = FW_503RFMD_INTERNAL;
 u8 extfw_503rfmd[] = FW_503RFMD_EXTERNAL;
-u8 intfw_503rfmd_acc[] = FW_503RFMD_ACC_INTERNAL;
-u8 extfw_503rfmd_acc[] = FW_503RFMD_ACC_EXTERNAL;
 u8 intfw_i3861[] = FW_I3861_INTERNAL;
 u8 extfw_i3861[] = FW_I3861_EXTERNAL;
 u8 intfw_i3863[] = FW_I3863_INTERNAL;
@@ -100,8 +98,8 @@ struct fw {
 	{ "atmel_at76c503-rfmd-acc.bin", BOARDTYPE_503_RFMD_ACC,
 	  0x01650054, "1.101.0-84 503 RFMD Accton design "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
-	  intfw_503rfmd_acc, sizeof(intfw_503rfmd_acc),
-	  extfw_503rfmd_acc, sizeof(extfw_503rfmd_acc)},
+	  atmel_at76c503_rfmd_acc_fw_int, sizeof(atmel_at76c503_rfmd_acc_fw_int),
+	  atmel_at76c503_rfmd_acc_fw_ext, sizeof(atmel_at76c503_rfmd_acc_fw_ext)},
 
 	{ "atmel_at76c503-i3861.bin", BOARDTYPE_503_INTERSIL_3861,
 	  0x005a002c, "0.90.0-44 Intersil 3861 "
