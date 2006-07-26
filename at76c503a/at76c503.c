@@ -233,7 +233,7 @@ static const u8 zeros[32];
 #define assert(x) \
   do {\
    if (!(x)) \
-     err(__FILE__ ":%d assertion " #x " failed", __LINE__);\
+     err("assertion " #x " failed");\
   } while (0)
 
 /* how often do we re-try these packets ? */
