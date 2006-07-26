@@ -47,10 +47,6 @@ static u8 extfw_503rfmd_0_100_4[] = FW_503RFMD_EXTERNAL;
 #undef FW_503RFMD_INTERNAL
 #undef FW_503RFMD_EXTERNAL
 
-#include "fw-rfmd-1.101.0-84.h"
-static u8 intfw_503rfmd[] = FW_503RFMD_INTERNAL;
-static u8 extfw_503rfmd[] = FW_503RFMD_EXTERNAL;
-
 #include "fw-i3861.h"
 static u8 intfw_i3861[] = FW_I3861_INTERNAL;
 static u8 extfw_i3861[] = FW_I3861_EXTERNAL;
@@ -59,17 +55,12 @@ static u8 extfw_i3861[] = FW_I3861_EXTERNAL;
 static u8 intfw_i3863[] = FW_I3863_INTERNAL;
 static u8 extfw_i3863[] = FW_I3863_EXTERNAL;
 
-#include "fw-r505.h"
-static u8 intfw_505rfmd[] = FW_505RFMD_INTERNAL;
-static u8 extfw_505rfmd[] = FW_505RFMD_EXTERNAL;
-
-#include "fw-505rfmd2958-1.101.0-86.h"
-static u8 intfw_505rfmd2958[] = FW_505RFMD2958_INTERNAL;
-static u8 extfw_505rfmd2958[] = FW_505RFMD2958_EXTERNAL;
-
 #include "atmel_at76c503_rfmd2_fw.h"
 #include "atmel_at76c503_rfmd_acc_fw.h"
+#include "atmel_at76c505_rfmd.h"
+#include "atmel_rfmd2958_fw.h"
 #include "atmel_rfmd2958-smc_fw.h"
+#include "atmel_rfmd_fw.h"
 
 
 static struct fw {
@@ -97,8 +88,8 @@ static struct fw {
 	{ "atmel_at76c503-rfmd.bin", BOARDTYPE_503_RFMD,
 	  0x01650054, "1.101.0-84 503 RFMD "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
-	  intfw_503rfmd, sizeof(intfw_503rfmd),
-	  extfw_503rfmd, sizeof(extfw_503rfmd)},
+	  atmel_fw_rfmd_int, sizeof(atmel_fw_rfmd_int),
+	  atmel_fw_rfmd_ext, sizeof(atmel_fw_rfmd_ext)},
 
 	{ "atmel_at76c503-rfmd-acc.bin", BOARDTYPE_503_RFMD_ACC,
 	  0x01650054, "1.101.0-84 503 RFMD Accton design "
@@ -121,14 +112,14 @@ static struct fw {
 	{ "atmel_at76c505-rfmd.bin", BOARDTYPE_505_RFMD,
 	  0x005b0004, "0.91.0-4 505 RFMD "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
-	  intfw_505rfmd, sizeof(intfw_505rfmd),
-	  extfw_505rfmd, sizeof(extfw_505rfmd)},
+	  atmel_at76c505_rfmd_fw_int, sizeof(atmel_at76c505_rfmd_fw_int),
+	  atmel_at76c505_rfmd_fw_ext, sizeof(atmel_at76c505_rfmd_fw_ext)},
 
 	{ "atmel_at76c505-rfmd2958.bin", BOARDTYPE_505_RFMD_2958,
 	  0x01650056, "1.101.0-86 505 RFMD2958 "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
-	  intfw_505rfmd2958, sizeof(intfw_505rfmd2958),
-	  extfw_505rfmd2958, sizeof(extfw_505rfmd2958)},
+	  atmel_fw_rfmd2958_int, sizeof(atmel_fw_rfmd2958_int),
+	  atmel_fw_rfmd2958_ext, sizeof(atmel_fw_rfmd2958_ext)},
 
 	{ "atmel_at76c505a-rfmd2958.bin", BOARDTYPE_505A_RFMD_2958,
 	  0x01660071, "1.102.0-113 505A RFMD 2958"
