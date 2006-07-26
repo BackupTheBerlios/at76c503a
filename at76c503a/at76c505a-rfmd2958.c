@@ -37,7 +37,7 @@
 /* a dummy struct to use if at76c503-*.o shall load the firmware via hotplug */
 static struct firmware static_fw = {0,NULL};
 #else
-# include "fw-pkg-505a-rfmd2958-1.102.0-113.h"
+# include "fw-pkg-505a-rfmd2958.h"
 #endif
 
 /* Version Information */

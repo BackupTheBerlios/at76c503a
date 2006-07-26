@@ -47,11 +47,10 @@ SRCS = at76c503.c at76_usbdfu.c at76c503-rfmd.c at76c505-rfmd.c at76c503-rfmd-ac
        at76c503-i3861.c at76c503-i3863.c at76c505-rfmd2958.c at76c505a-rfmd2958.c
 
 HDRS = at76c503.h at76_usbdfu.h at76c503-fw_skel.c
-FW_HDRS = fw-pkg-505-rfmd2958-1.101.0-86.h fw-pkg-i3863.h \
-	fw-pkg-rfmd-1.101.0-84.h fw-pkg-i3861.h \
-	fw-pkg-rfmd-0.90.2-140.h \
-	fw-pkg-r505.h fw-pkg-rfmd-acc-1.101.0-84.h \
-	fw-pkg-505a-rfmd2958-1.102.0-113.h
+FW_HDRS = fw-pkg-505-rfmd2958.h fw-pkg-i3863.h \
+	fw-pkg-rfmd.h fw-pkg-i3861.h \
+	fw-pkg-r505.h fw-pkg-rfmd-acc.h \
+	fw-pkg-505a-rfmd2958.h
 
 DISTFILES = $(SRCS) $(HDRS) $(FW_HDRS) Makefile README COPYING \
             CHANGELOG kernel_patch.sh Makefile.k26

@@ -1,41 +1,53 @@
-/* AT76C503A, Intersil 3863 radio, firmware 0.90.0-44 */
-/**************************************************************************/
-/*                                                                        */
-/*            Copyright (c) 1999-2000 by Atmel Corporation                */
-/*                                                                        */
-/*  This software is copyrighted by and is the sole property of Atmel     */
-/*  Corporation.  All rights, title, ownership, or other interests        */
-/*  in the software remain the property of Atmel Corporation.  This       */
-/*  software may only be used in accordance with the corresponding        */
-/*  license agreement.  Any un-authorized use, duplication, transmission, */
-/*  distribution, or disclosure of this software is expressly forbidden.  */
-/*                                                                        */
-/*  This Copyright notice may not be removed or modified without prior    */
-/*  written consent of Atmel Corporation.                                 */
-/*                                                                        */
-/*  Atmel Corporation, Inc. reserves the right to modify this software    */
-/*  without notice.                                                       */
-/*                                                                        */
-/*  Atmel Corporation.                                                    */
-/*  2325 Orchard Parkway               literature@atmel.com               */
-/*  San Jose, CA 95131                 http://www.atmel.com               */
-/*                                                                        */
-/**************************************************************************/
+/*
+ * Copyright 2004 Atmel Corporation. All Rights Reserved. Redistribution
+ * and use of the microcode software ("Firmware") is permitted provided
+ * that the following conditions are met:
+ * 
+ *     1. Firmware is redistributed in object code only.
+ * 
+ *     2. Any reproduction of Firmware must contain the above copyright
+ *        notice, this list of conditions and the below disclaimer in the
+ *        documentation and/or other materials provided with the
+ *        distribution; and
+ * 
+ *     3. The name of Atmel Corporation may not be used to endorse or
+ *        promote products derived from this Firmware without specific
+ *        prior written consent.
+ * 
+ * DISCLAIMER: ATMEL PROVIDES THIS FIRMWARE "AS IS" WITH NO WARRANTIES OR
+ * INDEMNITIES WHATSOEVER. ATMEL EXPRESSLY DISCLAIMS ANY EXPRESS, STATUTORY
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NON-INFRINGEMENT. IN NO EVENT SHALL ATMEL BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ * ANY WAY OUT OF THE USE OF THIS FIRMWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ * 
+ * USER ACKNOWLEDGES AND AGREES THAT THE PURCHASE OR USE OF THE FIRMWARE
+ * WILL NOT CREATE OR GIVE GROUNDS FOR A LICENSE BY IMPLICATION, ESTOPPEL,
+ * OR OTHERWISE IN ANY INTELLECTUAL PROPERTY RIGHTS (PATENT, COPYRIGHT,
+ * TRADE SECRET, MASK WORK, OR OTHER PROPRIETARY RIGHT) EMBODIED IN ANY
+ * OTHER ATMEL HARDWARE OR FIRMWARE EITHER SOLELY OR IN COMBINATION WITH
+ * THE FIRMWARE.
+ */
 
 static u8 fw_bin[] = {
- 0xc1, 0xf0, 0x7b, 0xef, 0x02, 0x00, 0x00, 0x00,
+ 0x6f, 0x6e, 0xae, 0x07, 0x02, 0x00, 0x00, 0x00,
  0x2c, 0x00, 0x5a, 0x00, 0x20, 0x00, 0x00, 0x00,
- 0x68, 0x00, 0x00, 0x00, 0x38, 0x56, 0x00, 0x00,
- 0xa0, 0x56, 0x00, 0x00, 0xe8, 0x16, 0x00, 0x00,
+ 0x60, 0x00, 0x00, 0x00, 0x38, 0x56, 0x00, 0x00,
+ 0x98, 0x56, 0x00, 0x00, 0xe8, 0x16, 0x00, 0x00,
  0x30, 0x2e, 0x39, 0x30, 0x2e, 0x30, 0x2d, 0x34,
  0x34, 0x20, 0x49, 0x6e, 0x74, 0x65, 0x72, 0x73,
  0x69, 0x6c, 0x20, 0x33, 0x38, 0x36, 0x33, 0x20,
  0x43, 0x6f, 0x70, 0x79, 0x72, 0x69, 0x67, 0x68,
- 0x74, 0x20, 0x28, 0x63, 0x29, 0x20, 0x31, 0x39,
- 0x39, 0x39, 0x2d, 0x32, 0x30, 0x30, 0x30, 0x20,
- 0x62, 0x79, 0x20, 0x41, 0x74, 0x6d, 0x65, 0x6c,
- 0x20, 0x43, 0x6f, 0x72, 0x70, 0x6f, 0x72, 0x61,
- 0x74, 0x69, 0x6f, 0x6e, 0x00, 0x00, 0x00, 0x00,
+ 0x74, 0x20, 0x28, 0x63, 0x29, 0x20, 0x32, 0x30,
+ 0x30, 0x34, 0x20, 0x62, 0x79, 0x20, 0x41, 0x74,
+ 0x6d, 0x65, 0x6c, 0x20, 0x43, 0x6f, 0x72, 0x70,
+ 0x6f, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x00,
  0x7c, 0xf1, 0x9f, 0xe5, 0x7c, 0xf1, 0x9f, 0xe5,
  0x7c, 0xf1, 0x9f, 0xe5, 0x7c, 0xf1, 0x9f, 0xe5,
  0x7c, 0xf1, 0x9f, 0xe5, 0x7c, 0xf1, 0x9f, 0xe5,
@@ -3530,5 +3542,5 @@ static u8 fw_bin[] = {
  0x7c, 0x01, 0x00, 0x02, 0xd0, 0x00, 0x00, 0x02,
 };
 
-static const struct firmware static_fw = {28040, fw_bin};
+static const struct firmware static_fw = {28032, fw_bin};
 

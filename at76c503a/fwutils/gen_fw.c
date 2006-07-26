@@ -127,7 +127,7 @@ static struct fw {
 	  atmel_fw_rfmd_ext, sizeof(atmel_fw_rfmd_ext)},
 
 	{ "atmel_at76c503-rfmd.bin", BOARDTYPE_503_RFMD,
-	  0x016702af, "1.103.2-175 503 RFMD "
+	  0x016700af, "1.103.0-175 503 RFMD "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  fw_at76c503_int, sizeof(fw_at76c503_int),
 	  fw_at76c503_ext, sizeof(fw_at76c503_ext)},
@@ -157,7 +157,7 @@ static struct fw {
 	  atmel_at76c505_rfmd_fw_ext, sizeof(atmel_at76c505_rfmd_fw_ext)},
 
 	{ "atmel_at76c505-rfmd.bin", BOARDTYPE_505_RFMD,
-	  0x016702af, "1.103.2-175 505 RFMD "
+	  0x016700af, "1.103.0-175 505 RFMD "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  fw_at76c505_int, sizeof(fw_at76c505_int),
 	  fw_at76c505_ext, sizeof(fw_at76c505_ext)},
@@ -169,7 +169,7 @@ static struct fw {
 	  atmel_fw_rfmd2958_ext, sizeof(atmel_fw_rfmd2958_ext)},
 
 	{ "atmel_at76c505-rfmd2958.bin", BOARDTYPE_505_RFMD_2958,
-	  0x016702af, "1.103.2-175 505 RFMD2958 "
+	  0x016700af, "1.103.0-175 505 RFMD2958 "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  fw_at76c505_2958_int, sizeof(fw_at76c505_2958_int),
 	  fw_at76c505_2958_ext, sizeof(fw_at76c505_2958_ext)},
@@ -181,13 +181,13 @@ static struct fw {
 	  atmel_fw_rfmd2958_smc_ext, sizeof(atmel_fw_rfmd2958_smc_ext)},
 
 	{ "atmel_at76c505a-rfmd2958.bin", BOARDTYPE_505A_RFMD_2958,
-	  0x016702af, "1.103.2-175 505A RFMD 2958 "
+	  0x016700af, "1.103.0-175 505A RFMD 2958 "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  fw_at76c505a_2958_int, sizeof(fw_at76c505a_2958_int),
 	  fw_at76c505a_2958_ext, sizeof(fw_at76c505a_2958_ext)},
 
 	{ "atmel_at76c505amx.bin", BOARDTYPE_505AMX_RFMD,
-	  0x016702af, "1.103.2-175 505AMX RFMD "
+	  0x016700af, "1.103.0-175 505AMX RFMD "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  fw_at76c505amx_int, sizeof(fw_at76c505amx_int),
 	  fw_at76c505amx_ext, sizeof(fw_at76c505amx_ext)},
