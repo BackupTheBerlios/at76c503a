@@ -6,6 +6,7 @@
 #include <endian.h>
 
 typedef unsigned char u8;
+typedef unsigned char u_int8_t;
 typedef unsigned int u32;
 
 #define BOARDTYPE_503_INTERSIL_3861 1
@@ -15,12 +16,6 @@ typedef unsigned int u32;
 #define BOARDTYPE_505_RFMD          5
 #define BOARDTYPE_505_RFMD_2958     6
 #define BOARDTYPE_505A_RFMD_2958    7
-
-#include "fw-rfmd-0.90.2-140.h"
-u8 intfw_503rfmd_0_90_2[] = FW_503RFMD_INTERNAL;
-u8 extfw_503rfmd_0_90_2[] = FW_503RFMD_EXTERNAL;
-#undef FW_503RFMD_INTERNAL
-#undef FW_503RFMD_EXTERNAL
 
 #include "fw-rfmd-0.100.4-16.h"
 u8 intfw_503rfmd_0_100_4[] = FW_503RFMD_INTERNAL;
@@ -34,6 +29,7 @@ u8 extfw_503rfmd_0_100_4[] = FW_503RFMD_EXTERNAL;
 #include "fw-i3863.h"
 #include "fw-r505.h"
 #include "fw-505rfmd2958-1.101.0-86.h"
+#include "atmel_at76c503_rfmd2_fw.h"
 
 #define atmel_fw_rfmd2958_smc_int intfw_505a_rfmd2958
 #define atmel_fw_rfmd2958_smc_ext extfw_505a_rfmd2958
@@ -89,8 +85,8 @@ struct fw {
 	{ "atmel_at76c503-rfmd-0.90.2-140.bin", BOARDTYPE_503_RFMD,
 	  0x005a028c, "0.90.2-140 503 RFMD "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
-	  intfw_503rfmd_0_90_2, sizeof(intfw_503rfmd_0_90_2),
-          extfw_503rfmd_0_90_2, sizeof(extfw_503rfmd_0_90_2)},
+	  atmel_at76c503_rfmd2_fw_int, sizeof(atmel_at76c503_rfmd2_fw_int),
+	  atmel_at76c503_rfmd2_fw_ext, sizeof(atmel_at76c503_rfmd2_fw_ext)},
 
 	{ "atmel_at76c503-rfmd-0.100.4-16.bin", BOARDTYPE_503_RFMD,
 	  0x00640410, "0.100.4-16 503 RFMD "
