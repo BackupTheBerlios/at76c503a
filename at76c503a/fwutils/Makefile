@@ -50,4 +50,13 @@ dist: all
 	tar cf - $(DISTDIR) | gzip --best > $(DISTDIR).tar.gz
 	rm -rf $(DISTDIR)
 
-.PHONY: all clean dist
+headers:
+	./fwbin2pkg.sh atmel_at76c503-i3861.bin fw-pkg-i3861.h
+	./fwbin2pkg.sh atmel_at76c503-i3863.bin fw-pkg-i3863.h
+	./fwbin2pkg.sh atmel_at76c503-rfmd-acc.bin fw-pkg-rfmd-acc.h
+	./fwbin2pkg.sh atmel_at76c503-rfmd.bin fw-pkg-rfmd.h
+	./fwbin2pkg.sh atmel_at76c505-rfmd.bin fw-pkg-r505.h
+	./fwbin2pkg.sh atmel_at76c505-rfmd2958.bin fw-pkg-505-rfmd2958.h
+	./fwbin2pkg.sh atmel_at76c505a-rfmd2958.bin fw-pkg-505a-rfmd2958.h
+
+.PHONY: all clean dist headers
