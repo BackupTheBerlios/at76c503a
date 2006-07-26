@@ -1,0 +1,86 @@
+Firmware for at76c503a driver
+=============================
+
+
+Copyright
+---------
+
+The firmware is copyrighted by Atmel Corporation.  Please see file
+COPYRIGHT.
+
+
+Purpose
+-------
+
+The included firmware files are intended only for use with Linux
+at76c503a driver.  Every supported device need just one firmware file,
+and the driver knows which firmware to load.
+
+
+Installation
+------------
+
+The firmware is loaded by the kernel using hotplug or udev.  For the
+firmware to be found and loaded, it should be copied to the directory
+where hotplug or udev will find it.
+
+udev supports firmware download starting with version 066.  If an older
+version of udev is installed, then hotplug is likely in change of the
+firmware loading.
+
+If you don't have either of udev or hotplug, please install a recent
+version of udev.
+
+When udev is used, this directory is normally called /lib/firmware.  If
+hotplug is handling the firmware, if would normally look in following
+directories:
+
+  /lib/hotplug/firmware
+  /usr/local/lib/hotplug/firmware
+  /usr/lib/hotplug/firmware
+
+For example, if you determine that the firmware is loaded from
+/lib/firmware, copy the firmware files there as root:
+
+  cp *.bin /lib/firmware
+
+The firmware download is initiated by the driver after it detects the
+appropriate hardware.  No additional scripts or utilities are needed to
+load the firmware.  See kernel log (using the dmesg command) to make
+sure that the firmware download has succeeded.
+
+
+Older firmwares
+---------------
+
+Some older versions of the firmware are included in the "old" directory. 
+The firmware version is the name of the subdirectory under "old".
+
+If for some reason you want to try an older version of the firmware,
+copy it over the firmware used by udev or hotplug and reconnect the
+device.  See kernel messages to make sure the driver is using the
+desired version of the firmware.
+
+
+Contact information
+-------------------
+
+Please don't contact Atmel about this firmware.  Atmel neither wrote the
+at76c503a driver nor packaged this firmware.  Their good will should not
+be punished by misdirected support requests.
+
+Please don't write any individual developers personally.  The driver is
+developed collectively, and the discussion about the driver should be
+open for others.
+
+The mailing list for developers of the at76c503a driver is
+
+  at76c503a-develop@lists.berlios.de
+
+The mailing list for users of the at76c503a driver is
+
+  at76c503a-user@lists.berlios.de
+
+You may also want to download the latest version of the driver and check
+the included documentation, which may be more current than this
+document.

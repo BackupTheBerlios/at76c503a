@@ -18,6 +18,8 @@ OLDBINFILES = \
 
 BINFILES = $(NEWBINFILES) $(OLDBINFILES)
 
+DISTFILES = README COPYRIGHT
+
 DISTDIR = at76c503a-firmware-$(VERSION)
 
 
@@ -35,8 +37,13 @@ clean:
 dist: all
 	mkdir $(DISTDIR)
 	cp $(NEWBINFILES) $(DISTDIR)
-	mkdir $(DISTDIR)/old
-	cp $(OLDBINFILES) $(DISTDIR)/old
+	cp $(DISTFILES) $(DISTDIR)
+	for f in $(OLDBINFILES); do \
+		ver=`echo $$f | sed 's/^.*-\([^-]*-[^.]*\)\.bin/\1/'`; \
+		name=`echo $$f | sed 's/-\([^-]*-[^.]*\)\.bin/.bin/'`; \
+		mkdir -p $(DISTDIR)/old/$$ver; \
+		cp $$f $(DISTDIR)/old/$$ver/$$name; \
+	done
 	tar cf - $(DISTDIR) | gzip --best > $(DISTDIR).tar.gz
 	rm -rf $(DISTDIR)
 
