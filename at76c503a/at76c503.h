@@ -648,6 +648,10 @@ struct at76c503 {
 				     use Prism header */
 	int monitor_scan_min_time;
 	int monitor_scan_max_time;
+
+	int beacon_period;	  /* period of mgmt beacons */
+	int beacons_received;
+	unsigned long beacons_last_qual; /* last time we reset beacons_received = 0 */
 };
 
 #define AT76C503A_UNPLUG 1

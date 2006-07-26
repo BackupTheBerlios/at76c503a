@@ -110,6 +110,18 @@
 #include "at76c503.h"
 #include "at76_usbdfu.h"
 
+#if WIRELESS_EXT < 20
+#define IW_QUAL_QUAL_UPDATED    0x01    /* Value was updated since last read */
+#define IW_QUAL_LEVEL_UPDATED   0x02
+#define IW_QUAL_NOISE_UPDATED   0x04
+#define IW_QUAL_ALL_UPDATED     0x07
+#define IW_QUAL_DBM		0x08	/* Level + Noise are dBm */
+#define IW_QUAL_QUAL_INVALID    0x10    /* Driver doesn't provide value */
+#define IW_QUAL_LEVEL_INVALID   0x20
+#define IW_QUAL_NOISE_INVALID   0x40
+#define IW_QUAL_ALL_INVALID     0x70
+#endif
+
 /* timeout in seconds for the usb_control_msg in get_cmd_status
  * and set_card_command
  */
@@ -3303,9 +3315,11 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 			//    "+BEACON_TIMEOUT*HZ", __FUNCTION__, __LINE__);
 			mod_timer(&dev->mgmt_timer, jiffies+BEACON_TIMEOUT*HZ);
 			dev->curr_bss->rssi = buf->rssi;
+			dev->beacons_received++;
 			goto rx_mgmt_beacon_end;
 		}
-	} else UNLOCK_ISTATE()
+	} else 
+	    UNLOCK_ISTATE()
 
 	/* look if we have this BSS already in the list */
 	match = NULL;
@@ -3460,19 +3474,59 @@ rx_mgmt_beacon_end:
 	spin_unlock_irqrestore(&dev->bss_list_spinlock, flags);
 } /* rx_mgmt_beacon */
 
+
+/* calc the link level from a given rx_buffer */
+static void calc_level(struct at76c503 *dev, struct at76c503_rx_buffer *buf, struct iw_quality* qual)
+{	int max_rssi = 42; /* just a gues for now, might be different for other chips */
+
+    	qual->level = (buf->rssi * 100 / max_rssi);
+	if (qual->level > 100)
+		qual->level = 100;
+	qual->updated |= IW_QUAL_LEVEL_UPDATED; 
+}
+
+
+/* calc the link quality from a given rx_buffer */
+static void calc_qual(struct at76c503 *dev, struct at76c503_rx_buffer *buf, struct iw_quality* qual)
+{
+	if((dev->board_type == BOARDTYPE_503_INTERSIL_3861) ||
+	   (dev->board_type == BOARDTYPE_503_INTERSIL_3863)) {
+	    qual->qual=buf->link_quality;
+	} else {
+	    qual->qual = qual->level * dev->beacons_received *
+	    		        dev->beacon_period /
+	                        (jiffies_to_msecs(jiffies) - dev->beacons_last_qual);
+		
+	    dev->beacons_last_qual = jiffies_to_msecs(jiffies);
+	    dev->beacons_received = 0;
+	}
+	qual->qual = (qual->qual > 100) ? 100 : qual->qual;
+	qual->updated |= IW_QUAL_QUAL_UPDATED;
+}
+
+
+/* calc the noise quality from a given rx_buffer */
+static void calc_noise(struct at76c503 *dev, struct at76c503_rx_buffer *buf, struct iw_quality* qual)
+{
+	qual->noise = 0;
+	qual->updated |= IW_QUAL_NOISE_INVALID;
+}
+
+
 static void update_wstats(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 {
-	struct iw_statistics *wstats = &dev->wstats;
-	u16 lev_dbm;
+	struct iw_quality *qual = &dev->wstats.qual;
 
-	if (buf->rssi > 1) {
-		lev_dbm = (buf->rssi * 5 / 2);
-		if (lev_dbm > 255)
-			lev_dbm = 255;
-		wstats->qual.qual    = buf->link_quality;
-		wstats->qual.level   = lev_dbm;
-		wstats->qual.noise   = buf->noise_level;
-		wstats->qual.updated = 7;
+	if (buf->rssi && dev->istate == CONNECTED) {
+		qual->updated = 0;
+		calc_level(dev, buf, qual);
+		calc_qual(dev, buf, qual);
+		calc_noise(dev, buf, qual);
+	} else {
+		qual->qual = 0;
+		qual->level = 0;
+		qual->noise = 0;
+		qual->updated = IW_QUAL_ALL_INVALID;
 	}
 }
 
@@ -4621,7 +4675,7 @@ static int startup_device(struct at76c503 *dev)
 	memcpy(ccfg->wep_default_key_value, dev->wep_keys, 4 * WEP_KEY_SIZE);
 
 	ccfg->short_preamble = dev->preamble_type;
-	ccfg->beacon_period = cpu_to_le16(100);
+	ccfg->beacon_period = cpu_to_le16(dev->beacon_period);
 
 	ret = set_card_command(dev->udev, CMD_STARTUP, (unsigned char *)&dev->card_config,
 			       sizeof(struct at76c503_card_config));
@@ -4802,18 +4856,18 @@ static int at76c503_set_mac_address(struct net_device *netdev, void *addr)
 static void iwspy_update(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 {
 	struct ieee80211_hdr_3addr *hdr = (struct ieee80211_hdr_3addr *)buf->packet;
-	u16 lev_dbm = buf->rssi * 5 / 2;
-	struct iw_quality wstats = {
-		.qual = buf->link_quality,
-		.level = (lev_dbm > 255) ? 255 : lev_dbm,
-		.noise = buf->noise_level,
-		.updated = 1,
-	};
-	
+	struct iw_quality qual;
+
+	/* We can only set the level here */
+	qual.updated = IW_QUAL_QUAL_INVALID | IW_QUAL_NOISE_INVALID;
+        qual.level = 0;
+        qual.noise = 0;
+	calc_level(dev, buf, &qual);
+
 	spin_lock_bh(&(dev->spy_spinlock));
 	
 	if (dev->spy_data.spy_number > 0) {
-		wireless_spy_update(dev->netdev, hdr->addr2, &wstats);
+		wireless_spy_update(dev->netdev, hdr->addr2, &qual);
 	}
 	spin_unlock_bh(&(dev->spy_spinlock));
 } /* iwspy_update */
@@ -5045,23 +5099,18 @@ static int at76c503_iw_handler_get_range(struct net_device *netdev,
 	range->min_nwid = 0x0000;
 	range->max_nwid = 0x0000;
 	
-	
 	// this driver doesn't maintain sensitivity information
 	range->sensitivity = 0;
 	
-	
-	range->max_qual.qual = 
-		((dev->board_type == BOARDTYPE_503_INTERSIL_3861) ||
-		 (dev->board_type == BOARDTYPE_503_INTERSIL_3863)) ? 100 : 0;
-	range->max_qual.level = 255;
+	range->max_qual.qual = 100;
+	range->max_qual.level = 100;
 	range->max_qual.noise = 0;
+	range->max_qual.updated = IW_QUAL_NOISE_INVALID;
 	
-	range->avg_qual.qual = 
-		((dev->board_type == BOARDTYPE_503_INTERSIL_3861) ||
-		 (dev->board_type == BOARDTYPE_503_INTERSIL_3863)) ? 30 : 0;
-	range->avg_qual.level = 30;
+	range->avg_qual.qual = 50;
+	range->avg_qual.level = 50;
 	range->avg_qual.noise = 0;
-	
+	range->avg_qual.updated = IW_QUAL_NOISE_INVALID;
 	
 	range->bitrate[0] = 1000000;
 	range->bitrate[1] = 2000000;
@@ -5410,9 +5459,18 @@ static int at76c503_iw_handler_get_scan(struct net_device *netdev,
 
 		/* Add quality statistics */
 		iwe->cmd = IWEVQUAL;
-		iwe->u.qual.level = curr_bss->rssi; /* do some calibration here ? */
-		iwe->u.qual.noise = 0;
-		iwe->u.qual.qual = curr_bss->link_qual; /* good old Intersil radios report this, too */
+		iwe->u.qual.noise=0;
+		iwe->u.qual.updated=IW_QUAL_NOISE_INVALID | IW_QUAL_LEVEL_UPDATED;
+    		iwe->u.qual.level = (curr_bss->rssi * 100 / 42);
+		if (iwe->u.qual.level > 100)
+			iwe->u.qual.level = 100;
+		if((dev->board_type == BOARDTYPE_503_INTERSIL_3861) ||
+	   		(dev->board_type == BOARDTYPE_503_INTERSIL_3863)) {
+	    		iwe->u.qual.qual=curr_bss->link_qual;
+		} else {
+	    		iwe->u.qual.qual=0;
+		        iwe->u.qual.updated |= IW_QUAL_QUAL_INVALID;
+		}
 		/* Add new value to event */
 		curr_pos = iwe_stream_add_event(curr_pos, 
 			extra + IW_SCAN_MAX_DATA, iwe, IW_EV_QUAL_LEN);
@@ -6594,6 +6652,8 @@ static int init_new_device(struct at76c503 *dev)
 	//dev->long_retr_limit = DEF_LONG_RETRY_LIMIT;
 	dev->txrate = TX_RATE_AUTO;
 	dev->preamble_type = preamble_type;
+	dev->beacon_period = 100;
+	dev->beacons_last_qual=jiffies_to_msecs(jiffies);
 	dev->auth_mode = auth_mode ? WLAN_AUTH_SHARED_KEY :
 	  WLAN_AUTH_OPEN;
 	dev->scan_min_time = scan_min_time;
