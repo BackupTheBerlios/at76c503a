@@ -47,14 +47,8 @@ static u8 extfw_503rfmd_0_100_4[] = FW_503RFMD_EXTERNAL;
 #undef FW_503RFMD_INTERNAL
 #undef FW_503RFMD_EXTERNAL
 
-#include "fw-i3861.h"
-static u8 intfw_i3861[] = FW_I3861_INTERNAL;
-static u8 extfw_i3861[] = FW_I3861_EXTERNAL;
-
-#include "fw-i3863.h"
-static u8 intfw_i3863[] = FW_I3863_INTERNAL;
-static u8 extfw_i3863[] = FW_I3863_EXTERNAL;
-
+#include "atmel_intersil_fw.h"
+#include "atmel_at76c503_i3863_fw.h"
 #include "atmel_at76c503_rfmd2_fw.h"
 #include "atmel_at76c503_rfmd_acc_fw.h"
 #include "atmel_at76c505_rfmd.h"
@@ -100,14 +94,14 @@ static struct fw {
 	{ "atmel_at76c503-i3861.bin", BOARDTYPE_503_INTERSIL_3861,
 	  0x005a002c, "0.90.0-44 Intersil 3861 "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
-	  intfw_i3861, sizeof(intfw_i3861),
-	  extfw_i3861, sizeof(extfw_i3861)},
+	  atmel_fw_intersil_int, sizeof(atmel_fw_intersil_int),
+	  atmel_fw_intersil_ext, sizeof(atmel_fw_intersil_ext)},
 
 	{ "atmel_at76c503-i3863.bin", BOARDTYPE_503_INTERSIL_3863,
 	  0x005a002c, "0.90.0-44 Intersil 3863 "
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
-	  intfw_i3863, sizeof(intfw_i3863),
-	  extfw_i3863, sizeof(extfw_i3863)},
+	  atmel_at76c503_i3863_fw_int, sizeof(atmel_at76c503_i3863_fw_int),
+	  atmel_at76c503_i3863_fw_ext, sizeof(atmel_at76c503_i3863_fw_ext)},
 
 	{ "atmel_at76c505-rfmd.bin", BOARDTYPE_505_RFMD,
 	  0x005b0004, "0.91.0-4 505 RFMD "
