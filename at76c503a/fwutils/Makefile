@@ -13,8 +13,7 @@ NEWBINFILES = \
 	atmel_at76c505a-rfmd2958.bin
 
 OLDBINFILES = \
-	atmel_at76c503-rfmd-0.90.2-140.bin \
-	atmel_at76c503-rfmd-0.100.4-16.bin \
+	atmel_at76c503-rfmd-0.90.2-140.bin
 
 BINFILES = $(NEWBINFILES) $(OLDBINFILES)
 

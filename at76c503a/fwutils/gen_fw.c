@@ -41,12 +41,6 @@ struct at76c50x_fw_header {
 #define QUAD(x) ((x) % 4 ? (x) + (4 - ((x)%4)) : (x))
 
 
-#include "fw-rfmd-0.100.4-16.h"
-static u8 intfw_503rfmd_0_100_4[] = FW_503RFMD_INTERNAL;
-static u8 extfw_503rfmd_0_100_4[] = FW_503RFMD_EXTERNAL;
-#undef FW_503RFMD_INTERNAL
-#undef FW_503RFMD_EXTERNAL
-
 #include "atmel_intersil_fw.h"
 #include "atmel_at76c503_i3863_fw.h"
 #include "atmel_at76c503_rfmd2_fw.h"
@@ -72,12 +66,6 @@ static struct fw {
 	  "Copyright (c) 1999-2000 by Atmel Corporation",
 	  atmel_at76c503_rfmd2_fw_int, sizeof(atmel_at76c503_rfmd2_fw_int),
 	  atmel_at76c503_rfmd2_fw_ext, sizeof(atmel_at76c503_rfmd2_fw_ext)},
-
-	{ "atmel_at76c503-rfmd-0.100.4-16.bin", BOARDTYPE_503_RFMD,
-	  0x00640410, "0.100.4-16 503 RFMD "
-	  "Copyright (c) 1999-2000 by Atmel Corporation",
-	  intfw_503rfmd_0_100_4, sizeof(intfw_503rfmd_0_100_4),
-          extfw_503rfmd_0_100_4, sizeof(extfw_503rfmd_0_100_4)},
 
 	{ "atmel_at76c503-rfmd.bin", BOARDTYPE_503_RFMD,
 	  0x01650054, "1.101.0-84 503 RFMD "
