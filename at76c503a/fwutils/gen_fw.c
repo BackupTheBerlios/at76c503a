@@ -7,6 +7,8 @@
 
 typedef unsigned char u8;
 typedef unsigned char u_int8_t;
+typedef unsigned char UCHAR;
+typedef unsigned short USHORT;
 typedef unsigned int u32;
 
 #define BOARDTYPE_503_INTERSIL_3861 1
@@ -16,6 +18,7 @@ typedef unsigned int u32;
 #define BOARDTYPE_505_RFMD          5
 #define BOARDTYPE_505_RFMD_2958     6
 #define BOARDTYPE_505A_RFMD_2958    7
+#define BOARDTYPE_505AMX_RFMD       8
 
 /* The struct of the firmware header: */
 struct at76c50x_fw_header {
@@ -50,6 +53,56 @@ struct at76c50x_fw_header {
 #include "atmel_rfmd2958-smc_fw.h"
 #include "atmel_rfmd_fw.h"
 
+#define BuildInInternalFW fw_at76c503_int
+#define BuildInExternalFW fw_at76c503_ext
+#define BuildInInternalFWLen fw_at76c503_il
+#define BuildInExternalFWLen fw_at76c503_el
+#include "fw-at76c503.h"
+#undef BuildInInternalFW
+#undef BuildInExternalFW
+#undef BuildInInternalFWLen
+#undef BuildInExternalFWLen
+
+#define BuildInInternalFW fw_at76c505_int
+#define BuildInExternalFW fw_at76c505_ext
+#define BuildInInternalFWLen fw_at76c505_il
+#define BuildInExternalFWLen fw_at76c505_el
+#include "fw-at76c505.h"
+#undef BuildInInternalFW
+#undef BuildInExternalFW
+#undef BuildInInternalFWLen
+#undef BuildInExternalFWLen
+
+#define BuildInInternalFW fw_at76c505_2958_int
+#define BuildInExternalFW fw_at76c505_2958_ext
+#define BuildInInternalFWLen fw_at76c505_2958_il
+#define BuildInExternalFWLen fw_at76c505_2958_el
+#include "fw-at76c505-2958.h"
+#undef BuildInInternalFW
+#undef BuildInExternalFW
+#undef BuildInInternalFWLen
+#undef BuildInExternalFWLen
+
+#define BuildInInternalFW fw_at76c505a_2958_int
+#define BuildInExternalFW fw_at76c505a_2958_ext
+#define BuildInInternalFWLen fw_at76c505a_2958_il
+#define BuildInExternalFWLen fw_at76c505a_2958_el
+#include "fw-at76c505a-2958.h"
+#undef BuildInInternalFW
+#undef BuildInExternalFW
+#undef BuildInInternalFWLen
+#undef BuildInExternalFWLen
+
+#define BuildInInternalFW fw_at76c505amx_int
+#define BuildInExternalFW fw_at76c505amx_ext
+#define BuildInInternalFWLen fw_at76c505amx_il
+#define BuildInExternalFWLen fw_at76c505amx_el
+#include "fw-at76c505amx.h"
+#undef BuildInInternalFW
+#undef BuildInExternalFW
+#undef BuildInInternalFWLen
+#undef BuildInExternalFWLen
+
 
 static struct fw {
 	const char *filename;
@@ -67,11 +120,17 @@ static struct fw {
 	  atmel_at76c503_rfmd2_fw_int, sizeof(atmel_at76c503_rfmd2_fw_int),
 	  atmel_at76c503_rfmd2_fw_ext, sizeof(atmel_at76c503_rfmd2_fw_ext)},
 
-	{ "atmel_at76c503-rfmd.bin", BOARDTYPE_503_RFMD,
+	{ "atmel_at76c503-rfmd-1.101.0-84.bin", BOARDTYPE_503_RFMD,
 	  0x01650054, "1.101.0-84 503 RFMD "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  atmel_fw_rfmd_int, sizeof(atmel_fw_rfmd_int),
 	  atmel_fw_rfmd_ext, sizeof(atmel_fw_rfmd_ext)},
+
+	{ "atmel_at76c503-rfmd.bin", BOARDTYPE_503_RFMD,
+	  0x016702af, "1.103.2-175 503 RFMD "
+	  "Copyright (c) 2004 by Atmel Corporation",
+	  fw_at76c503_int, sizeof(fw_at76c503_int),
+	  fw_at76c503_ext, sizeof(fw_at76c503_ext)},
 
 	{ "atmel_at76c503-rfmd-acc.bin", BOARDTYPE_503_RFMD_ACC,
 	  0x01650054, "1.101.0-84 503 RFMD Accton design "
@@ -91,23 +150,47 @@ static struct fw {
 	  atmel_at76c503_i3863_fw_int, sizeof(atmel_at76c503_i3863_fw_int),
 	  atmel_at76c503_i3863_fw_ext, sizeof(atmel_at76c503_i3863_fw_ext)},
 
-	{ "atmel_at76c505-rfmd.bin", BOARDTYPE_505_RFMD,
+	{ "atmel_at76c505-rfmd-0.91.0-4.bin", BOARDTYPE_505_RFMD,
 	  0x005b0004, "0.91.0-4 505 RFMD "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  atmel_at76c505_rfmd_fw_int, sizeof(atmel_at76c505_rfmd_fw_int),
 	  atmel_at76c505_rfmd_fw_ext, sizeof(atmel_at76c505_rfmd_fw_ext)},
 
-	{ "atmel_at76c505-rfmd2958.bin", BOARDTYPE_505_RFMD_2958,
+	{ "atmel_at76c505-rfmd.bin", BOARDTYPE_505_RFMD,
+	  0x016702af, "1.103.2-175 505 RFMD "
+	  "Copyright (c) 2004 by Atmel Corporation",
+	  fw_at76c505_int, sizeof(fw_at76c505_int),
+	  fw_at76c505_ext, sizeof(fw_at76c505_ext)},
+
+	{ "atmel_at76c505-rfmd2958-1.101.0-86.bin", BOARDTYPE_505_RFMD_2958,
 	  0x01650056, "1.101.0-86 505 RFMD2958 "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  atmel_fw_rfmd2958_int, sizeof(atmel_fw_rfmd2958_int),
 	  atmel_fw_rfmd2958_ext, sizeof(atmel_fw_rfmd2958_ext)},
 
-	{ "atmel_at76c505a-rfmd2958.bin", BOARDTYPE_505A_RFMD_2958,
-	  0x01660071, "1.102.0-113 505A RFMD 2958"
+	{ "atmel_at76c505-rfmd2958.bin", BOARDTYPE_505_RFMD_2958,
+	  0x016702af, "1.103.2-175 505 RFMD2958 "
+	  "Copyright (c) 2004 by Atmel Corporation",
+	  fw_at76c505_2958_int, sizeof(fw_at76c505_2958_int),
+	  fw_at76c505_2958_ext, sizeof(fw_at76c505_2958_ext)},
+
+	{ "atmel_at76c505a-rfmd2958-1.102.0-113.bin", BOARDTYPE_505A_RFMD_2958,
+	  0x01660071, "1.102.0-113 505A RFMD 2958 "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  atmel_fw_rfmd2958_smc_int, sizeof(atmel_fw_rfmd2958_smc_int),
 	  atmel_fw_rfmd2958_smc_ext, sizeof(atmel_fw_rfmd2958_smc_ext)},
+
+	{ "atmel_at76c505a-rfmd2958.bin", BOARDTYPE_505A_RFMD_2958,
+	  0x016702af, "1.103.2-175 505A RFMD 2958 "
+	  "Copyright (c) 2004 by Atmel Corporation",
+	  fw_at76c505a_2958_int, sizeof(fw_at76c505a_2958_int),
+	  fw_at76c505a_2958_ext, sizeof(fw_at76c505a_2958_ext)},
+
+	{ "atmel_at76c505amx.bin", BOARDTYPE_505AMX_RFMD,
+	  0x016702af, "1.103.2-175 505AMX RFMD "
+	  "Copyright (c) 2004 by Atmel Corporation",
+	  fw_at76c505amx_int, sizeof(fw_at76c505amx_int),
+	  fw_at76c505amx_ext, sizeof(fw_at76c505amx_ext)},
 };
 
 static int nr_fws = sizeof(fws) / sizeof(struct fw);
