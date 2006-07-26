@@ -17,21 +17,6 @@ typedef unsigned int u32;
 #define BOARDTYPE_505_RFMD_2958     6
 #define BOARDTYPE_505A_RFMD_2958    7
 
-#include "fw-rfmd-0.100.4-16.h"
-u8 intfw_503rfmd_0_100_4[] = FW_503RFMD_INTERNAL;
-u8 extfw_503rfmd_0_100_4[] = FW_503RFMD_EXTERNAL;
-#undef FW_503RFMD_INTERNAL
-#undef FW_503RFMD_EXTERNAL
-
-#include "fw-rfmd-1.101.0-84.h"
-#include "fw-i3861.h"
-#include "fw-i3863.h"
-#include "fw-r505.h"
-#include "fw-505rfmd2958-1.101.0-86.h"
-#include "atmel_at76c503_rfmd2_fw.h"
-#include "atmel_at76c503_rfmd_acc_fw.h"
-#include "atmel_rfmd2958-smc_fw.h"
-
 /* The struct of the firmware header: */
 struct at76c50x_fw_header {
         u32 crc;             // CRC32 of the whole image (seed ~0, no post-process)
@@ -52,22 +37,42 @@ struct at76c50x_fw_header {
 #error "Unknown endianess"
 #endif
 
-
 // round to next multiple of four
 #define QUAD(x) ((x) % 4 ? (x) + (4 - ((x)%4)) : (x))
 
-u8 intfw_503rfmd[] = FW_503RFMD_INTERNAL;
-u8 extfw_503rfmd[] = FW_503RFMD_EXTERNAL;
-u8 intfw_i3861[] = FW_I3861_INTERNAL;
-u8 extfw_i3861[] = FW_I3861_EXTERNAL;
-u8 intfw_i3863[] = FW_I3863_INTERNAL;
-u8 extfw_i3863[] = FW_I3863_EXTERNAL;
-u8 intfw_505rfmd[] = FW_505RFMD_INTERNAL;
-u8 extfw_505rfmd[] = FW_505RFMD_EXTERNAL;
-u8 intfw_505rfmd2958[] = FW_505RFMD2958_INTERNAL;
-u8 extfw_505rfmd2958[] = FW_505RFMD2958_EXTERNAL;
 
-struct fw {
+#include "fw-rfmd-0.100.4-16.h"
+static u8 intfw_503rfmd_0_100_4[] = FW_503RFMD_INTERNAL;
+static u8 extfw_503rfmd_0_100_4[] = FW_503RFMD_EXTERNAL;
+#undef FW_503RFMD_INTERNAL
+#undef FW_503RFMD_EXTERNAL
+
+#include "fw-rfmd-1.101.0-84.h"
+static u8 intfw_503rfmd[] = FW_503RFMD_INTERNAL;
+static u8 extfw_503rfmd[] = FW_503RFMD_EXTERNAL;
+
+#include "fw-i3861.h"
+static u8 intfw_i3861[] = FW_I3861_INTERNAL;
+static u8 extfw_i3861[] = FW_I3861_EXTERNAL;
+
+#include "fw-i3863.h"
+static u8 intfw_i3863[] = FW_I3863_INTERNAL;
+static u8 extfw_i3863[] = FW_I3863_EXTERNAL;
+
+#include "fw-r505.h"
+static u8 intfw_505rfmd[] = FW_505RFMD_INTERNAL;
+static u8 extfw_505rfmd[] = FW_505RFMD_EXTERNAL;
+
+#include "fw-505rfmd2958-1.101.0-86.h"
+static u8 intfw_505rfmd2958[] = FW_505RFMD2958_INTERNAL;
+static u8 extfw_505rfmd2958[] = FW_505RFMD2958_EXTERNAL;
+
+#include "atmel_at76c503_rfmd2_fw.h"
+#include "atmel_at76c503_rfmd_acc_fw.h"
+#include "atmel_rfmd2958-smc_fw.h"
+
+
+static struct fw {
 	const char *filename;
 	u32 board_id;
 	u32 version;
@@ -132,8 +137,8 @@ struct fw {
 	  atmel_fw_rfmd2958_smc_ext, sizeof(atmel_fw_rfmd2958_smc_ext)},
 };
 
-int nr_fws = sizeof(fws) / sizeof(struct fw);
-const u8 zeros[] = {0,0,0};
+static int nr_fws = sizeof(fws) / sizeof(struct fw);
+static const u8 zeros[] = {0,0,0};
 
 #define _CRCPOLY_LE 0xedb88320
 static u32 crc32 (u32 crc, u8 const *p, size_t len)
