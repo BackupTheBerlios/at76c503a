@@ -107,87 +107,87 @@ struct at76c50x_fw_header {
 static struct fw {
 	const char *filename;
 	u32 board_id;
-	u32 version;
+	u8 major, minor, patch, build;
 	const char *str_id;
 	u8 *intfw;
 	u32 intfw_sz;
 	u8 *extfw;
 	u32 extfw_sz;
 } fws[] = {
-	{ "atmel_at76c503-rfmd-0.90.2-140.bin", BOARDTYPE_503_RFMD,
-	  0x005a028c, "0.90.2-140 503 RFMD "
+	{ "at76c503-rfmd", BOARDTYPE_503_RFMD,
+	  0, 90, 2, 140, "503 RFMD "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  atmel_at76c503_rfmd2_fw_int, sizeof(atmel_at76c503_rfmd2_fw_int),
 	  atmel_at76c503_rfmd2_fw_ext, sizeof(atmel_at76c503_rfmd2_fw_ext)},
 
-	{ "atmel_at76c503-rfmd-1.101.0-84.bin", BOARDTYPE_503_RFMD,
-	  0x01650054, "1.101.0-84 503 RFMD "
+	{ "at76c503-rfmd", BOARDTYPE_503_RFMD,
+	  1, 101, 0, 84, "503 RFMD "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  atmel_fw_rfmd_int, sizeof(atmel_fw_rfmd_int),
 	  atmel_fw_rfmd_ext, sizeof(atmel_fw_rfmd_ext)},
 
-	{ "atmel_at76c503-rfmd.bin", BOARDTYPE_503_RFMD,
-	  0x016700af, "1.103.0-175 503 RFMD "
+	{ "at76c503-rfmd", BOARDTYPE_503_RFMD,
+	  1, 103, 0, 175, "503 RFMD "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  fw_at76c503_int, sizeof(fw_at76c503_int),
 	  fw_at76c503_ext, sizeof(fw_at76c503_ext)},
 
-	{ "atmel_at76c503-rfmd-acc.bin", BOARDTYPE_503_RFMD_ACC,
-	  0x01650054, "1.101.0-84 503 RFMD Accton design "
+	{ "at76c503-rfmd-acc", BOARDTYPE_503_RFMD_ACC,
+	  1, 101, 0, 84, "503 RFMD Accton design "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  atmel_at76c503_rfmd_acc_fw_int, sizeof(atmel_at76c503_rfmd_acc_fw_int),
 	  atmel_at76c503_rfmd_acc_fw_ext, sizeof(atmel_at76c503_rfmd_acc_fw_ext)},
 
-	{ "atmel_at76c503-i3861.bin", BOARDTYPE_503_INTERSIL_3861,
-	  0x005a002c, "0.90.0-44 Intersil 3861 "
+	{ "at76c503-i3861", BOARDTYPE_503_INTERSIL_3861,
+	  0, 90, 0, 44, "Intersil 3861 "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  atmel_fw_intersil_int, sizeof(atmel_fw_intersil_int),
 	  atmel_fw_intersil_ext, sizeof(atmel_fw_intersil_ext)},
 
-	{ "atmel_at76c503-i3863.bin", BOARDTYPE_503_INTERSIL_3863,
-	  0x005a002c, "0.90.0-44 Intersil 3863 "
+	{ "at76c503-i3863", BOARDTYPE_503_INTERSIL_3863,
+	  0, 90, 0, 44, "Intersil 3863 "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  atmel_at76c503_i3863_fw_int, sizeof(atmel_at76c503_i3863_fw_int),
 	  atmel_at76c503_i3863_fw_ext, sizeof(atmel_at76c503_i3863_fw_ext)},
 
-	{ "atmel_at76c505-rfmd-0.91.0-4.bin", BOARDTYPE_505_RFMD,
-	  0x005b0004, "0.91.0-4 505 RFMD "
+	{ "at76c505-rfmd", BOARDTYPE_505_RFMD,
+	  0, 91, 0, 4, "505 RFMD "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  atmel_at76c505_rfmd_fw_int, sizeof(atmel_at76c505_rfmd_fw_int),
 	  atmel_at76c505_rfmd_fw_ext, sizeof(atmel_at76c505_rfmd_fw_ext)},
 
-	{ "atmel_at76c505-rfmd.bin", BOARDTYPE_505_RFMD,
-	  0x016700af, "1.103.0-175 505 RFMD "
+	{ "at76c505-rfmd", BOARDTYPE_505_RFMD,
+	  1, 103, 0, 175, "505 RFMD "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  fw_at76c505_int, sizeof(fw_at76c505_int),
 	  fw_at76c505_ext, sizeof(fw_at76c505_ext)},
 
-	{ "atmel_at76c505-rfmd2958-1.101.0-86.bin", BOARDTYPE_505_RFMD_2958,
-	  0x01650056, "1.101.0-86 505 RFMD2958 "
+	{ "at76c505-rfmd2958", BOARDTYPE_505_RFMD_2958,
+	  1, 101, 0, 86, "505 RFMD2958 "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  atmel_fw_rfmd2958_int, sizeof(atmel_fw_rfmd2958_int),
 	  atmel_fw_rfmd2958_ext, sizeof(atmel_fw_rfmd2958_ext)},
 
-	{ "atmel_at76c505-rfmd2958.bin", BOARDTYPE_505_RFMD_2958,
-	  0x016700af, "1.103.0-175 505 RFMD2958 "
+	{ "at76c505-rfmd2958", BOARDTYPE_505_RFMD_2958,
+	  1, 103, 0, 175, "505 RFMD2958 "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  fw_at76c505_2958_int, sizeof(fw_at76c505_2958_int),
 	  fw_at76c505_2958_ext, sizeof(fw_at76c505_2958_ext)},
 
-	{ "atmel_at76c505a-rfmd2958-1.102.0-113.bin", BOARDTYPE_505A_RFMD_2958,
-	  0x01660071, "1.102.0-113 505A RFMD 2958 "
+	{ "at76c505a-rfmd2958", BOARDTYPE_505A_RFMD_2958,
+	  1, 102, 0, 113, "505A RFMD 2958 "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  atmel_fw_rfmd2958_smc_int, sizeof(atmel_fw_rfmd2958_smc_int),
 	  atmel_fw_rfmd2958_smc_ext, sizeof(atmel_fw_rfmd2958_smc_ext)},
 
-	{ "atmel_at76c505a-rfmd2958.bin", BOARDTYPE_505A_RFMD_2958,
-	  0x016700af, "1.103.0-175 505A RFMD 2958 "
+	{ "at76c505a-rfmd2958", BOARDTYPE_505A_RFMD_2958,
+	  1, 103, 0, 175, "505A RFMD 2958 "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  fw_at76c505a_2958_int, sizeof(fw_at76c505a_2958_int),
 	  fw_at76c505a_2958_ext, sizeof(fw_at76c505a_2958_ext)},
 
-	{ "atmel_at76c505amx.bin", BOARDTYPE_505AMX_RFMD,
-	  0x016700af, "1.103.0-175 505AMX RFMD "
+	{ "at76c505amx", BOARDTYPE_505AMX_RFMD,
+	  1, 103, 0, 175, "505AMX RFMD "
 	  "Copyright (c) 2004 by Atmel Corporation",
 	  fw_at76c505amx_int, sizeof(fw_at76c505amx_int),
 	  fw_at76c505amx_ext, sizeof(fw_at76c505amx_ext)},
@@ -215,21 +215,34 @@ int main(void)
 	struct fw *fw;
 	struct at76c50x_fw_header hd;
 	u32 internal_offset, external_offset, str_offset, crc;
+	char ver_id[16];
+	char str_id[128];
+	char filename[128];
 
 	for(i=0,fw=fws; i < nr_fws; fw++,i++) {
-		if ((f=fopen(fw->filename, "w")) == NULL) {
+		memset(ver_id, 0, sizeof(ver_id));
+		snprintf(ver_id, sizeof(ver_id), "%d.%d.%d-%d",
+			 fw->major, fw->minor, fw->patch, fw->build);
+		memset(str_id, 0, sizeof(str_id));
+		snprintf(str_id, sizeof(str_id), "%s %s", ver_id, fw->str_id);
+		memset(filename, 0, sizeof(filename));
+		snprintf(filename, sizeof(filename), "atmel_%s-%s.bin",
+			 fw->filename, ver_id);
+
+		if ((f=fopen(filename, "w")) == NULL) {
 			fprintf(stderr,"#ERR cannot open %s for writing (errno %m)\n",
-				fw->filename);
+				filename);
 			continue;
 		}
 
 		crc = ~0; /* the initial seed */
 		hd.board_id = cpu_to_le32(fw->board_id);
-		hd.version = cpu_to_le32(fw->version);
+		hd.version = cpu_to_le32((((((fw->major << 8) +
+			fw->minor) << 8) + fw->patch) << 8) + fw->build);
 		// string area starts after header
 		str_offset = sizeof(struct at76c50x_fw_header);
 		hd.str_offset = cpu_to_le32(str_offset);
-		internal_offset = str_offset + strlen(fw->str_id) + 1;
+		internal_offset = str_offset + strlen(str_id) + 1;
 		internal_offset = QUAD(internal_offset);
 		hd.internal_offset = cpu_to_le32(internal_offset);
 		hd.internal_len = cpu_to_le32(fw->intfw_sz);
@@ -242,10 +255,10 @@ int main(void)
 		/* the header */
 		crc = crc32(crc, (u8 *)&hd.board_id, 0x20-0x4);
 		/* the string */
-		crc = crc32(crc, (u8 *)fw->str_id, strlen(fw->str_id) +1);
+		crc = crc32(crc, (u8 *)str_id, strlen(str_id) +1);
 		/* zeros in gap */
 		crc = crc32(crc, zeros, internal_offset - 
-			       (str_offset + strlen(fw->str_id)  + 1));
+			       (str_offset + strlen(str_id)  + 1));
 		/* internal fw */
 		crc = crc32(crc, fw->intfw, fw->intfw_sz);
 		/* zeros in gap */
@@ -265,9 +278,9 @@ int main(void)
   }
 
 		FWRITE((u8 *)&hd, sizeof(hd),f);
-		FWRITE(fw->str_id, strlen(fw->str_id)+1, f);
+		FWRITE(str_id, strlen(str_id)+1, f);
 		FWRITE(zeros, internal_offset - 
-		       (str_offset + strlen(fw->str_id)  + 1), f);
+		       (str_offset + strlen(str_id)  + 1), f);
 		FWRITE(fw->intfw, fw->intfw_sz, f);
 		FWRITE(zeros, external_offset - 
 		       (internal_offset + fw->intfw_sz), f);
