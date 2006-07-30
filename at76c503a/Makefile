@@ -31,28 +31,13 @@ KERNELRELEASE = $(shell sed -ne 's/"//g;s/^\#define UTS_RELEASE //p' \
 		  $(VERSION_HEADER))
 
 
-FW_DL=
+obj-m = at76c503.o at76_usbdfu.o at76fw.o
 
-# compile for firmware download from user space
-# if no firmware header files are available
-ifneq ($(wildcard fw-pkg*.h),)
-FW_DL += -DCOMPILE_FIRMWARE_INTO_DRIVER
-endif
+SRCS = at76c503.c at76_usbdfu.c at76fw.c
 
-obj-m = at76c503-i3861.o at76c503-rfmd.o at76c503-rfmd-acc.o \
-	at76c505-rfmd.o at76c503-i3863.o at76c505-rfmd2958.o \
-	at76c505a-rfmd2958.o at76c503.o at76_usbdfu.o 
+HDRS = at76c503.h at76_usbdfu.h
 
-SRCS = at76c503.c at76_usbdfu.c at76c503-rfmd.c at76c505-rfmd.c at76c503-rfmd-acc.c \
-       at76c503-i3861.c at76c503-i3863.c at76c505-rfmd2958.c at76c505a-rfmd2958.c
-
-HDRS = at76c503.h at76_usbdfu.h at76c503-fw_skel.c
-FW_HDRS = fw-pkg-505-rfmd2958.h fw-pkg-i3863.h \
-	fw-pkg-rfmd.h fw-pkg-i3861.h \
-	fw-pkg-r505.h fw-pkg-rfmd-acc.h \
-	fw-pkg-505a-rfmd2958.h
-
-DISTFILES = $(SRCS) $(HDRS) $(FW_HDRS) Makefile README COPYING \
+DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING \
             CHANGELOG kernel_patch.sh Makefile.k26
 
 # get the version from at76c503.h
@@ -72,7 +57,7 @@ SPARSE_FLAGS = -Wbitwise -Wcast-to-as -Wcontext -Wdefault-bitfield-sign \
 
 PWD = $(shell pwd)
 KBUILD_FLAGS = -C $(KERNEL_PATH) M=$(PWD) KERNELRELEASE=$(KERNELRELEASE) \
-	EXTRA_CFLAGS="$(EXTRA_CFLAGS) $(FW_DL)"
+	EXTRA_CFLAGS="$(EXTRA_CFLAGS)"
 
 
 all: modules
@@ -111,10 +96,6 @@ dist:
 	mkdir $(DISTNAME)
 	cp -f $(DISTFILES) $(DISTNAME)
 	tar zcvf $(DISTNAME).tar.gz $(DISTNAME)
-	rm -f $(DISTNAME)/fw-pkg-*.h
-	mv $(DISTNAME) $(DISTNAME)-fwdl
-	tar zcvf $(DISTNAME)-fwdl.tar.gz $(DISTNAME)-fwdl
-	rm -rf $(DISTNAME)-fwdl
 
 kernel_patch:
 	 DRV_SRC="$(SRCS)" DRV_HDR="$(HDRS)" ./kernel_patch.sh $(KERNEL_PATH)

@@ -33,18 +33,8 @@
 #include <net/ieee80211.h>
 #include <linux/version.h>
 
-#ifndef COMPILE_FIRMWARE_INTO_DRIVER
-# define CONFIG_AT76C503_FIRMWARE_DOWNLOAD
-# define VERSION_APPEND "-fw_dwl"
-#else
-# ifdef CONFIG_AT76C503_FIRMWARE_DOWNLOAD
-#  undef CONFIG_AT76C503_FIRMWARE_DOWNLOAD
-# endif
-# define VERSION_APPEND "-static"
-#endif
- 
 /* current driver version */
-#define DRIVER_VERSION "v0.14dev" VERSION_APPEND
+#define DRIVER_VERSION "v0.14dev"
 
 
 #include <linux/workqueue.h>
