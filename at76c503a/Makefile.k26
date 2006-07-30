@@ -1,7 +1,2 @@
-obj-$(CONFIG_USB_ATMEL) += at76c503.o at76_usbdfu.o at76fw.o
-
-# copy the fw-*.h files into this dir and uncomment to compile the firmware statically
-# into the driver (against kernel policy of not including binary-only code)
-#EXTRA_CFLAGS = -DCOMPILE_FIRMWARE_INTO_DRIVER
-
+obj-$(CONFIG_USB_ATMEL) += at76c503.o at76_usbdfu.o
 

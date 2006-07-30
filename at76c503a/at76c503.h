@@ -702,13 +702,4 @@ typedef struct p80211msg_lnxind_wlansniffrm
 	p80211item_uint32_t	frmlen;
 } __attribute__ ((packed)) p80211msg_lnxind_wlansniffrm_t;
 
-/* Function prototypes */
-
-int at76c503_do_probe(struct module *mod, struct usb_device *udev, 
-		      struct usb_driver *calling_driver,
-		      u8 *fw_data, int fw_size, u32 board_type,
-		      const char *netdev_name, void **devptr);
-
-void at76c503_delete_device(struct at76c503 *dev);
-
 #endif /* _AT76C503_H */
