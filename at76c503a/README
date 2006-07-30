@@ -54,20 +54,20 @@ plug out and in again).
 If you have hotplug or udev installed, the drivers should now be loaded. 
 If not, load them by hand:
 
-  modprobe -v at76c503-rfmd
+  modprobe -v at76c503
 
 You can give the network device another name than wlanX by giving
 the module the netdev_name parameter, e.g.
 
-  modprobe at76c503-rfmd netdev_name=eth%d
+  modprobe at76c503 netdev_name=eth%d
 
 would give the first device the name eth0, the second eth1 and so on.
 
 Check if the modules are loaded with lsmod. It should look like this:
 
-  at76c503-rfmd          38656   0  (unused)
-  at76c503               34004   0  [at76c503-rfmd]
-  usbdfu                  9144   0  [at76c503-rfmd]
+  Module                  Size  Used by
+  at76c503               86496  0 
+  at76_usbdfu             4868  1 at76c503
 
 Setup networking (replace <iface> with wlan0, wlan1, ..., <ch> with a
 channel number (1..14) <essid> with your network id (a string), <ip>
@@ -149,6 +149,9 @@ at76c503a.c for a short explanation and the default values):
   auth_mode
   pm_mode
   pm_period
+
+You can use "modinfo at76c503" to see the complete list of the supported
+parameters with descriptions.
 
 
 Known Problems
