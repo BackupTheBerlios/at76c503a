@@ -56,8 +56,7 @@ SPARSE_FLAGS = -Wbitwise -Wcast-to-as -Wcontext -Wdefault-bitfield-sign \
 	-Wone-bit-signed-bitfield -Wtypesign -D__CHECK_ENDIAN__
 
 PWD = $(shell pwd)
-KBUILD_FLAGS = -C $(KERNEL_PATH) M=$(PWD) KERNELRELEASE=$(KERNELRELEASE) \
-	EXTRA_CFLAGS="$(EXTRA_CFLAGS)"
+KBUILD_FLAGS = -C $(KERNEL_PATH) M=$(PWD) KERNELRELEASE=$(KERNELRELEASE)
 
 
 all: modules
