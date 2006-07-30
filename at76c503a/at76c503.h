@@ -167,6 +167,7 @@
 #define BOARDTYPE_505_RFMD          5
 #define BOARDTYPE_505_RFMD_2958     6
 #define BOARDTYPE_505A_RFMD_2958    7
+#define BOARDTYPE_505AMX_RFMD       8
 
 struct hwcfg_r505 {
 	u8 cr39_values[14];
