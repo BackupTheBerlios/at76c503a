@@ -247,7 +247,7 @@ static const u8 zeros[32];
 
 
 
-unsigned long spin_l_istate_flags;
+static unsigned long spin_l_istate_flags;
 #define LOCK_ISTATE()   spin_lock_irqsave(&dev->istate_spinlock,spin_l_istate_flags);
 #define UNLOCK_ISTATE() spin_unlock_irqrestore(&dev->istate_spinlock,spin_l_istate_flags);
 
@@ -3125,8 +3125,8 @@ static void rx_mgmt_disassoc(struct at76c503 *dev,
 		assert(dev->new_bss != NULL);
 		if (dev->new_bss == NULL)
 			return;
-	}
-	UNLOCK_ISTATE()
+	} else
+		UNLOCK_ISTATE()
 	if (!memcmp(mgmt->addr3, dev->curr_bss->bssid, ETH_ALEN) &&
 		(!memcmp(dev->netdev->dev_addr, mgmt->addr1, ETH_ALEN) ||
 			!memcmp(bc_addr, mgmt->addr1, ETH_ALEN))) {
