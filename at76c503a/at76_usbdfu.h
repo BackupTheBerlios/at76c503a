@@ -12,16 +12,7 @@
  *
  * This file is part of the Berlios driver for WLAN USB devices based on the 
  * Atmel AT76C503A/505/505A. See at76c503.h for details.
- *
-*
  */
-
-/* Different to the previous version of usbdfu.c this module does not
-   register itself with the USB subsystem but provides a generic
-   procedure for DFU download only. We avoid giving up the device etc.
-   which was flaky with 2.4.x already (and 2.6.x does not provide
-   usb_scan_devices etc. !).
-*/
 
 #ifndef _USBDFU_H
 #define _USBDFU_H
