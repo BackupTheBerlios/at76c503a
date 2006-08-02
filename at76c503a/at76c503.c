@@ -2193,7 +2193,7 @@ static int assoc_req(struct at76c503 *dev, struct bss_info *bss)
 	
 	{
 		/* output buffer for ssid and rates */
-		char orates[4*2+1] __attribute__ ((unused));
+		char orates[4*2+1];
 		int len;
 
 		tlv = req->data;
@@ -2278,8 +2278,8 @@ static int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
 	
 	{
 		/* output buffer for rates and bssid */
-		char orates[4*2+1] __attribute__ ((unused));
-		char ocurr[6*3+1] __attribute__ ((unused));
+		char orates[4*2+1];
+		char ocurr[6*3+1];
 		tlv = req->data;
 		memcpy(dev->obuf, tlv+2, min(sizeof(dev->obuf),(size_t)*(tlv+1)));
 		dev->obuf[IW_ESSID_MAX_SIZE] = '\0';
@@ -7070,7 +7070,7 @@ static int at76c50x_probe(struct usb_interface *interface,
 	void *devptr = NULL;
 	int retval;
 
-	struct usb_device *udev __attribute__ ((unused));
+	struct usb_device *udev;
 	int boardtype = (int)id->driver_info;
 	const char *const fw_name = firmwares[boardtype].fwname;
 	const struct firmware *fw = firmwares[boardtype].fw;
