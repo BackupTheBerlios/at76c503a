@@ -110,7 +110,7 @@
 #define FILL_BULK_URB(a,b,c,d,e,f,g) usb_fill_bulk_urb(a,b,c,d,e,f,g)
 #endif
 
-int debug = DBG_DEFAULTS;
+int at76_debug = DBG_DEFAULTS;
 
 /* uncond. debug output */
 #define dbg_uc(format, arg...) \
@@ -164,7 +164,7 @@ static unsigned long spin_l_istate_flags;
 
 
 /* Module paramaters */
-module_param(debug, int, 0400);
+module_param_named(debug, at76_debug, int, 0400);
 MODULE_PARM_DESC(debug, "Debugging level");
 
 static int rx_copybreak = 200;
@@ -1855,7 +1855,7 @@ static void handle_mgmt_timeout(struct at76c503 *dev)
 {
 	LOCK_ISTATE()
 	if ((dev->istate != SCANNING && dev->istate != MONITORING) || 
-	     (debug & DBG_MGMT_TIMER))
+	     (at76_debug & DBG_MGMT_TIMER))
 		/* this is normal behavior in states MONITORING, SCANNING ... */
 		dbg(DBG_PROGRESS, "%s: timeout, state %d", dev->netdev->name,
 		    dev->istate);
@@ -2796,7 +2796,7 @@ static inline int bssid_matched(struct at76c503 *dev, struct bss_info *ptr)
 		!memcmp(ptr->bssid, dev->wanted_bssid, ETH_ALEN)) {
 		return 1;
 	} else {
-		if (debug & DBG_BSS_MATCH) {
+		if (at76_debug & DBG_BSS_MATCH) {
 			dbg_uc("%s: requested bssid - %s does not match", 
 				dev->netdev->name, mac2str(dev->wanted_bssid));
 			dbg_uc("       AP bssid - %s of bss table entry %p", 
@@ -2813,7 +2813,7 @@ static void dump_bss_table(struct at76c503 *dev, int force_output)
 	unsigned long flags;
 	struct list_head *lptr;
 
-	if ((debug & DBG_BSS_TABLE) || (force_output)) {
+	if ((at76_debug & DBG_BSS_TABLE) || (force_output)) {
 		spin_lock_irqsave(&dev->bss_list_spinlock, flags);
 
 		dbg_uc("%s BSS table (curr=%p, new=%p):", dev->netdev->name,
@@ -3439,7 +3439,7 @@ static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 		}
 	} else UNLOCK_ISTATE()
 
-	if (debug & DBG_RX_MGMT_CONTENT) {
+	if (at76_debug & DBG_RX_MGMT_CONTENT) {
 		dbg_uc("%s rx mgmt subtype x%x %s",
 		       dev->netdev->name, subtype,
 		       hex2str(dev->obuf, (u8 *)mgmt, 
@@ -3485,7 +3485,7 @@ static void dbg_dumpbuf(const char *tag, const u8 *buf, int size)
 {
 	int i;
 
-	if (!debug) return;
+	if (!at76_debug) return;
 
 	for (i=0; i<size; i++) {
 		if ((i % 8) == 0) {
@@ -3924,11 +3924,11 @@ static void rx_data(struct at76c503 *dev)
 	struct ieee80211_hdr_3addr *i802_11_hdr;
 	int length = le16_to_cpu(buf->wlength);
 
-	if (debug & DBG_RX_DATA) {
+	if (at76_debug & DBG_RX_DATA) {
 		dbg_uc("%s received data packet:", netdev->name);
 		dbg_dumpbuf(" rxhdr", skb->data, AT76C503_RX_HDRLEN);
 	}
-	if (debug & DBG_RX_DATA_CONTENT)
+	if (at76_debug & DBG_RX_DATA_CONTENT)
 		dbg_dumpbuf("packet", skb->data + AT76C503_RX_HDRLEN,
 			    length);
 
@@ -4194,7 +4194,7 @@ static void rx_tasklet(unsigned long param)
 		return;
 	}
 
-	if (debug & DBG_RX_ATMEL_HDR) {
+	if (at76_debug & DBG_RX_ATMEL_HDR) {
 		dbg_uc("%s: rx frame: rate %d rssi %d noise %d link %d %s",
 		    dev->netdev->name,
 		    buf->rx_rate, buf->rssi, buf->noise_level,
@@ -4489,7 +4489,7 @@ static int startup_device(struct at76c503 *dev)
 	struct at76c503_card_config *ccfg = &dev->card_config;
 	int ret;
 
-	if (debug & DBG_PARAMS) {
+	if (at76_debug & DBG_PARAMS) {
 		char ossid[IW_ESSID_MAX_SIZE+1];
 
 		/* make dev->essid printable */
@@ -4596,7 +4596,7 @@ static int startup_device(struct at76c503 *dev)
 	if ((ret=set_iroaming(dev, dev->international_roaming)) < 0)
 		return ret;
 
-	if (debug & DBG_MIB)
+	if (at76_debug & DBG_MIB)
 	{
 		dump_mib_mac(dev);
 		dump_mib_mac_addr(dev);
@@ -5926,7 +5926,7 @@ static int at76c503_iw_handler_PRIV_IOCTL_SET_DEBUG
 	}
 	
 	dbg_uc("%s: PRIV_IOCTL_SET_DEBUG, old 0x%x  new 0x%x",
-			netdev->name, debug, val);
+			netdev->name, at76_debug, val);
 	
 	/* jal: some more output to pin down lockups */
 	dbg_uc("%s: netif running %d queue_stopped %d carrier_ok %d",
@@ -5935,7 +5935,7 @@ static int at76c503_iw_handler_PRIV_IOCTL_SET_DEBUG
 			netif_queue_stopped(netdev),
 			netif_carrier_ok(netdev));
 	
-	debug = val;
+	at76_debug = val;
 	
 	return 0;
 }

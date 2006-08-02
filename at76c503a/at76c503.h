@@ -685,7 +685,7 @@ typedef struct p80211msg_lnxind_wlansniffrm
 	p80211item_uint32_t	frmlen;
 } __attribute__ ((packed)) p80211msg_lnxind_wlansniffrm_t;
 
-/* debug bits */
+/* at76_debug bits */
 #define DBG_PROGRESS        0x00000001 /* progress of scan-join-(auth-assoc)-connected */
 #define DBG_BSS_TABLE       0x00000002 /* show the bss table after scans */
 #define DBG_IOCTL           0x00000004 /* ioctl calls / settings */
@@ -718,13 +718,13 @@ typedef struct p80211msg_lnxind_wlansniffrm
 #define DBG_DFU             0x20000000 /* device firmware upgrade */
 
 #define DBG_DEFAULTS 0
-extern int debug;
+extern int at76_debug;
 
 /* Use our own dbg macro */
 #undef dbg
 #define dbg(bits, format, arg...) \
 	do { \
-		if (debug & (bits)) \
+		if (at76_debug & (bits)) \
 		printk(KERN_DEBUG __FILE__ ": " format "\n" , ## arg);\
 	} while (0)
 
