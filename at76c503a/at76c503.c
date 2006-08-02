@@ -243,23 +243,11 @@ static const u8 hw_rates[4] = {0x82,0x84,0x0b,0x16};
 /* the max padding size for tx in bytes (see calc_padding)*/
 #define MAX_PADDING_SIZE 53
 
-/* a ieee820.11 frame header without addr4 */
-struct ieee802_11_mgmt {
-	__le16 frame_ctl;
-	__le16 duration_id;
-	u8 addr1[ETH_ALEN]; /* destination addr */
-	u8 addr2[ETH_ALEN]; /* source addr */
-	u8 addr3[ETH_ALEN]; /* BSSID */
-	__le16 seq_ctl;
-	u8 data[1508];
-	__le32 fcs;
-} __attribute__ ((packed));
-
 /* the size of the ieee802.11 header (excl. the at76c503 tx header) */
-#define IEEE802_11_MGMT_HEADER_SIZE offsetof(struct ieee802_11_mgmt, data)
+#define IEEE802_11_MGMT_HEADER_SIZE offsetof(struct ieee80211_hdr_3addr, payload)
 
 #define BEACON_MAX_DATA_LENGTH 1500
-/* beacon in ieee802_11_mgmt.data */
+/* beacon in ieee80211_hdr_3addr.payload */
 struct ieee802_11_beacon_data {
 	u8	timestamp[8];           // TSFTIMER
 	__le16	beacon_interval;         // Kms between TBTTs (Target Beacon Transmission Times)
@@ -268,7 +256,7 @@ struct ieee802_11_beacon_data {
 						 Supported Rates (tlv), channel */
 } __attribute__ ((packed));
 
-/* disassoc frame in ieee802_11_mgmt.data */
+/* disassoc frame in ieee80211_hdr_3addr.payload */
 struct ieee802_11_disassoc_frame {
 	__le16 reason;
 } __attribute__ ((packed));
@@ -276,7 +264,7 @@ struct ieee802_11_disassoc_frame {
   (AT76C503_TX_HDRLEN + IEEE802_11_MGMT_HEADER_SIZE +\
    sizeof(struct ieee802_11_disassoc_frame))
 
-/* assoc request in ieee802_11_mgmt.data */
+/* assoc request in ieee80211_hdr_3addr.payload */
 struct ieee802_11_assoc_req {
 	__le16	capability;
 	__le16	listen_interval;
@@ -289,7 +277,7 @@ struct ieee802_11_assoc_req {
    offsetof(struct ieee802_11_assoc_req,data) +\
    1+1+IW_ESSID_MAX_SIZE + 1+1+4)
 
-/* reassoc request in ieee802_11_mgmt.data */
+/* reassoc request in ieee80211_hdr_3addr.payload */
 struct ieee802_11_reassoc_req {
 	__le16	capability;
 	__le16	listen_interval;
@@ -315,7 +303,7 @@ struct ieee802_11_assoc_resp {
 			 supported rates (tlv coded) */
 } __attribute__ ((packed));
 
-/* auth. request/response in ieee802_11_mgmt.data */
+/* auth. request/response in ieee80211_hdr_3addr.payload */
 struct ieee802_11_auth_frame {
 	__le16 algorithm;
 	__le16 seq_nr;
@@ -327,7 +315,7 @@ struct ieee802_11_auth_frame {
   (AT76C503_TX_HDRLEN + IEEE802_11_MGMT_HEADER_SIZE +\
    sizeof(struct ieee802_11_auth_frame))
 
-/* deauth frame in ieee802_11_mgmt.data */
+/* deauth frame in ieee80211_hdr_3addr.payload */
 struct ieee802_11_deauth_frame {
 	__le16 reason;
 } __attribute__ ((packed));
@@ -2040,7 +2028,7 @@ static int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf
 static int disassoc_req(struct at76c503 *dev, struct bss_info *bss)
 {
 	struct at76c503_tx_buffer *tx_buffer;
-	struct ieee802_11_mgmt *mgmt;
+	struct ieee80211_hdr_3addr *mgmt;
 	struct ieee802_11_disassoc_frame *req;
 
 	assert(bss != NULL);
@@ -2052,8 +2040,8 @@ static int disassoc_req(struct at76c503 *dev, struct bss_info *bss)
 	if (!tx_buffer)
 		return -ENOMEM;
 
-	mgmt = (struct ieee802_11_mgmt *)&(tx_buffer->packet);
-	req  = (struct ieee802_11_disassoc_frame *)&(mgmt->data);
+	mgmt = (struct ieee80211_hdr_3addr *)&(tx_buffer->packet);
+	req  = (struct ieee802_11_disassoc_frame *)&(mgmt->payload);
 
 	/* make wireless header */
 	mgmt->frame_ctl = cpu_to_le16(IEEE80211_FTYPE_MGMT|IEEE80211_STYPE_AUTH);
@@ -2085,7 +2073,7 @@ static int disassoc_req(struct at76c503 *dev, struct bss_info *bss)
 static int auth_req(struct at76c503 *dev, struct bss_info *bss, int seq_nr, u8 *challenge)
 {
 	struct at76c503_tx_buffer *tx_buffer;
-	struct ieee802_11_mgmt *mgmt;
+	struct ieee80211_hdr_3addr *mgmt;
 	struct ieee802_11_auth_frame *req;
 	
 	int buf_len = (seq_nr != 3 ? AUTH_FRAME_SIZE : 
@@ -2098,8 +2086,8 @@ static int auth_req(struct at76c503 *dev, struct bss_info *bss, int seq_nr, u8 *
 	if (!tx_buffer)
 		return -ENOMEM;
 
-	mgmt = (struct ieee802_11_mgmt *)&(tx_buffer->packet);
-	req  = (struct ieee802_11_auth_frame *)&(mgmt->data);
+	mgmt = (struct ieee80211_hdr_3addr *)&(tx_buffer->packet);
+	req  = (struct ieee802_11_auth_frame *)&(mgmt->payload);
 
 	/* make wireless header */
 	/* first auth msg is not encrypted, only the second (seq_nr == 3) */
@@ -2141,7 +2129,7 @@ static int auth_req(struct at76c503 *dev, struct bss_info *bss, int seq_nr, u8 *
 static int assoc_req(struct at76c503 *dev, struct bss_info *bss)
 {
 	struct at76c503_tx_buffer *tx_buffer;
-	struct ieee802_11_mgmt *mgmt;
+	struct ieee80211_hdr_3addr *mgmt;
 	struct ieee802_11_assoc_req *req;
 	u8 *tlv;
 
@@ -2152,8 +2140,8 @@ static int assoc_req(struct at76c503 *dev, struct bss_info *bss)
 	if (!tx_buffer)
 		return -ENOMEM;
 
-	mgmt = (struct ieee802_11_mgmt *)&(tx_buffer->packet);
-	req  = (struct ieee802_11_assoc_req *)&(mgmt->data);
+	mgmt = (struct ieee80211_hdr_3addr *)&(tx_buffer->packet);
+	req  = (struct ieee802_11_assoc_req *)&(mgmt->payload);
 	tlv = req->data;
 
 	/* make wireless header */
@@ -2220,7 +2208,7 @@ static int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
 		struct bss_info *new_bss)
 {
 	struct at76c503_tx_buffer *tx_buffer;
-	struct ieee802_11_mgmt *mgmt;
+	struct ieee80211_hdr_3addr *mgmt;
 	struct ieee802_11_reassoc_req *req;
 	
 	u8 *tlv;
@@ -2235,8 +2223,8 @@ static int reassoc_req(struct at76c503 *dev, struct bss_info *curr_bss,
 	if (!tx_buffer)
 		return -ENOMEM;
 
-	mgmt = (struct ieee802_11_mgmt *)&(tx_buffer->packet);
-	req  = (struct ieee802_11_reassoc_req *)&(mgmt->data);
+	mgmt = (struct ieee80211_hdr_3addr *)&(tx_buffer->packet);
+	req  = (struct ieee802_11_reassoc_req *)&(mgmt->payload);
 	tlv = req->data;
 
 	/* make wireless header */
@@ -2863,9 +2851,10 @@ static struct bss_info *find_matching_bss(struct at76c503 *dev,
 static void rx_mgmt_assoc(struct at76c503 *dev,
 			   struct at76c503_rx_buffer *buf)
 {
-	struct ieee802_11_mgmt *mgmt = (struct ieee802_11_mgmt *)buf->packet;
+	struct ieee80211_hdr_3addr *mgmt =
+		(struct ieee80211_hdr_3addr *)buf->packet;
 	struct ieee802_11_assoc_resp *resp = 
-		(struct ieee802_11_assoc_resp *)mgmt->data;
+		(struct ieee802_11_assoc_resp *)mgmt->payload;
 	u16 assoc_id = le16_to_cpu(resp->assoc_id);
 	u16 status = le16_to_cpu(resp->status);
 	u16 capa = le16_to_cpu(resp->capability); 
@@ -2905,9 +2894,10 @@ static void rx_mgmt_assoc(struct at76c503 *dev,
 static void rx_mgmt_reassoc(struct at76c503 *dev,
 			   struct at76c503_rx_buffer *buf)
 {
-	struct ieee802_11_mgmt *mgmt = (struct ieee802_11_mgmt *)buf->packet;
+	struct ieee80211_hdr_3addr *mgmt =
+		(struct ieee80211_hdr_3addr *)buf->packet;
 	struct ieee802_11_assoc_resp *resp = 
-		(struct ieee802_11_assoc_resp *)mgmt->data;
+		(struct ieee802_11_assoc_resp *)mgmt->payload;
 	unsigned long flags;
 	u16 capa = le16_to_cpu(resp->capability);
 	u16 status = le16_to_cpu(resp->status);
@@ -2960,9 +2950,10 @@ static void rx_mgmt_reassoc(struct at76c503 *dev,
 static void rx_mgmt_disassoc(struct at76c503 *dev,
 			   struct at76c503_rx_buffer *buf)
 {
-	struct ieee802_11_mgmt *mgmt = (struct ieee802_11_mgmt *)buf->packet;
+	struct ieee80211_hdr_3addr *mgmt =
+		(struct ieee80211_hdr_3addr *)buf->packet;
 	struct ieee802_11_disassoc_frame *resp = 
-		(struct ieee802_11_disassoc_frame *)mgmt->data;
+		(struct ieee802_11_disassoc_frame *)mgmt->payload;
 
 	dbg(DBG_RX_MGMT, "%s: rx DisAssoc bssid %s reason x%04x destination %s",
 	    dev->netdev->name, mac2str(mgmt->addr3),
@@ -3024,9 +3015,10 @@ static void rx_mgmt_disassoc(struct at76c503 *dev,
 static void rx_mgmt_auth(struct at76c503 *dev,
 			   struct at76c503_rx_buffer *buf)
 {
-	struct ieee802_11_mgmt *mgmt = (struct ieee802_11_mgmt *)buf->packet;
+	struct ieee80211_hdr_3addr *mgmt =
+		(struct ieee80211_hdr_3addr *)buf->packet;
 	struct ieee802_11_auth_frame *resp = 
-		(struct ieee802_11_auth_frame *)mgmt->data;
+		(struct ieee802_11_auth_frame *)mgmt->payload;
 	int seq_nr = le16_to_cpu(resp->seq_nr);
 	int alg = le16_to_cpu(resp->algorithm);
 	int status = le16_to_cpu(resp->status);
@@ -3098,9 +3090,10 @@ static void rx_mgmt_auth(struct at76c503 *dev,
 static void rx_mgmt_deauth(struct at76c503 *dev,
 			   struct at76c503_rx_buffer *buf)
 {
-	struct ieee802_11_mgmt *mgmt = (struct ieee802_11_mgmt *)buf->packet;
+	struct ieee80211_hdr_3addr *mgmt =
+		(struct ieee80211_hdr_3addr *)buf->packet;
 	struct ieee802_11_deauth_frame *resp = 
-		(struct ieee802_11_deauth_frame *)mgmt->data;
+		(struct ieee802_11_deauth_frame *)mgmt->payload;
 
 	dbg(DBG_RX_MGMT|DBG_PROGRESS,
 	    "%s: rx DeAuth bssid %s reason x%04x destination %s",
@@ -3145,15 +3138,16 @@ static void rx_mgmt_deauth(struct at76c503 *dev,
 static void rx_mgmt_beacon(struct at76c503 *dev,
 			   struct at76c503_rx_buffer *buf)
 {
-	struct ieee802_11_mgmt *mgmt = (struct ieee802_11_mgmt *)buf->packet;
+	struct ieee80211_hdr_3addr *mgmt =
+		(struct ieee80211_hdr_3addr *)buf->packet;
 
 	/* beacon content */
 	struct ieee802_11_beacon_data *bdata = 
-		(struct ieee802_11_beacon_data *)mgmt->data;
+		(struct ieee802_11_beacon_data *)mgmt->payload;
 
 	/* length of var length beacon parameters */
 	int varpar_len = min(le16_to_cpu(buf->wlength) -
-			     (int)(offsetof(struct ieee802_11_mgmt, data) +
+			     (int)(IEEE802_11_MGMT_HEADER_SIZE +
 			      offsetof(struct ieee802_11_beacon_data, data)),
 			     BEACON_MAX_DATA_LENGTH);
 
@@ -3403,7 +3397,8 @@ static void update_wstats(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 
 static void rx_mgmt(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 {
-	struct ieee802_11_mgmt *mgmt = ( struct ieee802_11_mgmt *)buf->packet;
+	struct ieee80211_hdr_3addr *mgmt =
+		(struct ieee80211_hdr_3addr *)buf->packet;
 	u16 subtype = le16_to_cpu(mgmt->frame_ctl) & IEEE80211_FCTL_STYPE;
 
 	/* update wstats */
