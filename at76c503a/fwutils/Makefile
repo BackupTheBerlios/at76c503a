@@ -29,7 +29,7 @@ GOODBINFILES = \
 
 DISTFILES = README COPYRIGHT
 
-DISTDIR = at76c503a-firmware-$(VERSION)
+DISTDIR = at76_usb-firmware-$(VERSION)
 
 
 all: $(BINFILES)
