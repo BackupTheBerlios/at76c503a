@@ -39,7 +39,10 @@ SRCS = at76c503.c at76_usbdfu.c
 
 HDRS = at76c503.h at76_usbdfu.h
 
-DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING CHANGELOG
+SPECFILE = at76c503a.spec
+
+DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING CHANGELOG \
+	kernel_patch.diff
 
 # get the version from at76c503.h
 ifndef M
@@ -94,6 +97,8 @@ dist:
 	rm -rf $(DISTNAME)
 	mkdir $(DISTNAME)
 	cp -f $(DISTFILES) $(DISTNAME)
+	sed 's/^%define PACKVER.*$$/%define PACKVER $(VERSION)/' \
+		$(SPECFILE) >$(DISTNAME)/$(SPECFILE)
 	tar zcvf $(DISTNAME).tar.gz $(DISTNAME)
 	rm -rf $(DISTNAME)
 
