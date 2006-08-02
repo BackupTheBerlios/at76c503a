@@ -1,2 +1,0 @@
-obj-$(CONFIG_USB_ATMEL) += at76c503.o at76_usbdfu.o
-

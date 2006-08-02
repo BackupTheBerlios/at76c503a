@@ -97,10 +97,7 @@ dist:
 	cp -f $(DISTFILES) $(DISTNAME)
 	tar zcvf $(DISTNAME).tar.gz $(DISTNAME)
 
-kernel_patch:
-	DRV_SRC="$(SRCS)" DRV_HDR="$(HDRS)" ./kernel_patch.sh $(KERNEL_PATH)
-
 rmmod:
 	-rmmod $(obj-m:%.o=%)	
 
-.PHONY: all modules check install uninstall clean dist kernel_patch rmmod
+.PHONY: all modules check install uninstall clean dist rmmod
