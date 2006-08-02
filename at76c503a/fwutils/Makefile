@@ -47,13 +47,10 @@ dist: all
 	rm -rf $(DISTDIR)
 	mkdir $(DISTDIR)
 	cp $(DISTFILES) $(DISTDIR)
-	mkdir $(DISTDIR)/all
-	cp $(BINFILES) $(DISTDIR)/all
-	mkdir $(DISTDIR)/good
 	for f in $(GOODBINFILES); do \
 		ver=`echo $$f | sed 's/^.*-\([^-]*-[^.]*\)\.bin/\1/'`; \
 		name=`echo $$f | sed 's/-\([^-]*-[^.]*\)\.bin/.bin/'`; \
-		ln -s ../all/$$f $(DISTDIR)/good/$$name; \
+		cp $$f $(DISTDIR)/$$name; \
 	done
 	tar cf - $(DISTDIR) | gzip --best > $(DISTDIR).tar.gz
 	rm -rf $(DISTDIR)
