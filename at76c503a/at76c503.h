@@ -55,12 +55,6 @@
 /* set monitor mode */
 #define PRIV_IOCTL_SET_MONITOR_MODE    (SIOCIWFIRSTPRIV + 0x12)
 
-#ifndef ETH_P_ECONET
-#define ETH_P_ECONET   0x0018    /* needed for 2.2.x kernels */
-#endif
-
-#define ETH_P_80211_RAW        (ETH_P_ECONET + 1)
-
 #define DEVICE_VENDOR_REQUEST_OUT    0x40
 #define DEVICE_VENDOR_REQUEST_IN     0xc0
 #define INTERFACE_VENDOR_REQUEST_OUT 0x41
@@ -117,7 +111,7 @@
 #define TX_RATE_11MBIT 3
 #define TX_RATE_AUTO 4
 
-/* power management modi */
+/* power management modes */
 #define PM_ACTIVE     1
 #define PM_SAVE       2
 #define PM_SMART_SAVE 3
@@ -192,8 +186,6 @@ struct hwcfg_intersil {
 	u8   reserved[1];
 } __attribute__ ((packed));
 
-#define WEP_KEY_SIZE 13
-#define NR_WEP_KEYS 4
 #define WEP_SMALL_KEY_LEN (40/8)
 #define WEP_LARGE_KEY_LEN (104/8)
 
@@ -210,7 +202,7 @@ struct at76c503_card_config{
 	u8 privacy_invoked;
 	u8 wep_default_key_id;                        // 0..3
 	u8 current_ssid[32];
-	u8 wep_default_key_value[4][WEP_KEY_SIZE];
+	u8 wep_default_key_value[4][WEP_KEY_LEN];
 	u8 ssid_len;
 	u8 short_preamble;
 	__le16 beacon_period;
@@ -361,7 +353,7 @@ struct mib_mac_wep {
         u8 exclude_unencrypted;
         __le32 wep_icv_error_count;
         __le32 wep_excluded_count;
-        u8 wep_default_keyvalue[NR_WEP_KEYS][WEP_KEY_SIZE];
+        u8 wep_default_keyvalue[WEP_KEYS][WEP_KEY_LEN];
         u8 encryption_level; /* 1 for 40bit, 2 for 104bit encryption */
 } __attribute__ ((packed));
 
@@ -510,9 +502,9 @@ struct at76c503 {
         /* the WEP stuff */
         int wep_enabled;      /* 1 if WEP is enabled */ 
         int wep_key_id;       /* key id to be used */
-        u8 wep_keys[NR_WEP_KEYS][WEP_KEY_SIZE]; /* the four WEP keys,
-						   5 or 13 bytes are used */
-        u8  wep_keys_len[NR_WEP_KEYS]; /* the length of the above keys */
+        u8 wep_keys[WEP_KEYS][WEP_KEY_LEN]; /* the four WEP keys,
+					       5 or 13 bytes are used */
+        u8  wep_keys_len[WEP_KEYS]; /* the length of the above keys */
 
 	int channel;
 	int iw_mode;
@@ -650,14 +642,12 @@ struct at76c503 {
 
 /* Quasi-monitor mode defs (copied from <kernel>/drivers/net/wireless/orinoco.h) */
 
-#define WLAN_DEVNAMELEN_MAX 16
-
 /* message data item for INT, BOUNDEDINT, ENUMINT */
 typedef struct p80211item_uint32
 {
-	uint32_t		did		__attribute__ ((packed));
+	uint32_t		did	__attribute__ ((packed));
 	uint16_t		status	__attribute__ ((packed));
-	uint16_t		len		__attribute__ ((packed));
+	uint16_t		len	__attribute__ ((packed));
 	uint32_t		data	__attribute__ ((packed));
 } __attribute__ ((packed)) p80211item_uint32_t;
 
@@ -665,7 +655,7 @@ typedef struct p80211msg
 {
 	uint32_t	msgcode		__attribute__ ((packed));
 	uint32_t	msglen		__attribute__ ((packed));
-	uint8_t	devname[WLAN_DEVNAMELEN_MAX]; // REMOVED: __attribute__ ((packed));
+	uint8_t				devname[IFNAMSIZ];
 } __attribute__ ((packed)) p80211msg_t;
 
 #define P80211ENUM_msgitem_status_data_ok		0
@@ -689,7 +679,7 @@ typedef struct p80211msg_lnxind_wlansniffrm
 {
 	uint32_t		msgcode;
 	uint32_t		msglen;
-	uint8_t		    devname[WLAN_DEVNAMELEN_MAX];
+	uint8_t			devname[IFNAMSIZ];
 	p80211item_uint32_t	hosttime;
 	p80211item_uint32_t	mactime;
 	p80211item_uint32_t	channel;

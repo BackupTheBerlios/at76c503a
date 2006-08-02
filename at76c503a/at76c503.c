@@ -4582,7 +4582,7 @@ static int startup_device(struct at76c503 *dev)
 	ccfg->ssid_len = dev->essid_size;
 
 	ccfg->wep_default_key_id = dev->wep_key_id;
-	memcpy(ccfg->wep_default_key_value, dev->wep_keys, 4 * WEP_KEY_SIZE);
+	memcpy(ccfg->wep_default_key_value, dev->wep_keys, 4 * WEP_KEY_LEN);
 
 	ccfg->short_preamble = dev->preamble_type;
 	ccfg->beacon_period = cpu_to_le16(dev->beacon_period);
@@ -5052,7 +5052,7 @@ static int at76c503_iw_handler_get_range(struct net_device *netdev,
 	range->encoding_size[0] = WEP_SMALL_KEY_LEN;
 	range->encoding_size[1] = WEP_LARGE_KEY_LEN;
 	range->num_encoding_sizes = 2;
-	range->max_encoding_tokens = NR_WEP_KEYS;
+	range->max_encoding_tokens = WEP_KEYS;
 	//TODO: do we need this?  what is a valid value if we don't support?
 	//range->encoding_login_index = -1;
 	
@@ -5753,7 +5753,7 @@ static int at76c503_iw_handler_set_encode(struct net_device *netdev,
 			"restricted" : "open");
 	
 	// take the old default key if index is invalid
-	if ((index < 0) || (index >= NR_WEP_KEYS))
+	if ((index < 0) || (index >= WEP_KEYS))
 		index = dev->wep_key_id;
 	
 	if (len > 0)
@@ -5761,7 +5761,7 @@ static int at76c503_iw_handler_set_encode(struct net_device *netdev,
 		if (len > WEP_LARGE_KEY_LEN)
 			len = WEP_LARGE_KEY_LEN;
 		
-		memset(dev->wep_keys[index], 0, WEP_KEY_SIZE);
+		memset(dev->wep_keys[index], 0, WEP_KEY_LEN);
 		memcpy(dev->wep_keys[index], extra, len);
 		dev->wep_keys_len[index] = (len <= WEP_SMALL_KEY_LEN) ?
 			WEP_SMALL_KEY_LEN : WEP_LARGE_KEY_LEN;
@@ -5794,7 +5794,7 @@ static int at76c503_iw_handler_get_encode(struct net_device *netdev,
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
 	int index = (encoding->flags & IW_ENCODE_INDEX) - 1;
 	
-	if ((index < 0) || (index >= NR_WEP_KEYS))
+	if ((index < 0) || (index >= WEP_KEYS))
 		index = dev->wep_key_id;
 	
 	encoding->flags = 
