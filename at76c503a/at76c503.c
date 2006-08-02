@@ -94,10 +94,6 @@
 /* wireless extension level this source currently supports */
 #define WIRELESS_EXT_SUPPORTED	16
 
-#ifndef USB_ST_URB_PENDING
-#define USB_ST_URB_PENDING	(-EINPROGRESS)
-#endif
-
 #ifndef USB_ASYNC_UNLINK
 #ifdef URB_ASYNC_UNLINK
 #define USB_ASYNC_UNLINK	URB_ASYNC_UNLINK
@@ -1994,7 +1990,7 @@ static int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf
 
 	spin_lock_irqsave(&dev->mgmt_spinlock, flags);
 
-	if ((urb_status=dev->write_urb->status) == USB_ST_URB_PENDING) {
+	if ((urb_status=dev->write_urb->status) == -EINPROGRESS) {
 		oldbuf=dev->next_mgmt_bulk; /* to kfree below */
 		dev->next_mgmt_bulk = txbuf;
 		txbuf = NULL;
@@ -4343,7 +4339,7 @@ static int at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 		return 0;
 	}
 
-	if (dev->write_urb->status == USB_ST_URB_PENDING) {
+	if (dev->write_urb->status == -EINPROGRESS) {
 		err("%s: %s called while dev->write_urb is pending for tx",
 		    netdev->name, __FUNCTION__);
 		//skip this packet
