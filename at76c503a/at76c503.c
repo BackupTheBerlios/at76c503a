@@ -1024,7 +1024,6 @@ static int set_radio(struct at76c503 *dev, int on_off)
 
 /* == PROC set_pm_mode ==
    sets power save modi (PM_ACTIVE/PM_SAVE/PM_SMART_SAVE) */
-static int set_pm_mode(struct at76c503 *dev, u8 mode) __attribute__ ((unused));
 static int set_pm_mode(struct at76c503 *dev, u8 mode)
 {
 	int ret = 0;
@@ -1045,7 +1044,6 @@ static int set_pm_mode(struct at76c503 *dev, u8 mode)
 
 /* == PROC set_associd ==
    sets the assoc id for power save mode */
-static int set_associd(struct at76c503 *dev, u16 id) __attribute__ ((unused));
 static int set_associd(struct at76c503 *dev, u16 id)
 {
 	int ret = 0;
@@ -1068,7 +1066,6 @@ static int set_associd(struct at76c503 *dev, u16 id)
 /* == PROC set_listen_interval ==
    sets the listen interval for power save mode.
    really needed, as we have a similar parameter in the assocreq ??? */
-static int set_listen_interval(struct at76c503 *dev, u16 interval) __attribute__ ((unused));
 static int set_listen_interval(struct at76c503 *dev, u16 interval)
 {
 	int ret = 0;
@@ -1221,7 +1218,6 @@ static int set_promisc(struct at76c503 *dev, int onoff)
 	return ret;
 }
 
-static int dump_mib_mac_addr(struct at76c503 *dev) __attribute__ ((unused));
 static int dump_mib_mac_addr(struct at76c503 *dev)
 {
 	int ret = 0;
@@ -1254,7 +1250,6 @@ static int dump_mib_mac_addr(struct at76c503 *dev)
 	return ret;
 }
 
-static int dump_mib_mac_wep(struct at76c503 *dev) __attribute__ ((unused));
 static int dump_mib_mac_wep(struct at76c503 *dev)
 {
 	int ret = 0;
@@ -1293,7 +1288,6 @@ static int dump_mib_mac_wep(struct at76c503 *dev)
 	return ret;
 }
 
-static int dump_mib_mac_mgmt(struct at76c503 *dev) __attribute__ ((unused));
 static int dump_mib_mac_mgmt(struct at76c503 *dev)
 {
 	int ret = 0;
@@ -1350,7 +1344,6 @@ static int dump_mib_mac_mgmt(struct at76c503 *dev)
 	return ret;
 }
 
-static int dump_mib_mac(struct at76c503 *dev) __attribute__ ((unused));
 static int dump_mib_mac(struct at76c503 *dev)
 {
 	int ret = 0;
@@ -1401,7 +1394,6 @@ static int dump_mib_mac(struct at76c503 *dev)
 	return ret;
 }
 
-static int dump_mib_phy(struct at76c503 *dev) __attribute__ ((unused));
 static int dump_mib_phy(struct at76c503 *dev)
 {
 	int ret = 0;
@@ -1445,7 +1437,6 @@ static int dump_mib_phy(struct at76c503 *dev)
 	return ret;
 }
 
-static int dump_mib_local(struct at76c503 *dev) __attribute__ ((unused));
 static int dump_mib_local(struct at76c503 *dev)
 {
 	int ret = 0;
@@ -1480,8 +1471,6 @@ static int dump_mib_local(struct at76c503 *dev)
 
 
 static int get_mib_mdomain(struct at76c503 *dev, struct mib_mdomain *val)
- __attribute__ ((unused));
-static int get_mib_mdomain(struct at76c503 *dev, struct mib_mdomain *val)
 {
 	int ret = 0;
 	struct mib_mdomain *mdomain =
@@ -1507,7 +1496,6 @@ static int get_mib_mdomain(struct at76c503 *dev, struct mib_mdomain *val)
 	return ret;
 }
 
-static void dump_mib_mdomain(struct at76c503 *dev) __attribute__ ((unused));
 static void dump_mib_mdomain(struct at76c503 *dev)
 {
 	char obuf1[2*14+1], obuf2[2*14+1]; /* to hexdump tx_powerlevel, 
