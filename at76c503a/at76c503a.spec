@@ -1,27 +1,27 @@
-%define KERNELVER %(uname -r)
-%define PACKVER cvs20030728
+%define KERNELVER %(rpm -q --qf "%%{version}-%%{release}" kernel-devel)
+%define PACKVER 0.14dev
 # RPM Release number of this version
 %define TNREL 1
 
 # Real stuff
-Summary:   Linux driver for Atmel AT76C503A based USB WLAN adapters
-Name:      at76c503a
+Summary:   Linux driver for Atmel AT76C503/505/505A based USB WLAN adapters
+Name:      at76_usb
 Version:   %{PACKVER}
 Release:   tn%{TNREL}
-Copyright: GPL
+License:   GPL
 Group:     System Environment/Kernel 
 Packager:  Tim Niemueller <tim@niemueller.de>
-Source:    %{name}.tar.gz
+Source:    %{name}-%{version}.tar.gz
 URL:       http://at76c503a.berlios.de/
 Prefix:	   %{_prefix}
-BuildRequires: kernel-source = %{KERNELVER}
-BuildRoot: %{_tmppath}/%{name}-%{PACKVER}
+BuildRequires: kernel = %{KERNELVER}, kernel-devel = %{KERNELVER}
+BuildRoot: %{_tmppath}/%{name}-%{version}
 
 %description
 This is another driver for the Atmel AT76C503A based USB WLAN adapters.
 
 %prep
-%setup -n %{name}
+%setup -n %{name}-%{version}
 
 #if [ ! -e /usr/src/linux-2.4/.config ]; then
 #  echo "You need to run 'make menuconfig' once in /usr/src/linux-2.4"
@@ -31,20 +31,13 @@ This is another driver for the Atmel AT76C503A based USB WLAN adapters.
 #fi
 
 %build
-echo "=================================================================="
-echo "Building Atmel driver %{PACKVER} for %{KERNELVER}"
-echo "Target is %{_target}"
-echo "=================================================================="
-sleep 5
-
-make
+make KERNEL_PATH=/lib/modules/%{KERNELVER}/build
 
 %install
 rm -rf $RPM_BUILD_ROOT
 
-mkdir -p $RPM_BUILD_ROOT/lib/modules/%{KERNELVER}
-
-make DESTDIR=$RPM_BUILD_ROOT install
+make install INSTALL_MOD_PATH=$RPM_BUILD_ROOT DEPMOD=true \
+	KERNEL_PATH=/lib/modules/%{KERNELVER}/build
 
 %clean 
 rm -rf $RPM_BUILD_ROOT
@@ -57,7 +50,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root)
-/lib/modules/%{KERNELVER}/kernel/drivers/usb/*.o
+/lib/modules/%{KERNELVER}/kernel/drivers/net/wireless/at76_usb.ko
 
 %changelog
 * Mon Jul 28 2003 Tim Niemueller <tim@niemueller.de>
