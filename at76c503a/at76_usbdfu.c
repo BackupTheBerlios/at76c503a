@@ -29,14 +29,6 @@
 #include <linux/usb.h>
 #include "at76c503.h"
 
-#ifdef DEBUG_SEM
-  #define dfu_down(sem) do { dbg(DBG_DFU, "sem %s down", #sem); down(sem); } while (0)
-  #define dfu_up(sem) do { dbg(DBG_DFU, "sem %s up", #sem); up(sem); } while (0)
-#else
-  #define dfu_down(sem) down(sem)
-  #define dfu_up(sem) up(sem)
-#endif
-
 /* DFU states */
 
 #define STATE_IDLE  			0x00
@@ -79,9 +71,6 @@ struct dfu_ctx {
 #define USB_SUCCESS(a) ((a) >= 0)
 
 #define DFU_PACKETSIZE 1024
-
-#define INTERFACE_VENDOR_REQUEST_OUT 0x41
-#define INTERFACE_VENDOR_REQUEST_IN  0xc1
 
 static
 int dfu_download_block(struct dfu_ctx *ctx, u8 *buffer,
