@@ -47,7 +47,6 @@
 #endif
 
 #include "at76c503.h"
-#include "at76_usbdfu.h"
 
 #if WIRELESS_EXT < 20
 #define IW_QUAL_QUAL_UPDATED    0x01    /* Value was updated since last read */

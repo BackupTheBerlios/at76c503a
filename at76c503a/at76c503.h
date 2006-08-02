@@ -723,4 +723,7 @@ extern int at76_debug;
 		printk(KERN_DEBUG __FILE__ ": " format "\n" , ## arg);\
 	} while (0)
 
+int usbdfu_download(struct usb_device *udev, u8 *fw_buf, u32 fw_len,
+		    int manifest_sync_timeout);
+
 #endif /* _AT76C503_H */

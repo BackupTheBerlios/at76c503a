@@ -27,8 +27,7 @@
 #include <linux/config.h>
 #include <linux/slab.h>
 #include <linux/usb.h>
-#include "at76c503.h" /* for dbg() */
-#include "at76_usbdfu.h"
+#include "at76c503.h"
 
 #ifdef DEBUG_SEM
   #define dfu_down(sem) do { dbg(DBG_DFU, "sem %s down", #sem); down(sem); } while (0)

@@ -35,14 +35,11 @@ obj-m = at76_usb.o
 
 at76_usb-objs = at76c503.o at76_usbdfu.o
 
-SRCS = at76c503.c at76_usbdfu.c
-
-HDRS = at76c503.h at76_usbdfu.h
+SRCS = at76c503.c at76_usbdfu.c at76c503.h
 
 SPECFILE = at76c503a.spec
 
-DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING CHANGELOG \
-	kernel_patch.diff
+DISTFILES = $(SRCS) Makefile README COPYING CHANGELOG kernel_patch.diff
 
 # get the version from at76c503.h
 ifndef M
@@ -82,7 +79,7 @@ uninstall:
 
 TAGS:
 	rm -f TAGS
-	etags --append $(SRCS) $(HDRS)
+	etags --append $(SRCS)
 
 clean:
 	rm -f core *.o *~ a.out *.d
