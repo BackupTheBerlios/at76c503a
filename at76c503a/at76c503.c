@@ -156,7 +156,7 @@ static unsigned long spin_l_istate_flags;
 
 
 /* Version Information */
-#define DRIVER_NAME "at76c503"
+#define DRIVER_NAME "at76_usb"
 #define DRIVER_AUTHOR \
 "Oliver Kurth <oku@masqmail.cx>, Joerg Albert <joerg.albert@gmx.de>, " \
 "Alex <alex@foogod.com>, Nick Jones, Balint Seeber <n0_5p4m_p13453@hotmail.com>"
@@ -6216,7 +6216,7 @@ static void at76c503_get_drvinfo(struct net_device *netdev,
 {
 	struct at76c503 *dev = (struct at76c503 *)netdev->priv;
 
-	strncpy(info->driver, "at76c503", sizeof(info->driver) - 1);
+	strncpy(info->driver, DRIVER_NAME, sizeof(info->driver) - 1);
 
 	strncpy(info->version, DRIVER_VERSION, sizeof(info->version));
 	info->version[sizeof(info->version)-1] = '\0';

@@ -44,7 +44,7 @@ DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING CHANGELOG
 # get the version from at76c503.h
 ifndef M
 VERSION = $(shell sed -n 's/^\#define.*DRIVER_VERSION.*"\(.*\)".*$$/\1/p' at76c503.h)
-DISTNAME = at76c503-$(VERSION)
+DISTNAME = at76_usb-$(VERSION)
 DISTDIR = $(DISTNAME)
 endif
 
@@ -91,10 +91,11 @@ ChangeLog: CVS/Entries
 	cvs2cl
 
 dist:
-	[ -d $(DISTNAME) ] && rm -rf $(DISTNAME) || true
+	rm -rf $(DISTNAME)
 	mkdir $(DISTNAME)
 	cp -f $(DISTFILES) $(DISTNAME)
 	tar zcvf $(DISTNAME).tar.gz $(DISTNAME)
+	rm -rf $(DISTNAME)
 
 rmmod:
 	-rmmod $(obj-m:%.o=%)	

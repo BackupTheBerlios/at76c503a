@@ -29,7 +29,7 @@
 #include <net/ieee80211.h>
 
 /* current driver version */
-#define DRIVER_VERSION "v0.14dev"
+#define DRIVER_VERSION "0.14dev"
 
 
 /* our private ioctl's */
