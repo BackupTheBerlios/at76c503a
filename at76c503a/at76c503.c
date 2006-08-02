@@ -6428,21 +6428,21 @@ static struct at76c503 *alloc_new_device(struct usb_device *udev,
 	dev->fw_dl_timer.function = fw_dl_timeout;
 
 
-	dev->mgmt_spinlock = SPIN_LOCK_UNLOCKED;
-	dev->istate_spinlock = SPIN_LOCK_UNLOCKED;
+	spin_lock_init(&dev->mgmt_spinlock);
+	spin_lock_init(&dev->istate_spinlock);
 	dev->next_mgmt_bulk = NULL;
 	dev->istate = INTFW_DOWNLOAD;
 
 	/* initialize empty BSS list */
 	dev->curr_bss = dev->new_bss = NULL;
 	INIT_LIST_HEAD(&dev->bss_list);
-	dev->bss_list_spinlock = SPIN_LOCK_UNLOCKED;
+	spin_lock_init(&dev->bss_list_spinlock);
 
 	init_timer(&dev->bss_list_timer);
 	dev->bss_list_timer.data = (unsigned long)dev;
 	dev->bss_list_timer.function = bss_list_timeout;
 
-	dev->spy_spinlock = SPIN_LOCK_UNLOCKED;
+	spin_lock_init(&dev->spy_spinlock);
 
 	/* mark all rx data entries as unused */
 	for(i=0; i < NR_RX_DATA_BUF; i++)
