@@ -7100,10 +7100,8 @@ static int at76c50x_probe(struct usb_interface *interface,
 			dbg(DBG_FW, "got it.");
 		} else {
 			err("firmware %s not found.", fw_name);
-			/* FIXME: Update URL */
 			err("You may need to download the firmware from "
-			    "http://www.thekelleys.org.uk/atmel or "
-			    "ftp://ftp.berlios.de/pub/at76c503a/firmware/");
+			    "https://developer.berlios.de/projects/at76c503a/");
 			return retval;
 		}
 	} else
