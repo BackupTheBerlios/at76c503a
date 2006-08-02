@@ -41,3 +41,66 @@ version 0.10 (2003-06-01)
 version 0.9 (2003-03-21)
 -----------
 - taken from Oliver's website
+
+
+version 0.8 (2003-02-13)
+------------
+- scan mode implemented by jal
+- infra structure mode by jal
+- some small cleanups (removed dead code)
+
+version 0.7 (2003-01-30)
+------------
+- now works with fw 0.100.2 (solution was: wait for completion
+  of commands)
+- setting MAC address now works (thx to a small fix by jal)
+- it turned out that promisc. mode is not possible. The firmware
+  does not allow it. I hope that it will be implemented in a future
+  version.
+
+version 0.6 (2003-01-28)
+------------
+- make it compile with kernel < 2.4.20 (there is no owner field
+  in struct usb_driver)
+- fixed a small bug for the module param eth_name
+- do not use GFP_DMA, GFP_KERNEL is enough
+- no down() in _tx() because that's in interrupt. Use
+  spin_lock_irq() instead
+- should not stop net queue on urb errors
+- cleanup in ioctl(): locked it altogether, this makes it easier
+  to maintain
+- tried to implement promisc. mode: does not work with this device
+- tried to implement setting mac address: does not
+  seem to work with this device
+- now use fw version 0.90.2 #140 (prev. was #93). Does not help...
+
+version 0.5 (2003-01-27)
+------------
+- implemented WEP. Thanks to jal
+- added frag and rts ioctl calls (jal again)
+- module parameter to give names other than eth
+
+version 0.4 (2003-01-19)
+------------
+- use usbdfu for the internal firmware
+
+version 0.3 (2003-01-10)
+------------
+- now using 8 spaces for tab indentations
+- added tx rate settings (patch from Joerg Albert (jal))
+- created functions for mib settings
+
+version 0.2 (2003-01-08)
+------------
+- moved rx code into tasklet
+- added locking in keventd handler
+- support big endian in ieee802_11.h
+- external firmware downloader now in this module
+
+version 0.1 (2003-01-07)
+------------
+- first release
+
+2002_12_31
+------------
+- first ping, ah-hoc mode works, fw version 0.90.2 only

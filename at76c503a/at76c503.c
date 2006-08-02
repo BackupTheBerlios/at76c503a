@@ -16,67 +16,6 @@
  * Atmel AT76C503A/505/505A. See at76c503.h for details.
  *
  * Some iw_handler code was taken from airo.c, (C) 1999 Benjamin Reed
- *
- * History:
- *
- * 2002_12_31:
- * - first ping, ah-hoc mode works, fw version 0.90.2 only
- *
- * 2003_01_07 0.1:
- * - first release
- *
- * 2003_01_08 0.2:
- * - moved rx code into tasklet
- * - added locking in keventd handler
- * - support big endian in ieee802_11.h
- * - external firmware downloader now in this module
- *
- * 2003_01_10 0.3:
- * - now using 8 spaces for tab indentations
- * - added tx rate settings (patch from Joerg Albert (jal))
- * - created functions for mib settings
- *
- * 2003_01_19 0.4:
- * - use usbdfu for the internal firmware
- *
- * 2003_01_27 0.5:
- * - implemented WEP. Thanks to jal
- * - added frag and rts ioctl calls (jal again)
- * - module parameter to give names other than eth
- *
- * 2003_01_28 0.6:
- * - make it compile with kernel < 2.4.20 (there is no owner field
- *   in struct usb_driver)
- * - fixed a small bug for the module param eth_name
- * - do not use GFP_DMA, GFP_KERNEL is enough
- * - no down() in _tx() because that's in interrupt. Use
- *   spin_lock_irq() instead
- * - should not stop net queue on urb errors
- * - cleanup in ioctl(): locked it altogether, this makes it easier
- *   to maintain
- * - tried to implement promisc. mode: does not work with this device
- * - tried to implement setting mac address: does not
- *   seem to work with this device
- * - now use fw version 0.90.2 #140 (prev. was #93). Does not help...
- *
- * 2003_01_30 0.7:
- * - now works with fw 0.100.2 (solution was: wait for completion
- *   of commands)
- * - setting MAC address now works (thx to a small fix by jal)
- * - it turned out that promisc. mode is not possible. The firmware
- *   does not allow it. I hope that it will be implemented in a future
- *   version.
- *
- * 2003_02_13 0.8:
- * - scan mode implemented by jal
- * - infra structure mode by jal
- * - some small cleanups (removed dead code)
- *
- * history can now be found in the cvs log at http://at76c503a.berlios.de
- * 
- * TODO:
- * - monitor mode
- *
  */
 
 #include <linux/config.h>
