@@ -26,11 +26,8 @@
 
 #include <linux/config.h>
 #include <linux/slab.h>
-#include <linux/module.h>
 #include <linux/usb.h>
-#include <linux/version.h>
-#include <linux/init.h>
-#include "at76c503.h" /* for DRIVER_VERSION only */
+#include "at76c503.h" /* for dbg() */
 #include "at76_usbdfu.h"
 
 #ifdef DEBUG_SEM

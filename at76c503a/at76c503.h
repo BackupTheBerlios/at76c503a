@@ -26,18 +26,11 @@
 #ifndef _AT76C503_H
 #define _AT76C503_H
 
-#include <linux/netdevice.h>
-#include <linux/etherdevice.h>
-#include <linux/wireless.h>
-#include <net/iw_handler.h>
 #include <net/ieee80211.h>
-#include <linux/version.h>
 
 /* current driver version */
 #define DRIVER_VERSION "v0.14dev"
 
-
-#include <linux/workqueue.h>
 
 /* our private ioctl's */
 /* set preamble length*/

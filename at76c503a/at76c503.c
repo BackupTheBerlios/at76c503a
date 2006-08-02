@@ -21,22 +21,19 @@
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/version.h>
 #include <linux/sched.h>
-#include <linux/signal.h>
 #include <linux/errno.h>
 #include <linux/poll.h>
 #include <linux/slab.h>
-#include <linux/fcntl.h>
 #include <linux/module.h>
 #include <linux/spinlock.h>
 #include <linux/list.h>
-#include <linux/smp_lock.h>
 #include <linux/usb.h>
 #include <linux/netdevice.h>
 #include <linux/if_arp.h>
 #include <linux/etherdevice.h>
 #include <linux/ethtool.h>
-#include <asm/uaccess.h>
 #include <linux/wireless.h>
 #include <net/iw_handler.h>
 #include <linux/rtnetlink.h>  /* for rtnl_lock() */
@@ -99,7 +96,6 @@
 
 #ifndef USB_ST_URB_PENDING
 #define USB_ST_URB_PENDING	(-EINPROGRESS)
-#define USB_ST_STALL		(-EPIPE)
 #endif
 
 #ifndef USB_ASYNC_UNLINK
