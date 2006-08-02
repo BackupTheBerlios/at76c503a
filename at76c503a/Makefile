@@ -49,7 +49,7 @@ DISTDIR = $(DISTNAME)
 endif
 
 INSTALL_MOD_DIR = kernel/drivers/net/wireless
-MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNELRELEASE)/$(INSTALL_MOD_DIR)
+MODULE_DIR = $(INSTALL_MOD_PATH)/lib/modules/$(KERNELRELEASE)/$(INSTALL_MOD_DIR)
 DEPMOD = /sbin/depmod
 
 SPARSE_FLAGS = -Wbitwise -Wcast-to-as -Wcontext -Wdefault-bitfield-sign \
