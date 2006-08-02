@@ -18,7 +18,10 @@ BuildRequires: kernel = %{KERNELVER}, kernel-devel = %{KERNELVER}
 BuildRoot: %{_tmppath}/%{name}-%{version}
 
 %description
-This is another driver for the Atmel AT76C503A based USB WLAN adapters.
+This is a Linux driver for the Atmel based USB WLAN adapters.  Unlike
+the driver developed by Atmel (atmelwlandriver), this driver is intended
+to be accepted into the kernel, so it aims to be bloat-free, streamlined
+and modern.
 
 %prep
 %setup -n %{name}-%{version}
