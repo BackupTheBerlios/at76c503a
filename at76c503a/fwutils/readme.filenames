@@ -1,10 +1,21 @@
-fw-pkg-...	firmware header files in new (package) format
-		as used for firmware download class too for
-		static include
-fw-empty.h	empty static firmware header used when fw is
-		downloaded from user space
-fw-...		old firmware files (needed by gen_fw.c to
-		generate the new, binary fw files)
-at76c50[35]-*fw binary firmware files for download from user space
-gen_fw.c	C program to generate at76c50[35]-*fw files
-		from fw-* files
+fw-*.h
+
+  Firmware files from the atmelwlandriver project.  It's new firmware
+  that is not yet supported well.
+
+atmel_*.h
+
+  Firmware files from the OpenBSD driver.  These are converted to the
+  currently distribured firmware.
+
+gen_fw.c
+
+  Program that generates binary firmware from the *.h files.
+
+COPYRIGHT
+
+  Copyright statement for the firmware.
+
+README
+
+  The document distributed with the binary firmware.
