@@ -39,8 +39,7 @@ SRCS = at76c503.c at76_usbdfu.c
 
 HDRS = at76c503.h at76_usbdfu.h
 
-DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING \
-            CHANGELOG kernel_patch.sh Makefile.k26
+DISTFILES = $(SRCS) $(HDRS) Makefile README COPYING CHANGELOG
 
 # get the version from at76c503.h
 ifndef M
