@@ -31,7 +31,9 @@ KERNELRELEASE = $(shell sed -ne 's/"//g;s/^\#define UTS_RELEASE //p' \
 		  $(VERSION_HEADER))
 
 
-obj-m = at76c503.o at76_usbdfu.o
+obj-m = at76_usb.o
+
+at76_usb-objs = at76c503.o at76_usbdfu.o
 
 SRCS = at76c503.c at76_usbdfu.c
 
@@ -47,7 +49,7 @@ DISTNAME = at76c503-$(VERSION)
 DISTDIR = $(DISTNAME)
 endif
 
-INSTALL_MOD_DIR = kernel/drivers/net/wireless/at76c503
+INSTALL_MOD_DIR = kernel/drivers/net/wireless
 MODULE_DIR = $(DESTDIR)/lib/modules/$(KERNELRELEASE)/$(INSTALL_MOD_DIR)
 DEPMOD = /sbin/depmod
 
@@ -68,14 +70,13 @@ check:
 	$(MAKE) $(KBUILD_FLAGS) C=2 CF="$(SPARSE_FLAGS)"
 
 install:
+	rm -rf $(MODULE_DIR)/at76*
 	$(MAKE) $(KBUILD_FLAGS) modules_install \
 		INSTALL_MOD_DIR="$(INSTALL_MOD_DIR)"
 	$(DEPMOD) -ae
 
 uninstall:
-	for f in $(obj-m:%.o=%.ko); do rm -f $(MODULE_DIR)/$$f; done
-
-.PHONY: all dist kernel_patch rmmod install modules
+	rm -rf $(MODULE_DIR)/at76*
 
 TAGS:
 	rm -f TAGS
@@ -97,7 +98,9 @@ dist:
 	tar zcvf $(DISTNAME).tar.gz $(DISTNAME)
 
 kernel_patch:
-	 DRV_SRC="$(SRCS)" DRV_HDR="$(HDRS)" ./kernel_patch.sh $(KERNEL_PATH)
+	DRV_SRC="$(SRCS)" DRV_HDR="$(HDRS)" ./kernel_patch.sh $(KERNEL_PATH)
 
 rmmod:
 	-rmmod $(obj-m:%.o=%)	
+
+.PHONY: all modules check install uninstall clean dist kernel_patch rmmod

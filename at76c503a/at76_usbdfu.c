@@ -33,31 +33,13 @@
 #include "at76c503.h" /* for DRIVER_VERSION only */
 #include "at76_usbdfu.h"
 
-static int debug = 0;
-
-/* Use our own dbg macro */
-#undef dbg
-#define dbg(format, arg...) \
-  do { if (debug) \
-    printk(KERN_DEBUG __FILE__ ": " format "\n" , ## arg);\
-  } while (0)
-
 #ifdef DEBUG_SEM
-  #define dfu_down(sem) do { dbg("sem %s down", #sem); down(sem); } while (0)
-  #define dfu_up(sem) do { dbg("sem %s up", #sem); up(sem); } while (0)
+  #define dfu_down(sem) do { dbg(DBG_DFU, "sem %s down", #sem); down(sem); } while (0)
+  #define dfu_up(sem) do { dbg(DBG_DFU, "sem %s up", #sem); up(sem); } while (0)
 #else
   #define dfu_down(sem) down(sem)
   #define dfu_up(sem) up(sem)
 #endif
-
-/* Version Information */
-#define DRIVER_AUTHOR \
-"Oliver Kurth <oku@masqmail.cx>, Joerg Albert <joerg.albert@gmx.de>, Alex <alex@foogod.com>"
-#define DRIVER_DESC "USB Device Firmware Upgrade (DFU) handler"
-
-/* Module paramaters */
-module_param(debug, bool, 0400);
-MODULE_PARM_DESC(debug, "debug on/off");
 
 /* DFU states */
 
@@ -112,7 +94,7 @@ int dfu_detach(struct usb_device *udev)
 {
 	int result;
 
-	dbg("dfu_detach");
+	dbg(DBG_DFU, "dfu_detach");
 
 	result = usb_control_msg(udev, usb_sndctrlpipe(udev,0),
 				 DFU_DETACH,
@@ -134,7 +116,7 @@ int dfu_download_block(struct dfu_ctx *ctx, u8 *buffer,
 	u8 *tmpbuf = ctx->buf;
 	struct usb_device *udev = ctx->udev;
 
-	dbg("dfu_download_block(): buffer=%p, bytes=%d, block=%d", buffer, bytes, block);
+	dbg(DBG_DFU, "dfu_download_block(): buffer=%p, bytes=%d, block=%d", buffer, bytes, block);
 
 	if(tmpbuf == NULL)
 		return -ENOMEM;
@@ -158,7 +140,7 @@ int dfu_get_status(struct dfu_ctx *ctx, struct dfu_status *status)
 	int result;
 	struct usb_device *udev = ctx->udev;
 
-//	dbg("dfu_get_status()");
+//	dbg(DBG_DFU, "dfu_get_status()");
 
 	result = usb_control_msg(udev, usb_rcvctrlpipe(udev, 0),
 				 DFU_GETSTATUS,
@@ -177,7 +159,7 @@ u8 dfu_get_state(struct usb_device *udev, u8 *state)
 {
 	int result;
 
-//	dbg("dfu_get_state()");
+//	dbg(DBG_DFU, "dfu_get_state()");
 
 	result = usb_control_msg(udev, usb_rcvctrlpipe(udev, 0),
 				 DFU_GETSTATE,	/* Request */
@@ -232,7 +214,7 @@ int usbdfu_download(struct usb_device *udev, u8 *dfu_buffer, u32 dfu_len,
 	int dfu_block_bytes = 0, dfu_bytes_left = dfu_len, dfu_buffer_offset = 0;
 	int dfu_block_cnt = 0;
 
-	dbg("%s( %p, %u, %d)", __FUNCTION__, dfu_buffer, 
+	dbg(DBG_DFU, "%s( %p, %u, %d)", __FUNCTION__, dfu_buffer, 
 	    dfu_len, manifest_sync_timeout);
 
 	if (dfu_len == 0) {
@@ -259,7 +241,7 @@ int usbdfu_download(struct usb_device *udev, u8 *dfu_buffer, u32 dfu_len,
 
 		switch (dfu_state) {
 		case STATE_DFU_DOWNLOAD_SYNC:
-			dbg("STATE_DFU_DOWNLOAD_SYNC");
+			dbg(DBG_DFU, "STATE_DFU_DOWNLOAD_SYNC");
 			status = dfu_get_status(ctx, dfu_stat_buf);
 			if (USB_SUCCESS(status)) {
 				dfu_state = dfu_stat_buf->bState;
@@ -270,23 +252,23 @@ int usbdfu_download(struct usb_device *udev, u8 *dfu_buffer, u32 dfu_len,
 			break;
 
 		case STATE_DFU_DOWNLOAD_BUSY:
-			dbg("STATE_DFU_DOWNLOAD_BUSY");
+			dbg(DBG_DFU, "STATE_DFU_DOWNLOAD_BUSY");
 			need_dfu_state = 1;
 
 			if (dfu_timeout >= 0){
-				dbg("DFU: Resetting device");
+				dbg(DBG_DFU, "DFU: Resetting device");
 				set_current_state( TASK_INTERRUPTIBLE );
 				schedule_timeout(1+dfu_timeout*HZ/1000);
 			}else
-				dbg("DFU: In progress");
+				dbg(DBG_DFU, "DFU: In progress");
 
 			break;
 
 		case STATE_DFU_DOWNLOAD_IDLE:
-			dbg("DOWNLOAD...");
+			dbg(DBG_DFU, "DOWNLOAD...");
 			/* fall through */
 		case STATE_DFU_IDLE:
-			dbg("DFU IDLE");
+			dbg(DBG_DFU, "DFU IDLE");
 
 			if (dfu_bytes_left <= DFU_PACKETSIZE)
 				dfu_block_bytes = dfu_bytes_left;
@@ -308,7 +290,7 @@ int usbdfu_download(struct usb_device *udev, u8 *dfu_buffer, u32 dfu_len,
 			break;
 
 		case STATE_DFU_MANIFEST_SYNC:
-			dbg("STATE_DFU_MANIFEST_SYNC");
+			dbg(DBG_DFU, "STATE_DFU_MANIFEST_SYNC");
 
 			status = dfu_get_status(ctx, dfu_stat_buf);
 
@@ -323,38 +305,38 @@ int usbdfu_download(struct usb_device *udev, u8 *dfu_buffer, u32 dfu_len,
 					dfu_timeout = manifest_sync_timeout;
 
 				if (dfu_timeout >= 0){
-					dbg("DFU: Waiting for manifest phase");
+					dbg(DBG_DFU, "DFU: Waiting for manifest phase");
 
 					set_current_state( TASK_INTERRUPTIBLE );
 					schedule_timeout((dfu_timeout*HZ+999)/1000);
 				}else
-					dbg("DFU: In progress");
+					dbg(DBG_DFU, "DFU: In progress");
 			}
 			break;
 
 		case STATE_DFU_MANIFEST:
-			dbg("STATE_DFU_MANIFEST");
+			dbg(DBG_DFU, "STATE_DFU_MANIFEST");
 			is_done = 1;
 			break;
 
 		case STATE_DFU_MANIFEST_WAIT_RESET:
-			dbg("STATE_DFU_MANIFEST_WAIT_RESET");
+			dbg(DBG_DFU, "STATE_DFU_MANIFEST_WAIT_RESET");
 //			usb_reset_device(udev);
 			is_done = 1;
 			break;
 
 		case STATE_DFU_UPLOAD_IDLE:
-			dbg("STATE_DFU_UPLOAD_IDLE");
+			dbg(DBG_DFU, "STATE_DFU_UPLOAD_IDLE");
 			break;
 
 		case STATE_DFU_ERROR:
-			dbg("STATE_DFU_ERROR");
+			dbg(DBG_DFU, "STATE_DFU_ERROR");
 //			usb_reset_device(udev);
 			status = -EPIPE;
 			break;
 
 		default:
-			dbg("DFU UNKNOWN STATE (%d)", dfu_state);
+			dbg(DBG_DFU, "DFU UNKNOWN STATE (%d)", dfu_state);
 			status = -EINVAL;
 			break;
 		}
@@ -367,27 +349,4 @@ int usbdfu_download(struct usb_device *udev, u8 *dfu_buffer, u32 dfu_len,
 	else
 		return 0;
 }
-
-static int __init usbdfu_init(void)
-{
-	info(DRIVER_DESC " " DRIVER_VERSION " loading");
-	return 0;
-}
-
-/**
- *	usbdfu_exit
- */
-static void __exit usbdfu_exit(void)
-{
-	info(DRIVER_DESC " " DRIVER_VERSION " unloading");
-}
-
-module_init (usbdfu_init);
-module_exit (usbdfu_exit);
-
-EXPORT_SYMBOL(usbdfu_download);
-
-MODULE_AUTHOR(DRIVER_AUTHOR);
-MODULE_DESCRIPTION(DRIVER_DESC);
-MODULE_LICENSE("GPL");
 

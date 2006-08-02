@@ -182,49 +182,7 @@ static inline struct urb *alloc_urb(int iso_pk, gfp_t mem_flags) {
 #define FILL_BULK_URB(a,b,c,d,e,f,g) usb_fill_bulk_urb(a,b,c,d,e,f,g)
 #endif
 
-/* debug bits */
-#define DBG_PROGRESS        0x00000001 /* progress of scan-join-(auth-assoc)-connected */
-#define DBG_BSS_TABLE       0x00000002 /* show the bss table after scans */
-#define DBG_IOCTL           0x00000004 /* ioctl calls / settings */
-#define DBG_KEVENT          0x00000008 /* kevents */
-#define DBG_TX_DATA         0x00000010 /* tx header */
-#define DBG_TX_DATA_CONTENT 0x00000020 /* tx content */
-#define DBG_TX_MGMT         0x00000040
-#define DBG_RX_DATA         0x00000080 /* rx data header */
-#define DBG_RX_DATA_CONTENT 0x00000100 /* rx data content */
-#define DBG_RX_MGMT         0x00000200 /* rx mgmt header except beacon and probe responses */
-#define DBG_RX_BEACON       0x00000400 /* rx beacon */
-#define DBG_RX_CTRL         0x00000800 /* rx control */
-#define DBG_RX_MGMT_CONTENT 0x00001000 /* rx mgmt content */
-#define DBG_RX_FRAGS        0x00002000 /* rx data fragment handling */
-#define DBG_DEVSTART        0x00004000 /* fw download, device start */
-#define DBG_URB             0x00008000 /* rx urb status, ... */
-#define DBG_RX_ATMEL_HDR    0x00010000 /* the Atmel specific header of each rx packet */
-#define DBG_PROC_ENTRY      0x00020000 /* procedure entries and exits */
-#define DBG_PM              0x00040000 /* power management settings */
-#define DBG_BSS_MATCH       0x00080000 /* show why a certain bss did not match */
-#define DBG_PARAMS          0x00100000 /* show the configured parameters */
-#define DBG_WAIT_COMPLETE   0x00200000 /* show the wait_completion progress */
-#define DBG_RX_FRAGS_SKB    0x00400000 /* show skb header for incoming rx fragments */
-#define DBG_BSS_TABLE_RM    0x00800000 /* inform on removal of old bss table entries */
-#define DBG_MONITOR_MODE    0x01000000 /* debugs from monitor mode */
-#define DBG_MIB             0x02000000 /* dump all MIBs in startup_device */
-#define DBG_MGMT_TIMER      0x04000000 /* dump mgmt_timer ops */
-#define DBG_WE_EVENTS       0x08000000 /* dump wireless events */
-#define DBG_FW              0x10000000 /* firmware download */
-
-#define DBG_DEFAULTS 0
-static int debug = DBG_DEFAULTS;
-
-static const u8 zeros[32];
-
-/* Use our own dbg macro */
-#undef dbg
-#define dbg(bits, format, arg...) \
-	do { \
-		if (debug & (bits)) \
-		printk(KERN_DEBUG __FILE__ ": " format "\n" , ## arg);\
-	} while (0)
+int debug = DBG_DEFAULTS;
 
 /* uncond. debug output */
 #define dbg_uc(format, arg...) \
@@ -576,6 +534,8 @@ static char *hex2str(char *obuf, u8 *buf, int len, char delim)
 */
 static inline int is_cloaked_ssid(u8 *ssid, int length)
 {
+	static const u8 zeros[32];
+
 	return (length == 0) || 
 		(length == 1 && *ssid == ' ') ||
 		(length > 0 && !memcmp(ssid,zeros,length));
