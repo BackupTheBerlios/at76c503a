@@ -4165,8 +4165,8 @@ static void rx_tasklet(unsigned long param)
 	urb = dev->rx_urb;
 	netdev = (struct net_device *)dev->netdev;
 
-	if (dev->flags & AT76C503A_UNPLUG) {
-		dbg(DBG_DEVSTART, "flag UNPLUG set");
+	if (dev->device_unplugged) {
+		dbg(DBG_DEVSTART, "device unplugged");
 		if (urb)
 			dbg(DBG_DEVSTART, "urb status %d", urb->status);
 		return;
@@ -4665,7 +4665,7 @@ static int at76c503_stop(struct net_device *netdev)
 
   	NEW_STATE(dev,INIT);
 
-	if (!(dev->flags & AT76C503A_UNPLUG)) {
+	if (!(dev->device_unplugged)) {
 		/* we are called by "ifconfig wlanX down", not because the
 		   device isn't avail. anymore */	
 		set_radio(dev, 0);
@@ -6243,11 +6243,11 @@ static void at76c503_delete_device(struct at76c503 *dev)
 		return;
 
 	/* signal to _stop() that the device is gone */
-	dev->flags |= AT76C503A_UNPLUG; 
+	dev->device_unplugged = 1;
 
 	dbg(DBG_PROC_ENTRY, "%s: ENTER",__FUNCTION__);
 
-	if (dev->flags & AT76C503A_NETDEV_REGISTERED) {
+	if (dev->netdev_registered) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
 	    	if (down_trylock(&rtnl_sem) != 0) {
 #else
@@ -6413,7 +6413,6 @@ static struct at76c503 *alloc_new_device(struct usb_device *udev,
 	INIT_WORK (&dev->kevent, kevent, dev);
 
 	dev->open_count = 0;
-	dev->flags = 0;
 
 	init_timer(&dev->restart_timer);
 	dev->restart_timer.data = (unsigned long)dev;
@@ -6583,7 +6582,7 @@ static int init_new_device(struct at76c503 *dev)
 		return -1;
 	}
 	info("registered %s", dev->netdev->name);
-	dev->flags |= AT76C503A_NETDEV_REGISTERED;
+	dev->netdev_registered = 1;
 
 	return 0;
 

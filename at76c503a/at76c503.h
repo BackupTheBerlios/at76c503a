@@ -610,10 +610,8 @@ struct at76c503 {
 	u8 *extfw; /* points to external firmware part, extfw_size bytes long */
 	u8 *intfw; /* points to internal firmware part, intfw_size bytes long */
 	struct usb_driver *calling_driver; /* the calling driver: at76c503-{rfmd,i3861,i3863,...} */
-	int flags; /* AT76C503A_UNPLUG signals at76c503a_stop() 
-		      that the device was unplugged 
-		      AT76C503A_NETDEV_REGISTERED signals that register_netdevice
-		      xwas successfully called */
+	unsigned int device_unplugged:1;
+	unsigned int netdev_registered:1;
 	char obuf[2*256+1]; /* global debug output buffer to reduce stack usage */
 	char obuf_s[3*32]; /* small global debug output buffer to reduce stack usage */
 	struct set_mib_buffer mib_buf; /* global buffer for set_mib calls */
@@ -629,9 +627,6 @@ struct at76c503 {
 	int beacons_received;
 	unsigned long beacons_last_qual; /* last time we reset beacons_received = 0 */
 };
-
-#define AT76C503A_UNPLUG 1
-#define AT76C503A_NETDEV_REGISTERED 2
 
 /* Quasi-monitor mode defs (copied from <kernel>/drivers/net/wireless/orinoco.h) */
 
