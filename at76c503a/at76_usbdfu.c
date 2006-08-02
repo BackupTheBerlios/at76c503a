@@ -87,27 +87,6 @@ struct dfu_ctx {
 #define INTERFACE_VENDOR_REQUEST_OUT 0x41
 #define INTERFACE_VENDOR_REQUEST_IN  0xc1
 
-/* needed ??? */
-static int dfu_detach(struct usb_device *udev) __attribute__ ((unused));
-static
-int dfu_detach(struct usb_device *udev)
-{
-	int result;
-
-	dbg(DBG_DFU, "dfu_detach");
-
-	result = usb_control_msg(udev, usb_sndctrlpipe(udev,0),
-				 DFU_DETACH,
-				 USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE,
-				 1000,	/* Value */
-				 0,	/* Index */
-				 NULL,	/* Buffer */
-				 0,	/* Size */
-				 HZ);
-
-	return result;
-}
-
 static
 int dfu_download_block(struct dfu_ctx *ctx, u8 *buffer,
 		       int bytes, int block)

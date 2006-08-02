@@ -82,13 +82,6 @@
 #define gfp_t int
 #endif
 
-static inline int submit_urb(struct urb *urb, gfp_t mem_flags) {
-	return usb_submit_urb(urb, mem_flags);
-}
-static inline struct urb *alloc_urb(int iso_pk, gfp_t mem_flags) {
-	return usb_alloc_urb(iso_pk, mem_flags);
-}
-
 /* Backwards compatibility for usb_kill_urb() */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 10)
 #  define usb_kill_urb usb_unlink_urb
@@ -369,8 +362,6 @@ struct ieee802_11_deauth_frame {
 #define KEVENT_MONITOR      14
 
 
-static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
-
 static u8 snapsig[] = {0xaa, 0xaa, 0x03};
 //#ifdef COLLAPSE_RFC1042
 /* RFC 1042 encapsulates Ethernet frames in 802.2 SNAP (0xaa, 0xaa, 0x03) with
@@ -396,18 +387,8 @@ static void dump_bss_table(struct at76c503 *dev, int force_output);
 static int submit_rx_urb(struct at76c503 *dev);
 static int startup_device(struct at76c503 *dev);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,8)
-static int update_usb_intf_descr(struct at76c503 *dev);
-#endif
-
 static int set_iroaming(struct at76c503 *dev, int onoff);
 static void set_monitor_mode(struct at76c503 *dev, int use_prism);
-
-/* disassemble the firmware image */
-static int at76c503_get_fw_info(u8 *fw_data, int fw_size,
-				u32 *board, u32 *version, char **str,
-				u8 **ext_fw, int *ext_fw_size,
-				u8 **int_fw, int *int_fw_size);
 
 /* second step of initialization (after fw download) */
 static int init_new_device(struct at76c503 *dev);
@@ -2064,7 +2045,7 @@ static int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf
 			      txbuf->padding +
 			      AT76C503_TX_HDRLEN,
 			      (usb_complete_t)at76c503_write_bulk_callback, dev);
-		ret = submit_urb(dev->write_urb, GFP_ATOMIC);
+		ret = usb_submit_urb(dev->write_urb, GFP_ATOMIC);
 		if (ret) {
 			err("%s: %s error in tx submit urb: %d",
 			    dev->netdev->name, __FUNCTION__, ret);
@@ -4015,7 +3996,7 @@ static int submit_rx_urb(struct at76c503 *dev)
 		usb_rcvbulkpipe(dev->udev, dev->bulk_in_endpointAddr),
 		skb_put(skb, size), size,
 		(usb_complete_t)at76c503_read_bulk_callback, dev);
-	ret = submit_urb(dev->read_urb, GFP_ATOMIC);
+	ret = usb_submit_urb(dev->read_urb, GFP_ATOMIC);
 	if (ret < 0) { 
 		if (ret == -ENODEV) 
 			dbg(DBG_DEVSTART, "usb_submit_urb returned -ENODEV");
@@ -4306,7 +4287,7 @@ static void at76c503_write_bulk_callback (struct urb *urb)
 			      le16_to_cpu(mgmt_buf->wlength) + 
 			      mgmt_buf->padding + AT76C503_TX_HDRLEN,
 			      (usb_complete_t)at76c503_write_bulk_callback, dev);
-		ret = submit_urb(dev->write_urb, GFP_ATOMIC);
+		ret = usb_submit_urb(dev->write_urb, GFP_ATOMIC);
 		if (ret) {
 			err("%s: %s error in tx submit urb: %d",
 			    dev->netdev->name, __FUNCTION__, ret);
@@ -4471,7 +4452,7 @@ static int at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 		      usb_sndbulkpipe(dev->udev, dev->bulk_out_endpointAddr),
 		      tx_buffer, submit_len,
 		      (usb_complete_t)at76c503_write_bulk_callback, dev);
-	ret = submit_urb(dev->write_urb, GFP_ATOMIC);
+	ret = usb_submit_urb(dev->write_urb, GFP_ATOMIC);
 	if(ret){
 		stats->tx_errors++;
 		err("%s: error in tx submit urb: %d", netdev->name, ret);
@@ -6362,7 +6343,7 @@ static int at76c503_alloc_urbs(struct at76c503 *dev)
 		    ((endpoint->bmAttributes & 3) == 0x02)) {
 			/* we found a bulk in endpoint */
 
-			dev->read_urb = alloc_urb(0, GFP_KERNEL);
+			dev->read_urb = usb_alloc_urb(0, GFP_KERNEL);
 			if (!dev->read_urb) {
 				err("No free urbs available");
 				return -1;
@@ -6373,7 +6354,7 @@ static int at76c503_alloc_urbs(struct at76c503 *dev)
 		if (((endpoint->bEndpointAddress & 0x80) == 0x00) &&
 		    ((endpoint->bmAttributes & 3) == 0x02)) {
 			/* we found a bulk out endpoint */
-			dev->write_urb = alloc_urb(0, GFP_KERNEL);
+			dev->write_urb = usb_alloc_urb(0, GFP_KERNEL);
 			if (!dev->write_urb) {
 				err("no free urbs available");
 				return -1;
@@ -6395,7 +6376,7 @@ static int at76c503_alloc_urbs(struct at76c503 *dev)
 		}
 	}
 
-	dev->ctrl_urb = alloc_urb(0, GFP_KERNEL);
+	dev->ctrl_urb = usb_alloc_urb(0, GFP_KERNEL);
 	if (!dev->ctrl_urb) {
 		err("no free urbs available");
 		return -1;
