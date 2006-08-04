@@ -2490,15 +2490,15 @@ end_join:
 		clear_bit(KEVENT_SCAN, &dev->kevent_flags);
 		LOCK_ISTATE()
 		assert(dev->istate == SCANNING);
-		UNLOCK_ISTATE()
-		/* empty the driver's bss list */
-		free_bss_list(dev);
 
-		/* jal: a hack: we have an additional scan run for
-		   international roaming with use_essid == 1 */
-		dev->scan_runs = dev->international_roaming ? 1 : 2;
-		if ((ret=start_scan(dev, dev->international_roaming ? 
-				    1 : 0, 0)) < 0) {
+		/* only clear the bss list when a scan is actively initiated,
+		 * otherwise simply rely on bss_list_timeout */
+		if( dev->site_survey_state == SITE_SURVEY_IN_PROGRESS)
+			free_bss_list(dev);
+		UNLOCK_ISTATE()
+
+		dev->scan_runs=3;
+		if ((ret=start_scan(dev, 0, 1)) < 0) {
 			err("%s: %s: start_scan failed with %d",
 			    dev->netdev->name, __FUNCTION__, ret);
 		} else {
