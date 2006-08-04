@@ -6627,7 +6627,7 @@ static int at76c503_get_fw_info(u8 *fw_data, int fw_size,
 /* == PROC at76c503_do_probe == */
 static int at76c503_do_probe(struct module *mod, struct usb_device *udev,
 			     u8 *fw_data, int fw_size, u32 board_type,
-			     const char *netdev_name, void **devptr)
+			     const char *netdev_name)
 {
 	struct usb_interface *intf = udev->actconfig->interface[0];
 	int ret;
@@ -6756,12 +6756,10 @@ static int at76c503_do_probe(struct module *mod, struct usb_device *udev,
 	}
 
 	SET_NETDEV_DEV(dev->netdev, &intf->dev);
-
-	*devptr = dev; /* return dev for 2.4.x kernel probe functions */
 	return 0;
+
 error:
 	PUT_DEV(udev);
-	*devptr = NULL;
 	return ret;
 }
 
@@ -7061,7 +7059,6 @@ MODULE_DEVICE_TABLE (usb, dev_table);
 static int at76c50x_probe(struct usb_interface *interface,
 			  const struct usb_device_id *id)
 {
-	void *devptr = NULL;
 	int retval;
 
 	struct usb_device *udev;
@@ -7086,8 +7083,7 @@ static int at76c50x_probe(struct usb_interface *interface,
 
 	retval = at76c503_do_probe(THIS_MODULE, udev,
 				   fw->data, fw->size,
-				   boardtype, netdev_name, &devptr);
-
+				   boardtype, netdev_name);
 	return retval;
 }
 
