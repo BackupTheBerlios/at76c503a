@@ -334,11 +334,9 @@ struct ieee802_11_deauth_frame {
 #define KEVENT_RESTART 9 /* restart the device */
 #define KEVENT_ASSOC_DONE  10 /* execute the power save settings:
 			     listen interval, pm mode, assoc id */
-
 #define KEVENT_EXTERNAL_FW  11
 #define KEVENT_INTERNAL_FW  12
 #define KEVENT_RESET_DEVICE 13
-#define KEVENT_MONITOR      14
 
 
 static u8 snapsig[] = {0xaa, 0xaa, 0x03};
