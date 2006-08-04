@@ -118,7 +118,7 @@ int at76_debug = DBG_DEFAULTS;
 #define assert(x) \
   do {\
    if (!(x)) \
-     err("assertion " #x " failed");\
+     err("%d: assertion " #x " failed", __LINE__);\
   } while (0)
 
 /* how often do we re-try these packets ? */
