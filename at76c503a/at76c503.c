@@ -159,7 +159,7 @@ static unsigned long spin_l_istate_flags;
 
 
 /* Module paramaters */
-module_param_named(debug, at76_debug, int, 0400);
+module_param_named(debug, at76_debug, int, 0600);
 MODULE_PARM_DESC(debug, "Debugging level");
 
 static int rx_copybreak = 200;
