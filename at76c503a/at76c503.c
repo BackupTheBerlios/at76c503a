@@ -6096,56 +6096,38 @@ static int at76c503_iw_handler_PRIV_IOCTL_SET_MONITOR_MODE
  */
 static const iw_handler	at76c503_handlers[] =
 {
-	(iw_handler) at76c503_iw_handler_commit,	// SIOCSIWCOMMIT
-	(iw_handler) at76c503_iw_handler_get_name,	// SIOCGIWNAME
-	(iw_handler) NULL,				// SIOCSIWNWID
-	(iw_handler) NULL,				// SIOCGIWNWID
-	(iw_handler) at76c503_iw_handler_set_freq,	// SIOCSIWFREQ
-	(iw_handler) at76c503_iw_handler_get_freq,	// SIOCGIWFREQ
-	(iw_handler) at76c503_iw_handler_set_mode,	// SIOCSIWMODE
-	(iw_handler) at76c503_iw_handler_get_mode,	// SIOCGIWMODE
-	(iw_handler) NULL,				// SIOCSIWSENS
-	(iw_handler) NULL,				// SIOCGIWSENS
-	(iw_handler) NULL,				// -- hole --
-	(iw_handler) at76c503_iw_handler_get_range,	// SIOCGIWRANGE
-	(iw_handler) NULL,				// -- hole --
-	(iw_handler) NULL,				// SIOCGIWPRIV
-	(iw_handler) NULL,				// -- hole --
-	(iw_handler) NULL,				// -- hole --
-	
-	(iw_handler) at76c503_iw_handler_set_spy,	// SIOCSIWSPY
-	(iw_handler) at76c503_iw_handler_get_spy,	// SIOCGIWSPY
-
-	(iw_handler) at76c503_iw_handler_set_thrspy,	// SIOCSIWTHRSPY
-	(iw_handler) at76c503_iw_handler_get_thrspy,	// SIOCGIWTHRSPY
-
-	(iw_handler) at76c503_iw_handler_set_wap,	// SIOCSIWAP
-	(iw_handler) at76c503_iw_handler_get_wap,	// SIOCGIWAP
-	(iw_handler) NULL,				// -- hole --
-	(iw_handler) NULL,				// SIOCGIWAPLIST
-
-	(iw_handler) at76c503_iw_handler_set_scan,	// SIOCSIWSCAN
-	(iw_handler) at76c503_iw_handler_get_scan,	// SIOCGIWSCAN
-	(iw_handler) at76c503_iw_handler_set_essid,	// SIOCSIWESSID
-	(iw_handler) at76c503_iw_handler_get_essid,	// SIOCGIWESSID
-	(iw_handler) at76c503_iw_handler_set_nickname,	// SIOCSIWNICKN
-	(iw_handler) at76c503_iw_handler_get_nickname,	// SIOCGIWNICKN
-	(iw_handler) NULL,				// -- hole --
-	(iw_handler) NULL,				// -- hole --
-	(iw_handler) at76c503_iw_handler_set_rate,	// SIOCSIWRATE
-	(iw_handler) at76c503_iw_handler_get_rate,	// SIOCGIWRATE
-	(iw_handler) at76c503_iw_handler_set_rts,	// SIOCSIWRTS
-	(iw_handler) at76c503_iw_handler_get_rts,	// SIOCGIWRTS
-	(iw_handler) at76c503_iw_handler_set_frag,	// SIOCSIWFRAG
-	(iw_handler) at76c503_iw_handler_get_frag,	// SIOCGIWFRAG
-	(iw_handler) NULL,				// SIOCSIWTXPOW
-	(iw_handler) at76c503_iw_handler_get_txpow,	// SIOCGIWTXPOW
-	(iw_handler) at76c503_iw_handler_set_retry,	// SIOCSIWRETRY
-	(iw_handler) at76c503_iw_handler_get_retry,	// SIOCGIWRETRY
-	(iw_handler) at76c503_iw_handler_set_encode,	// SIOCSIWENCODE
-	(iw_handler) at76c503_iw_handler_get_encode,	// SIOCGIWENCODE
-	(iw_handler) at76c503_iw_handler_set_power,	// SIOCSIWPOWER
-	(iw_handler) at76c503_iw_handler_get_power,	// SIOCGIWPOWER
+        [SIOCSIWCOMMIT-SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_commit,
+        [SIOCGIWNAME  -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_name,
+        [SIOCSIWFREQ  -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_set_freq,
+        [SIOCGIWFREQ  -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_freq,
+        [SIOCSIWMODE  -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_set_mode,
+        [SIOCGIWMODE  -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_mode,
+        [SIOCGIWRANGE -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_range,
+        [SIOCSIWSPY   -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_set_spy,
+        [SIOCGIWSPY   -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_spy,
+        [SIOCSIWTHRSPY-SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_set_thrspy,
+        [SIOCGIWTHRSPY-SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_thrspy,
+        [SIOCSIWAP    -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_set_wap,
+        [SIOCGIWAP    -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_wap,
+        [SIOCSIWSCAN  -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_set_scan,
+        [SIOCGIWSCAN  -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_scan,
+        [SIOCSIWESSID -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_set_essid,
+        [SIOCGIWESSID -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_essid,
+        [SIOCSIWNICKN -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_set_nickname,
+        [SIOCGIWNICKN -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_nickname,
+        [SIOCSIWRATE  -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_set_rate,
+        [SIOCGIWRATE  -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_rate,
+        [SIOCSIWRTS   -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_set_rts,
+        [SIOCGIWRTS   -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_rts,
+        [SIOCSIWFRAG  -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_set_frag,
+        [SIOCGIWFRAG  -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_frag,
+        [SIOCGIWTXPOW -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_txpow,
+        [SIOCGIWRETRY -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_set_retry,
+        [SIOCGIWRETRY -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_retry,
+        [SIOCSIWENCODE-SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_set_encode,
+        [SIOCGIWENCODE-SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_encode,
+        [SIOCSIWPOWER -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_set_power,
+        [SIOCGIWPOWER -SIOCIWFIRST] = (iw_handler) at76c503_iw_handler_get_power,
 };
 
 /*******************************************************************************
