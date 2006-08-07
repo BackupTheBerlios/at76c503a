@@ -48,15 +48,18 @@
 
 #include "at76c503.h"
 
-#if WIRELESS_EXT < 20
-#define IW_QUAL_QUAL_UPDATED    0x01    /* Value was updated since last read */
+#if WIRELESS_EXT < 17
+#define IW_QUAL_QUAL_UPDATED    0x01
 #define IW_QUAL_LEVEL_UPDATED   0x02
 #define IW_QUAL_NOISE_UPDATED   0x04
-#define IW_QUAL_ALL_UPDATED     0x07
-#define IW_QUAL_DBM		0x08	/* Level + Noise are dBm */
-#define IW_QUAL_QUAL_INVALID    0x10    /* Driver doesn't provide value */
+#define IW_QUAL_QUAL_INVALID    0x10
 #define IW_QUAL_LEVEL_INVALID   0x20
 #define IW_QUAL_NOISE_INVALID   0x40
+#endif
+
+#if WIRELESS_EXT < 19
+#define IW_QUAL_ALL_UPDATED     0x07
+#define IW_QUAL_DBM		0x08
 #define IW_QUAL_ALL_INVALID     0x70
 #endif
 
