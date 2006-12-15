@@ -4,4 +4,4 @@
 *.ko
 .*.cmd
 .tmp_versions
-Modules.symvers
+*.symvers
