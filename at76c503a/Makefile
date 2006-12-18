@@ -33,9 +33,9 @@ KERNELRELEASE = $(shell sed -ne 's/"//g;s/^\#define UTS_RELEASE //p' \
 
 obj-m = at76_usb.o
 
-at76_usb-objs = at76c503.o at76_usbdfu.o
+at76_usb-objs = at76c503.o
 
-SRCS = at76c503.c at76_usbdfu.c at76c503.h
+SRCS = at76c503.c at76c503.h
 
 SPECFILE = at76c503a.spec
 
