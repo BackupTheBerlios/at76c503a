@@ -17,12 +17,9 @@
  *
  * Some iw_handler code was taken from airo.c, (C) 1999 Benjamin Reed
  */
-#include <linux/version.h>
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,18)
+#ifndef AUTOCONF_INCLUDED
 #include <linux/config.h>
-#else
-# include <linux/autoconf.h>
 #endif
 
 #include <linux/init.h>
