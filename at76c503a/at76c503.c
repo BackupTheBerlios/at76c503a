@@ -511,8 +511,8 @@ struct dfu_ctx *dfu_alloc_ctx(struct usb_device *udev)
 /* == PROC usbdfu_download ==
    if manifest_sync_timeout > 0 use this timeout (in msec) instead of the
    one reported by the device in state MANIFEST_SYNC */
-int usbdfu_download(struct usb_device *udev, u8 *dfu_buffer, u32 dfu_len, 
-		    int manifest_sync_timeout)
+static int usbdfu_download(struct usb_device *udev, u8 *dfu_buffer,
+			   u32 dfu_len, int manifest_sync_timeout)
 {
 	struct dfu_ctx *ctx;
 	struct dfu_status *dfu_stat_buf;
