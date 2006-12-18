@@ -52,9 +52,7 @@ INSTALL_MOD_DIR = kernel/drivers/net/wireless
 MODULE_DIR = $(INSTALL_MOD_PATH)/lib/modules/$(KERNELRELEASE)/$(INSTALL_MOD_DIR)
 DEPMOD = /sbin/depmod
 
-SPARSE_FLAGS = -Wbitwise -Wcast-to-as -Wcontext -Wdefault-bitfield-sign \
-	-Wtransparent-union -Wptr-subtraction-blows -Wundef -Wdecl \
-	-Wone-bit-signed-bitfield -Wtypesign -D__CHECK_ENDIAN__
+SPARSE_FLAGS = -Wall -D__CHECK_ENDIAN__
 
 PWD = $(shell pwd)
 KBUILD_FLAGS = -C $(KERNEL_PATH) M=$(PWD) KERNELRELEASE=$(KERNELRELEASE)
