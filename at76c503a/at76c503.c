@@ -6459,8 +6459,8 @@ static const struct iw_handler_def at76c503_handler_def =
 };
 
 
-static void at76c503_get_drvinfo(struct net_device *netdev,
-				 struct ethtool_drvinfo *info)
+static void at76c503_ethtool_get_drvinfo(struct net_device *netdev,
+				         struct ethtool_drvinfo *info)
 {
 	struct at76c503 *dev = (struct at76c503 *)netdev->priv;
 
@@ -6478,8 +6478,15 @@ static void at76c503_get_drvinfo(struct net_device *netdev,
 		 dev->fw_version.patch, dev->fw_version.build);
 }
 
+static u32 at76c503_ethtool_get_link(struct net_device *netdev)
+{
+	struct at76c503 *dev = netdev->priv;
+	return dev->istate == CONNECTED;
+}
+
 static struct ethtool_ops at76c503_ethtool_ops = {
-	.get_drvinfo = at76c503_get_drvinfo,
+	.get_drvinfo = at76c503_ethtool_get_drvinfo,
+	.get_link = at76c503_ethtool_get_link,
 };
 
 
