@@ -2586,9 +2586,9 @@ static void defer_kevent (struct at76c503 *dev, int flag)
 		    dev->netdev->name, flag);
 }
 
-static void kevent(void *data)
+static void kevent(struct work_struct *work)
 {
-	struct at76c503 *dev = data;
+	struct at76c503 *dev = container_of(work, struct at76c503, kevent);
 	int ret;
 	unsigned long flags;
 
@@ -6665,7 +6665,11 @@ static struct at76c503 *alloc_new_device(struct usb_device *udev,
 	dev->netdev = netdev;
 
 	init_MUTEX (&dev->sem);
-	INIT_WORK (&dev->kevent, kevent, dev);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	INIT_WORK (&dev->kevent, (void (*)(void *))kevent, &dev->kevent);
+#else
+	INIT_WORK (&dev->kevent, kevent);
+#endif
 
 	dev->open_count = 0;
 
