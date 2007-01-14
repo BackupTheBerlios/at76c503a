@@ -78,7 +78,6 @@
 #define EP(intf,nr) (intf)->altsetting[0].endpoint[(nr)].desc
 #define GET_DEV(udev) usb_get_dev((udev))
 #define PUT_DEV(udev) usb_put_dev((udev))
-#define SET_NETDEV_OWNER(ndev,owner) /* not needed anymore ??? */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 14)
 #define gfp_t int
