@@ -1,7 +1,8 @@
 diff --git a/drivers/net/wireless/Kconfig b/drivers/net/wireless/Kconfig
+index ece3d9c..af482a2 100644
 --- a/drivers/net/wireless/Kconfig
 +++ b/drivers/net/wireless/Kconfig
-@@ -405,6 +405,14 @@ config PCI_ATMEL
+@@ -394,6 +394,14 @@ config PCI_ATMEL
          Enable support for PCI and mini-PCI cards containing the
          Atmel at76c506 chip.
  
@@ -17,15 +18,16 @@ diff --git a/drivers/net/wireless/Kconfig b/drivers/net/wireless/Kconfig
  comment "Wireless 802.11b Pcmcia/Cardbus cards support"
  	depends on NET_RADIO && PCMCIA
 diff --git a/drivers/net/wireless/Makefile b/drivers/net/wireless/Makefile
+index c613af1..68732e3 100644
 --- a/drivers/net/wireless/Makefile
 +++ b/drivers/net/wireless/Makefile
-@@ -31,6 +31,9 @@ obj-$(CONFIG_AIRO_CS)		+= airo_cs.o airo
+@@ -31,6 +31,9 @@ obj-$(CONFIG_AIRO_CS)		+= airo_cs.o airo.o
  obj-$(CONFIG_ATMEL)             += atmel.o
  obj-$(CONFIG_PCI_ATMEL)         += atmel_pci.o 
  obj-$(CONFIG_PCMCIA_ATMEL)      += atmel_cs.o
-+obj-$(CONFIG_USB_ATMEL)		+= at76_usb.o
++obj-$(CONFIG_USB_ATMEL)	        += at76_usb.o
 +
-+at76_usb-objs := at76c503.o at76_usbdfu.o
++at76_usb-objs := at76c503.o $(at76_usb-obj-y)
  
  obj-$(CONFIG_PRISM54)		+= prism54/
- obj-$(CONFIG_PRISM54_USB)	+= prism54usb/
+ 
