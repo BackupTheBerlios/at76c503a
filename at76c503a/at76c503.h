@@ -609,7 +609,6 @@ struct at76c503 {
 	/* these point into a buffer managed by at76c503-xxx.o, no need to dealloc */
 	u8 *extfw; /* points to external firmware part, extfw_size bytes long */
 	u8 *intfw; /* points to internal firmware part, intfw_size bytes long */
-	struct usb_driver *calling_driver; /* the calling driver: at76c503-{rfmd,i3861,i3863,...} */
 	unsigned int device_unplugged:1;
 	unsigned int netdev_registered:1;
 	char obuf[2*256+1]; /* global debug output buffer to reduce stack usage */
