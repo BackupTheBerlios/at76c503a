@@ -6535,7 +6535,6 @@ static void at76c503_delete_device(struct at76c503 *dev)
 static int at76c503_alloc_urbs(struct at76c503 *dev)
 {
 	struct usb_interface *interface = dev->interface;
-//	struct usb_host_interface *iface_desc = &interface->altsetting[0];
 	struct usb_endpoint_descriptor *endpoint;
 	struct usb_device *udev = dev->udev;
 	int i, buffer_size;
@@ -6700,8 +6699,6 @@ static int init_new_device(struct at76c503 *dev)
 	dbg(DBG_DEVSTART, "USB interface: %d endpoints",
 	    NUM_EP(dev->interface));
 
-	/* we let this timer run the whole time this driver instance lives */
-	mod_timer(&dev->bss_list_timer, jiffies+BSS_LIST_TIMEOUT);
 
 #ifdef CONFIG_IPAQ_HANDHELD
 	if (machine_is_h5400 ())
@@ -6801,6 +6798,9 @@ static int init_new_device(struct at76c503 *dev)
 	}
 	info("registered %s", dev->netdev->name);
 	dev->netdev_registered = 1;
+
+	/* we let this timer run the whole time this driver instance lives */
+	mod_timer(&dev->bss_list_timer, jiffies+BSS_LIST_TIMEOUT);
 
 	return 0;
 
