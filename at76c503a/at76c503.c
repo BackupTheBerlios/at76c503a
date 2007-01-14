@@ -225,7 +225,6 @@ MODULE_PARM_DESC(netdev_name, "network device name (default is wlan%d)");
 #define DEF_RTS_THRESHOLD 1536
 #define DEF_FRAG_THRESHOLD 1536
 #define DEF_SHORT_RETRY_LIMIT 8
-//#define DEF_LONG_RETRY_LIMIT 4
 #define DEF_CHANNEL 10
 
 #define MAX_RTS_THRESHOLD (MAX_FRAG_THRESHOLD + 1)
@@ -253,8 +252,8 @@ static const u8 hw_rates[4] = {0x82,0x84,0x0b,0x16};
 #define BEACON_MAX_DATA_LENGTH 1500
 /* beacon in ieee80211_hdr_3addr.payload */
 struct ieee802_11_beacon_data {
-	u8	timestamp[8];           // TSFTIMER
-	__le16	beacon_interval;         // Kms between TBTTs (Target Beacon Transmission Times)
+	u8	timestamp[8];           /* TSFTIMER */
+	__le16	beacon_interval;        /* Kms between TBTTs (Target Beacon Transmission Times) */
 	__le16	capability_information;
 	u8	data[BEACON_MAX_DATA_LENGTH]; /* contains: SSID (tag,length,value), 
 						 Supported Rates (tlv), channel */
@@ -345,11 +344,9 @@ struct ieee802_11_deauth_frame {
 
 
 static u8 snapsig[] = {0xaa, 0xaa, 0x03};
-//#ifdef COLLAPSE_RFC1042
 /* RFC 1042 encapsulates Ethernet frames in 802.2 SNAP (0xaa, 0xaa, 0x03) with
  * a SNAP OID of 0 (0x00, 0x00, 0x00) */
 static u8 rfc1042sig[] = {0xaa, 0xaa, 0x03, 0x00, 0x00, 0x00};
-//#endif /* COLLAPSE_RFC1042 */
 
 /* local function prototypes */
 static void iwspy_update(struct at76c503 *dev, struct at76c503_rx_buffer *buf);
@@ -449,8 +446,6 @@ int dfu_get_status(struct dfu_ctx *ctx, struct dfu_status *status)
 	int result;
 	struct usb_device *udev = ctx->udev;
 
-//	dbg(DBG_DFU, "dfu_get_status()");
-
 	result = usb_control_msg(udev, usb_rcvctrlpipe(udev, 0),
 				 DFU_GETSTATUS,
 				 USB_TYPE_CLASS | USB_DIR_IN | USB_RECIP_INTERFACE,
@@ -467,8 +462,6 @@ static
 u8 dfu_get_state(struct usb_device *udev, u8 *state)
 {
 	int result;
-
-//	dbg(DBG_DFU, "dfu_get_state()");
 
 	result = usb_control_msg(udev, usb_rcvctrlpipe(udev, 0),
 				 DFU_GETSTATE,	/* Request */
@@ -630,7 +623,6 @@ static int usbdfu_download(struct usb_device *udev, u8 *dfu_buffer,
 
 		case STATE_DFU_MANIFEST_WAIT_RESET:
 			dbg(DBG_DFU, "STATE_DFU_MANIFEST_WAIT_RESET");
-//			usb_reset_device(udev);
 			is_done = 1;
 			break;
 
@@ -640,7 +632,6 @@ static int usbdfu_download(struct usb_device *udev, u8 *dfu_buffer,
 
 		case STATE_DFU_ERROR:
 			dbg(DBG_DFU, "STATE_DFU_ERROR");
-//			usb_reset_device(udev);
 			status = -EPIPE;
 			break;
 
@@ -706,7 +697,7 @@ static char *hex2str(char *obuf, u8 *buf, int len, char delim)
     buf++;
   }
   if (delim != '\0' && obuf > ret)
-	  obuf--; // remove last inserted delimiter
+	  obuf--; /* remove last inserted delimiter */
   *obuf = '\0';
 
   return ret;
@@ -1232,7 +1223,7 @@ static int wait_completion(struct at76c503 *dev, int cmd)
 		if(cmd_status[5] == CMD_STATUS_IN_PROGRESS ||
 		   cmd_status[5] == CMD_STATUS_IDLE){
 			set_current_state(TASK_INTERRUPTIBLE);
-			schedule_timeout(HZ/10); // 100 ms
+			schedule_timeout(HZ/10); /* 100 ms */
 		}else break;
 	}while(1);
 
@@ -1856,8 +1847,8 @@ static int start_scan(struct at76c503 *dev, int use_essid, int ir_step)
 	} else
 		scan.essid_size = 0;
 
-	//jal: why should we start at a certain channel? we do scan the whole range
-	//allowed by reg domain.
+	/* jal: why should we start at a certain channel? we do scan the whole range
+	   allowed by reg domain. */
 	scan.channel = dev->channel;
 
 	/* atmelwlandriver differs between scan type 0 and 1 (active/passive)
@@ -2273,7 +2264,6 @@ static int send_mgmt_bulk(struct at76c503 *dev, struct at76c503_tx_buffer *txbuf
 	if (txbuf) {
 
 		txbuf->tx_rate = 0;
-//		txbuf->padding = 0;
 		txbuf->padding = calc_padding(le16_to_cpu(txbuf->wlength));
 
 		if (dev->next_mgmt_bulk) {
@@ -3462,8 +3452,6 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 		if (dev->curr_bss == NULL)
 			goto rx_mgmt_beacon_end;
 		if (!memcmp(dev->curr_bss->bssid, mgmt->addr3, ETH_ALEN)) {
-			//dbg(DBG_MGMT_TIMER, "%s:%d: starting mgmt_timer "
-			//    "+BEACON_TIMEOUT*HZ", __FUNCTION__, __LINE__);
 			mod_timer(&dev->mgmt_timer, jiffies+BEACON_TIMEOUT*HZ);
 			dev->curr_bss->rssi = buf->rssi;
 			dev->beacons_received++;
@@ -3511,7 +3499,7 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 	match->link_qual = buf->link_quality;
 	match->noise_level = buf->noise_level;
 	
-	memcpy(match->mac,mgmt->addr2,ETH_ALEN); //just for info
+	memcpy(match->mac,mgmt->addr2,ETH_ALEN); /* just for info */
 	memcpy(match->bssid,mgmt->addr3,ETH_ALEN);
 	dbg(DBG_RX_BEACON, "%s: bssid %s", dev->netdev->name, 
 			mac2str(match->bssid));
@@ -3520,19 +3508,19 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 	
 #define data_end(element) (&(element->data_head) + element->length)
 	
-	// This routine steps through the bdata->data array to try and get 
-	// some useful information about the access point.
-	// Currently, this implementation supports receipt of: SSID, 
-	// supported transfer rates and channel, in any order, with some 
-	// tolerance for intermittent unknown codes (although this 
-	// functionality may not be necessary as the useful information will 
-	// usually arrive in consecutively, but there have been some 
-	// reports of some of the useful information fields arriving in a 
-	// different order).
-	// It does not support any more IE types although MFIE_TYPE_TIM may 
-	// be supported (on my AP at least).  
-	// The bdata->data array is about 1500 bytes long but only ~36 of those 
-	// bytes are useful, hence the have_ssid etc optimizations.
+	/* This routine steps through the bdata->data array to try and get 
+	 * some useful information about the access point.
+	 * Currently, this implementation supports receipt of: SSID, 
+	 * supported transfer rates and channel, in any order, with some 
+	 * tolerance for intermittent unknown codes (although this 
+	 * functionality may not be necessary as the useful information will 
+	 * usually arrive in consecutively, but there have been some 
+	 * reports of some of the useful information fields arriving in a 
+	 * different order).
+	 * It does not support any more IE types although MFIE_TYPE_TIM may 
+	 * be supported (on my AP at least).  
+	 * The bdata->data array is about 1500 bytes long but only ~36 of those 
+	 * bytes are useful, hence the have_ssid etc optimizations. */
 
 	while (keep_going &&
 	       ((int)(data_end(element) - bdata->data) <= varpar_len)) {
@@ -3599,21 +3587,18 @@ static void rx_mgmt_beacon(struct at76c503 *dev,
 			break;
 		}
 
-		} // switch (element->type)
+		} /* switch (element->type) */
 		
-		// advance to the next 'element' of data
+		/*  advance to the next 'element' of data */
 		element = (struct data_element*)data_end(element);
 
-		// Optimization: after all, the bdata->data array is  
-		// varpar_len bytes long, whereas we get all of the useful 
-		// information after only ~36 bytes, this saves us a lot of 
-		// time (and trouble as the remaining portion of the array 
-		// could be full of junk)
-		// Comment this out if you want to see what other information
-		// comes from the AP - although little of it may be useful
-
-		//if (have_ssid && have_rates && have_channel)
-		//	keep_going = 0;
+		/* Optimization: after all, the bdata->data array is  
+		 * varpar_len bytes long, whereas we get all of the useful 
+		 * information after only ~36 bytes, this saves us a lot of 
+		 * time (and trouble as the remaining portion of the array 
+		 * could be full of junk)
+		 * Comment this out if you want to see what other information
+		 * comes from the AP - although little of it may be useful */
 	}
 	
 	dbg(DBG_RX_BEACON, "%s: Finished processing beacon data", 
@@ -3832,7 +3817,6 @@ static void ieee80211_to_eth(struct sk_buff *skb, int iw_mode)
 #endif
 
 	skb_pull(skb, sizeof(struct ieee80211_hdr_3addr));
-//	skb_trim(skb, skb->len - 4); /* Trim CRC */
 
 	src_addr = iw_mode == IW_MODE_ADHOC ? i802_11_hdr->addr2
 	       				    : i802_11_hdr->addr3;
@@ -3920,7 +3904,6 @@ static void ieee80211_fixup(struct sk_buff *skb, int iw_mode)
 
 	i802_11_hdr = (struct ieee80211_hdr_3addr *)skb->data;
 	skb_pull(skb, sizeof(struct ieee80211_hdr_3addr));
-//	skb_trim(skb, skb->len - 4); /* Trim CRC */
 
 	src_addr = iw_mode == IW_MODE_ADHOC ? i802_11_hdr->addr2
 	       				    : i802_11_hdr->addr3;
@@ -4088,7 +4071,7 @@ static struct sk_buff *check_for_rx_frags(struct at76c503 *dev)
 				    add the data at the end */
 				/* is & 0xf necessary above ??? */
 
-				// for test only ???
+				/* for test only ??? */
 				if ((left=skb_tailroom(bptr->skb)) < data_len) {
 					info("%s: only %d byte free (need %d)",
 					    dev->netdev->name, left, data_len);
@@ -4603,7 +4586,7 @@ static int at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	if (netif_queue_stopped(netdev)) {
 		err("%s: %s called while netdev is stopped", netdev->name,
 		    __FUNCTION__);
-		//skip this packet
+		/* skip this packet */
 		dev_kfree_skb(skb);
 		return 0;
 	}
@@ -4611,7 +4594,7 @@ static int at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 	if (dev->write_urb->status == -EINPROGRESS) {
 		err("%s: %s called while dev->write_urb is pending for tx",
 		    netdev->name, __FUNCTION__);
-		//skip this packet
+		/* skip this packet */
 		dev_kfree_skb(skb);
 		return 0;
 	}
@@ -4630,8 +4613,8 @@ static int at76c503_tx(struct sk_buff *skb, struct net_device *netdev)
 
 	/* we can get rid of memcpy, if we set netdev->hard_header_len
 	   to 8 + sizeof(struct ieee80211_hdr_3addr), because then we have
-	   enough space */
-	//  dbg(DBG_TX, "skb->data - skb->head = %d", skb->data - skb->head);
+	   enough space 
+	  dbg(DBG_TX, "skb->data - skb->head = %d", skb->data - skb->head); */
 
 	if (ntohs(*(__be16 *)(skb->data + 2*ETH_ALEN)) <= 1518) {
 		/* this is a 802.3 packet */
@@ -4797,7 +4780,6 @@ static int startup_device(struct at76c503 *dev)
 	memset(ccfg, 0, sizeof(struct at76c503_card_config));
 	ccfg->promiscuous_mode = 0;
 	ccfg->short_retry_limit = dev->short_retry_limit;
-	//ccfg->long_retry_limit = dev->long_retry_limit;
 
 	if (dev->wep_enabled) {
 	    if (dev->wep_keys_len[dev->wep_key_id] > WEP_SMALL_KEY_LEN)
@@ -4893,7 +4875,7 @@ static int at76c503_open(struct net_device *netdev)
 			    netdev->name, mac2str(netdev->dev_addr));
 	}
 
-#ifdef DEBUG //test only !!!
+#ifdef DEBUG
 	dump_mib_mac_addr(dev);
 #endif
 
@@ -5031,26 +5013,26 @@ static void iwspy_update(struct at76c503 *dev, struct at76c503_rx_buffer *buf)
 static const struct iw_priv_args at76c503_priv_args[] = {
 	{ PRIV_IOCTL_SET_SHORT_PREAMBLE,
 	  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0,
-	  "short_preamble" }, // 0 - long, 1 -short
+	  "short_preamble" }, /* 0 - long, 1 -short */
 	
 	{ PRIV_IOCTL_SET_DEBUG, 
-	  // we must pass the new debug mask as a string,
-	  // 'cause iwpriv cannot parse hex numbers
-	  // starting with 0x :-( 
+	  /* we must pass the new debug mask as a string,
+	   * 'cause iwpriv cannot parse hex numbers
+	   * starting with 0x :-(  */
 	  IW_PRIV_TYPE_CHAR | 10, 0,
-	  "set_debug"}, // set debug value
+	  "set_debug"}, /* set debug value */
 	
 	{ PRIV_IOCTL_SET_POWERSAVE_MODE, 
 	  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0,
-	  "powersave_mode"}, // 1 -  active, 2 - power save,
-			     // 3 - smart power save
+	  "powersave_mode"}, /* 1 -  active, 2 - power save,
+			        3 - smart power save */
 	{ PRIV_IOCTL_SET_SCAN_TIMES, 
 	  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 2, 0,
-	  "scan_times"}, // min_channel_time,
-			 // max_channel_time
+	  "scan_times"}, /* min_channel_time,
+			    max_channel_time */
 	{ PRIV_IOCTL_SET_SCAN_MODE, 
 	  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0,
-	  "scan_mode"}, // 0 - active, 1 - passive scan
+	  "scan_mode"}, /* 0 - active, 1 - passive scan */
 
 	{ PRIV_IOCTL_SET_INTL_ROAMING,
 	  IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1, 0,
@@ -5079,16 +5061,16 @@ static int at76c503_iw_handler_commit(struct net_device *netdev,
 	dbg(DBG_IOCTL, "%s %s: restarting the device", netdev->name,
 		__FUNCTION__);
 	
-	// stop any pending tx bulk urb
-	//TODO
+	/* stop any pending tx bulk urb
+	   TODO */
 	
-	// jal: TODO: protect access to dev->istate by a spinlock
-	// (ISR's on other processors may read/write it)
+	/* jal: TODO: protect access to dev->istate by a spinlock
+	   (ISR's on other processors may read/write it) */
 	LOCK_ISTATE()
 	if (dev->istate != INIT) {
 		UNLOCK_ISTATE()
 		NEW_STATE(dev,INIT);
-		// stop pending management stuff
+		/* stop pending management stuff */
 		del_timer_sync(&dev->mgmt_timer);
 
 		spin_lock_irqsave(&dev->mgmt_spinlock,flags);
@@ -5102,9 +5084,9 @@ static int at76c503_iw_handler_commit(struct net_device *netdev,
 		netif_stop_queue(dev->netdev);
 	} else UNLOCK_ISTATE()
 
-	// do the restart after two seconds to catch
-	// following ioctl's (from more params of iwconfig)
-	// in _one_ restart
+	/* do the restart after two seconds to catch
+	 * following ioctl's (from more params of iwconfig)
+	 * in _one_ restart */
 	mod_timer(&dev->restart_timer, jiffies+2*HZ);
 	
 	return 0;
@@ -5134,15 +5116,15 @@ static int at76c503_iw_handler_set_freq(struct net_device *netdev,
 	dbg(DBG_IOCTL, "%s: SIOCSIWFREQ - freq.m %d freq.e %d", netdev->name, 
 		freq->m, freq->e);
 	
-	// modelled on orinoco.c
+	/* modelled on orinoco.c */
 	if ((freq->e == 0) && (freq->m <= 1000))
 	{
-		// Setting by channel number
+		/* Setting by channel number */
 		chan = freq->m;
 	}
 	else
 	{
-		// Setting by frequency - search the table
+		/* Setting by frequency - search the table */
 		int mult = 1;
 		int i;
 		
@@ -5157,10 +5139,10 @@ static int at76c503_iw_handler_set_freq(struct net_device *netdev,
 	}
 	
 	if (chan < 1 || !dev->domain ) {
-		// non-positive channels are invalid
-		// we need a domain info to set the channel
-		// either that or an invalid frequency was 
-		// provided by the user
+		/* non-positive channels are invalid
+		 * we need a domain info to set the channel
+		 * either that or an invalid frequency was 
+		 * provided by the user */
 		ret =  -EINVAL;
 	} else if (!dev->international_roaming) {
 		if (!(dev->domain->channel_map & (1 << (chan-1)))) {
@@ -5237,7 +5219,7 @@ static int at76c503_iw_handler_get_range(struct net_device *netdev,
 				  struct iw_point *data,
 				  char *extra)
 {
-	// inspired by atmel.c
+	/* inspired by atmel.c */
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
 	struct iw_range *range = (struct iw_range*)extra;
 	int i;
@@ -5246,12 +5228,12 @@ static int at76c503_iw_handler_get_range(struct net_device *netdev,
 	memset(range, 0, sizeof(struct iw_range));
 	
 	
-	//TODO: range->throughput = xxxxxx;
+	/* TODO: range->throughput = xxxxxx; */
 	
 	range->min_nwid = 0x0000;
 	range->max_nwid = 0x0000;
 	
-	// this driver doesn't maintain sensitivity information
+	/* this driver doesn't maintain sensitivity information */
 	range->sensitivity = 0;
 	
 	range->max_qual.qual = 100;
@@ -5278,14 +5260,7 @@ static int at76c503_iw_handler_get_range(struct net_device *netdev,
 	range->max_frag = MAX_FRAG_THRESHOLD;
 	
 	
-	//range->min_pmp = 0;
-	//range->max_pmp = 5000000;
-	//range->min_pmt = 0;
-	//range->max_pnt = 0;
-	//range->pmp_flags = IW_POWER_PERIOD;
-	//range->pmt_flags = 0;
-	//range->pm_capa = IW_POWER_PERIOD;
-	//TODO: find out what values we can use to describe PM capabilities
+	/* TODO: find out what values we can use to describe PM capabilities */
 	range->pmp_flags = IW_POWER_ON;
 	range->pmt_flags = IW_POWER_ON;
 	range->pm_capa = 0;
@@ -5295,8 +5270,8 @@ static int at76c503_iw_handler_get_range(struct net_device *netdev,
 	range->encoding_size[1] = WEP_LARGE_KEY_LEN;
 	range->num_encoding_sizes = 2;
 	range->max_encoding_tokens = WEP_KEYS;
-	//TODO: do we need this?  what is a valid value if we don't support?
-	//range->encoding_login_index = -1;
+	/* TODO: do we need this?  what is a valid value if we don't support?
+	  range->encoding_login_index = -1; */
 	
 	/* both WL-240U and Linksys WUSB11 v2.6 specify 15 dBm as output power
 	   - take this for all (ignore antenna gains) */
@@ -5304,12 +5279,10 @@ static int at76c503_iw_handler_get_range(struct net_device *netdev,
 	range->num_txpower = 1;
 	range->txpower_capa = IW_TXPOW_DBM;
 
-	// at time of writing (22/Feb/2004), version we intend to support 
-	// is v16, 
 	range->we_version_source = WIRELESS_EXT_SUPPORTED;
 	range->we_version_compiled = WIRELESS_EXT;
 	
-	// same as the values used in atmel.c
+	/* same as the values used in atmel.c */
 	range->retry_capa = IW_RETRY_LIMIT ;
 	range->retry_flags = IW_RETRY_LIMIT;
 	range->r_time_flags = 0;
@@ -5321,17 +5294,17 @@ static int at76c503_iw_handler_get_range(struct net_device *netdev,
 	range->num_frequency = 0;
 	
 	for (i = 0; 
-		i < 32; //number of bits in reg_domain.channel_map 
+		i < 32; /* number of bits in reg_domain.channel_map */
 		i++)
 	{
-		// test if channel map bit is raised
+		/* test if channel map bit is raised */
 		if (dev->domain->channel_map & (0x1 << i))
 		{
 			range->num_frequency += 1;
 			
 			range->freq[i].i = i + 1;
 			range->freq[i].m = channel_frequency[i] * 100000;
-			range->freq[i].e = 1; // channel frequency*100000 * 10^1
+			range->freq[i].e = 1; /* channel frequency*100000 * 10^1 */
 		}
 	}
 	
@@ -5427,13 +5400,13 @@ static int at76c503_iw_handler_set_wap(struct net_device *netdev,
 	dbg(DBG_IOCTL, "%s: SIOCSIWAP - wap/bssid %s", netdev->name, 
 		mac2str(ap_addr->sa_data));
 	
-	// if the incoming address == ff:ff:ff:ff:ff:ff, the user has 
-	// chosen any or auto AP preference
+	/* if the incoming address == ff:ff:ff:ff:ff:ff, the user has 
+	   chosen any or auto AP preference */
 	if (!memcmp(ap_addr->sa_data, bc_addr, ETH_ALEN)
 		|| !memcmp(ap_addr->sa_data, off_addr, ETH_ALEN)) {
 		dev->wanted_bssid_valid = 0;
 	} else {
-		// user wants to set a preferred AP address
+		/* user wants to set a preferred AP address */
 		dev->wanted_bssid_valid = 1;
 		memcpy(dev->wanted_bssid, ap_addr->sa_data, ETH_ALEN);
 	}
@@ -5491,7 +5464,7 @@ static int at76c503_iw_handler_set_scan(struct net_device *netdev,
 
 	dev->site_survey_state = SITE_SURVEY_IN_PROGRESS;
 
-	// stop pending management stuff
+	/* stop pending management stuff */
 	del_timer_sync(&(dev->mgmt_timer));
 	
 	spin_lock_irqsave(&(dev->mgmt_spinlock), flags);
@@ -5502,11 +5475,11 @@ static int at76c503_iw_handler_set_scan(struct net_device *netdev,
 	spin_unlock_irqrestore(&(dev->mgmt_spinlock), flags);
 	
 	if (netif_running(dev->netdev)) {
-		// pause network activity
+ 		/* pause network activity */
 		netif_carrier_off(dev->netdev);
 		netif_stop_queue(dev->netdev);
 	}
-// Try to do passive or active scan if WE asks as.
+ 	/* Try to do passive or active scan if WE asks as. */
 #if WIRELESS_EXT > 19
 	if (wrqu->data.length
 	    && wrqu->data.length == sizeof(struct iw_scan_req)) {
@@ -5535,7 +5508,7 @@ static int at76c503_iw_handler_set_scan(struct net_device *netdev,
 	} 
 #endif
 	
-	// change to scanning state
+	/* change to scanning state */
 	NEW_STATE(dev, SCANNING);
 	defer_kevent(dev, KEVENT_SCAN);
 	
@@ -5588,8 +5561,8 @@ static int at76c503_iw_handler_get_scan(struct net_device *netdev,
 			(curr_bss->capa & WLAN_CAPABILITY_ESS) ? 
 			IW_MODE_MASTER :
 			IW_MODE_AUTO;
-			// IW_MODE_AUTO = 0 which I thought is 
-			// the most logical value to return in this case
+			/* IW_MODE_AUTO = 0 which I thought is 
+			 * the most logical value to return in this case */
 		curr_pos = iwe_stream_add_event(curr_pos, 
 			extra + IW_SCAN_MAX_DATA, iwe, IW_EV_UINT_LEN);
 		
@@ -5650,7 +5623,7 @@ static int at76c503_iw_handler_get_scan(struct net_device *netdev,
 			curr_pos = curr_val;
 
 
-		// more information may be sent back using IWECUSTOM
+		/* more information may be sent back using IWECUSTOM */
 
 	}
 	
@@ -5704,19 +5677,19 @@ static int at76c503_iw_handler_get_essid(struct net_device *netdev,
 	struct at76c503 *dev = (struct at76c503*)netdev->priv;
 	
 	if (dev->essid_size) {
-		// not the ANY ssid in dev->essid
+		/* not the ANY ssid in dev->essid */
 		data->flags = 1;
 		data->length = dev->essid_size;
 		memcpy(extra, dev->essid, data->length);
 		extra[data->length] = '\0';
 		data->length += 1;
 	} else {
-		// the ANY ssid was specified
+		/* the ANY ssid was specified */
 		LOCK_ISTATE()
 		if (dev->istate == CONNECTED &&
 		    dev->curr_bss != NULL) {
 			UNLOCK_ISTATE()
-			// report the SSID we have found
+			/* report the SSID we have found */
 			data->flags = 1;
 			data->length = dev->curr_bss->ssid_len;
 			memcpy(extra, dev->curr_bss->ssid, data->length);
@@ -5724,7 +5697,7 @@ static int at76c503_iw_handler_get_essid(struct net_device *netdev,
 			data->length += 1;
 		} else {
 			UNLOCK_ISTATE()
-			// report ANY back
+			/* report ANY back */
 			data->flags=0;
 			data->length=0;
 		}
@@ -5744,7 +5717,7 @@ static int at76c503_iw_handler_set_nickname(struct net_device *netdev,
 	
 	dbg(DBG_IOCTL, "%s: SIOCSIWNICKN - %s", netdev->name, extra);
 	
-	// iwconfig gives length including 0 byte like in the case of essid
+	/* iwconfig gives length including 0 byte like in the case of essid */
 	memcpy(dev->nickn, extra, data->length);
 	
 	return 0;
@@ -5780,7 +5753,7 @@ static int at76c503_iw_handler_set_rate(struct net_device *netdev,
 	
 	switch (bitrate->value)
 	{
-		case -1: 	dev->txrate = TX_RATE_AUTO; break; // auto rate 
+		case -1: 	dev->txrate = TX_RATE_AUTO; break; /* auto rate */
 		case 1000000: 	dev->txrate = TX_RATE_1MBIT; break;
 		case 2000000: 	dev->txrate = TX_RATE_2MBIT; break;
 		case 5500000: 	dev->txrate = TX_RATE_5_5MBIT; break;
@@ -5801,7 +5774,7 @@ static int at76c503_iw_handler_get_rate(struct net_device *netdev,
 	
 	switch (dev->txrate)
 	{
-		// return max rate if RATE_AUTO
+		/* return max rate if RATE_AUTO */
 		case TX_RATE_AUTO: 	bitrate->value = 11000000; break; 
 		case TX_RATE_1MBIT: 	bitrate->value = 1000000; break;
 		case TX_RATE_2MBIT: 	bitrate->value = 2000000; break;
@@ -5881,7 +5854,7 @@ static int at76c503_iw_handler_set_frag(struct net_device *netdev,
 	if ((fthr < MIN_FRAG_THRESHOLD) || (fthr > MAX_FRAG_THRESHOLD)) {
 		ret = -EINVAL;
 	} else {
-		dev->frag_threshold = fthr & ~0x1; // get an even value
+		dev->frag_threshold = fthr & ~0x1; /* get an even value */
 	}
 	
 	return ret;
@@ -5947,7 +5920,7 @@ static int at76c503_iw_handler_set_retry(struct net_device *netdev,
 	return ret;
 }
 
-// adapted (ripped) from atmel.c
+/* adapted (ripped) from atmel.c */
 static int at76c503_iw_handler_get_retry(struct net_device *netdev,
 				  struct iw_request_info *info,
 				  struct iw_param *retry,
@@ -5957,21 +5930,12 @@ static int at76c503_iw_handler_get_retry(struct net_device *netdev,
 	
 	dbg(DBG_IOCTL, "%s: SIOCGIWRETRY", netdev->name);
 	
-	retry->disabled = 0;      // Can't be disabled
+	retry->disabled = 0;      /* Can't be disabled */
 	
-	// Note : by default, display the min retry number
-	//if((retry->flags & IW_RETRY_MAX)) {
-	//	retry->flags = IW_RETRY_LIMIT | IW_RETRY_MAX;
-	//	retry->value = dev->long_retry_limit;
-	//} else {
-		retry->flags = IW_RETRY_LIMIT;
-		retry->value = dev->short_retry_limit;
-		
-		//if(dev->long_retry_limit != dev->short_retry_limit) {
-		//	dev->retry.flags |= IW_RETRY_MIN;
-		//}
-	//}
 
+	retry->flags = IW_RETRY_LIMIT;
+	retry->value = dev->short_retry_limit;
+		
 	return 0;
 }
 
@@ -5994,7 +5958,7 @@ static int at76c503_iw_handler_set_encode(struct net_device *netdev,
 	       (dev->auth_mode == WLAN_AUTH_SHARED_KEY) ? 
 			"restricted" : "open");
 	
-	// take the old default key if index is invalid
+	/* take the old default key if index is invalid */
 	if ((index < 0) || (index >= WEP_KEYS))
 		index = dev->wep_key_id;
 	
@@ -6085,14 +6049,14 @@ static int at76c503_iw_handler_set_power(struct net_device *netdev,
 	}
 	else
 	{
-		// we set the listen_interval based on the period given
-		// no idea how to handle the timeout of iwconfig ???
+		/* we set the listen_interval based on the period given
+		   no idea how to handle the timeout of iwconfig ??? */
 		if (power->flags & IW_POWER_PERIOD)
 		{
 			dev->pm_period_us = power->value;
 		}
 		
-		dev->pm_mode = PM_SAVE; // use iw_priv to select SMART_SAVE
+		dev->pm_mode = PM_SAVE; /* use iw_priv to select SMART_SAVE */
 	}
 	
 	return -EIWCOMMIT;
@@ -6115,7 +6079,7 @@ static int at76c503_iw_handler_get_power(struct net_device *netdev,
 	else
 	{
 		unsigned long flags;
-		u16 beacon_int; // of the current bss
+		u16 beacon_int; /* of the current bss */
 		
 		power->flags = IW_POWER_PERIOD;
 
@@ -6160,8 +6124,8 @@ static int at76c503_iw_handler_PRIV_IOCTL_SET_SHORT_PREAMBLE
 		netdev->name, val);
 	
 	if (val < 0 || val > 2) {
-		//allow value of 2 - in the win98 driver it stands
-		//for "auto preamble" ...?
+		/* allow value of 2 - in the win98 driver it stands
+		   for "auto preamble" ...? */
 		ret = -EINVAL;
 	} else {
 		dev->preamble_type = val;
@@ -6358,7 +6322,7 @@ static int at76c503_iw_handler_PRIV_IOCTL_SET_MONITOR_MODE
 			if ((channel >= 1) && 
 			    (channel <= (sizeof(channel_frequency) / 
 				 sizeof(channel_frequency[0]))))
-			// INFO: This doesn't actually affect the scan
+			/* INFO: This doesn't actually affect the scan */
 			dev->channel = channel;
 
 			dev->monitor_prism_header = (mode == MM_ON);
@@ -6517,7 +6481,7 @@ static void at76c503_delete_device(struct at76c503 *dev)
 
 	PUT_DEV(dev->udev);
 
-	// assuming we used keventd, it must quiesce too
+	/* assuming we used keventd, it must quiesce too */
 	flush_scheduled_work ();
 
 	if(dev->bulk_out_buffer != NULL)
@@ -6793,7 +6757,7 @@ static int init_new_device(struct at76c503 *dev)
 	dev->rts_threshold = DEF_RTS_THRESHOLD;
 	dev->frag_threshold = DEF_FRAG_THRESHOLD;
 	dev->short_retry_limit = DEF_SHORT_RETRY_LIMIT;
-	//dev->long_retr_limit = DEF_LONG_RETRY_LIMIT;
+	/* dev->long_retr_limit = DEF_LONG_RETRY_LIMIT; */
 	dev->txrate = TX_RATE_AUTO;
 	dev->preamble_type = preamble_type;
 	dev->beacon_period = 100;
@@ -6827,10 +6791,6 @@ static int init_new_device(struct at76c503 *dev)
 		(struct iw_handler_def*)&at76c503_handler_def;
 	netdev->set_multicast_list = at76c503_set_multicast;
 	netdev->set_mac_address = at76c503_set_mac_address;
-	//  netdev->hard_header_len = 8 + sizeof(struct ieee80211_hdr_3addr);
-	/*
-//    netdev->hard_header = at76c503_header;
-*/
 
 	/* putting this inside rtnl_lock() - rtnl_unlock() hangs modprobe ...? */
 	ret = register_netdev(dev->netdev);
