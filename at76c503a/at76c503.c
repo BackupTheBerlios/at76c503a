@@ -2774,8 +2774,8 @@ end_join:
 			free_bss_list(dev);
 		UNLOCK_ISTATE()
 
-		dev->scan_runs=3;
-		if ((ret=start_scan(dev, 0, 1)) < 0) {
+		dev->scan_runs = 2;
+		if ((ret = start_scan(dev, 0, 1)) < 0) {
 			err("%s: %s: start_scan failed with %d",
 			    dev->netdev->name, __FUNCTION__, ret);
 		} else {
