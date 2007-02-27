@@ -1,3 +1,20 @@
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 0ad8803..70dcecd 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -609,6 +609,12 @@ W:	http://www.thekelleys.org.uk/atmel
+ W:	http://atmelwlandriver.sourceforge.net/
+ S:	Maintained
+ 
++ATMEL USB WIRELESS DRIVER
++M:	at76c503a-develop@lists.berlios.de
++L:	at76c503a-user@lists.berlios.de
++W:	http://at76c503a.berlios.de/
++S:	Maintained
++
+ AUDIT SUBSYSTEM
+ P:	David Woodhouse
+ M:	dwmw2@infradead.org
 diff --git a/drivers/net/wireless/Kconfig b/drivers/net/wireless/Kconfig
 index ece3d9c..af482a2 100644
 --- a/drivers/net/wireless/Kconfig
@@ -18,7 +35,7 @@ index ece3d9c..af482a2 100644
  comment "Wireless 802.11b Pcmcia/Cardbus cards support"
  	depends on NET_RADIO && PCMCIA
 diff --git a/drivers/net/wireless/Makefile b/drivers/net/wireless/Makefile
-index c613af1..68732e3 100644
+index c613af1..3ba079a 100644
 --- a/drivers/net/wireless/Makefile
 +++ b/drivers/net/wireless/Makefile
 @@ -31,6 +31,9 @@ obj-$(CONFIG_AIRO_CS)		+= airo_cs.o airo.o
@@ -27,7 +44,7 @@ index c613af1..68732e3 100644
  obj-$(CONFIG_PCMCIA_ATMEL)      += atmel_cs.o
 +obj-$(CONFIG_USB_ATMEL)	        += at76_usb.o
 +
-+at76_usb-objs := at76c503.o $(at76_usb-obj-y)
++at76_usb-objs := at76c503.o
  
  obj-$(CONFIG_PRISM54)		+= prism54/
  
