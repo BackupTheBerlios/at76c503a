@@ -35,16 +35,14 @@ index ece3d9c..af482a2 100644
  comment "Wireless 802.11b Pcmcia/Cardbus cards support"
  	depends on NET_RADIO && PCMCIA
 diff --git a/drivers/net/wireless/Makefile b/drivers/net/wireless/Makefile
-index c613af1..3ba079a 100644
+index c613af1..d8d32ea 100644
 --- a/drivers/net/wireless/Makefile
 +++ b/drivers/net/wireless/Makefile
-@@ -31,6 +31,9 @@ obj-$(CONFIG_AIRO_CS)		+= airo_cs.o airo.o
+@@ -31,6 +31,7 @@ obj-$(CONFIG_AIRO_CS)		+= airo_cs.o airo.o
  obj-$(CONFIG_ATMEL)             += atmel.o
  obj-$(CONFIG_PCI_ATMEL)         += atmel_pci.o 
  obj-$(CONFIG_PCMCIA_ATMEL)      += atmel_cs.o
 +obj-$(CONFIG_USB_ATMEL)	        += at76_usb.o
-+
-+at76_usb-objs := at76c503.o
  
  obj-$(CONFIG_PRISM54)		+= prism54/
  

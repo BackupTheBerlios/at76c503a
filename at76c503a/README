@@ -152,7 +152,7 @@ Following are some of the supported parameters:
 - long preamble: iwpriv wlanX short_preamble 0
 - short preamble: iwpriv wlanX short_preamble 1
 - amount of debug messages: iwpriv wlanX set_debug N
-  with N a combination of bits, see DBG_* in at76c503.h
+  with N a combination of bits, see DBG_* in at76_usb.h
 - power save mode: iwpriv wlanX powersave_mode N (numbers 1, 2, 3 for
   for none, save and smart save respectively)
 - scan channel time: iwpriv wlanX scan_times <min_ch_time> <max_ch_time>

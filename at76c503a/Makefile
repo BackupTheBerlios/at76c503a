@@ -33,17 +33,15 @@ KERNELRELEASE = $(shell sed -ne 's/"//g;s/^\#define UTS_RELEASE //p' \
 
 obj-m = at76_usb.o
 
-at76_usb-objs = at76c503.o
+SRCS = at76_usb.c at76_usb.h at76_usb_ids.h
 
-SRCS = at76c503.c at76c503.h
-
-SPECFILE = at76c503a.spec
+SPECFILE = at76_usb.spec
 
 DISTFILES = $(SRCS) Makefile README COPYING CHANGELOG kernel_patch.diff
 
-# get the version from at76c503.h
+# get the version from at76_usb.h
 ifndef M
-VERSION = $(shell sed -n 's/^\#define.*DRIVER_VERSION.*"\(.*\)".*$$/\1/p' at76c503.h)
+VERSION = $(shell sed -n 's/^\#define.*DRIVER_VERSION.*"\(.*\)".*$$/\1/p' at76_usb.h)
 DISTNAME = at76_usb-$(VERSION)
 DISTDIR = $(DISTNAME)
 endif
