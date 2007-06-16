@@ -1,13 +1,16 @@
 /*
  * USB IDs for the at76c503/at76c505 USB driver
  *
- * Copyritht (c) 2007 Guido Guenther <agx@sigxcpu.org>
+ * Copyright (c) 2007 Guido Guenther <agx@sigxcpu.org>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
  * published by the Free Software Foundation; either version 2 of
  * the License, or (at your option) any later version.
  */
+
+#ifndef _AT76_USB_IDS_H
+#define _AT76_USB_IDS_H
 
 #define VENDOR_ID_3COM                  0x0506
 #define VENDOR_ID_ACTIONTEC             0x1668
@@ -107,3 +110,5 @@
 #define BOARDTYPE_505_RFMD_2958     6
 #define BOARDTYPE_505A_RFMD_2958    7
 #define BOARDTYPE_505AMX_RFMD       8
+
+#endif /* _AT76_USB_IDS_H */

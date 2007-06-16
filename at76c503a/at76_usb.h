@@ -28,20 +28,24 @@
 #define DRIVER_VERSION "0.15dev"
 
 /* our private ioctl's */
-/* set preamble length*/
-#define PRIV_IOCTL_SET_SHORT_PREAMBLE  (SIOCIWFIRSTPRIV + 0x0)
-/* set debug parameter */
-#define PRIV_IOCTL_SET_DEBUG           (SIOCIWFIRSTPRIV + 0x2)
-/* set power save mode (incl. the Atmel proprietary smart save mode */
-#define PRIV_IOCTL_SET_POWERSAVE_MODE  (SIOCIWFIRSTPRIV + 0x4)
-/* set min and max channel times for scan */
-#define PRIV_IOCTL_SET_SCAN_TIMES      (SIOCIWFIRSTPRIV + 0x6)
-/* set scan mode */
-#define PRIV_IOCTL_SET_SCAN_MODE       (SIOCIWFIRSTPRIV + 0x8)
-/* set international roaming */
-#define PRIV_IOCTL_SET_INTL_ROAMING    (SIOCIWFIRSTPRIV + 0x10)
-/* set monitor mode */
-#define PRIV_IOCTL_SET_MONITOR_MODE    (SIOCIWFIRSTPRIV + 0x12)
+/* preamble length (0 - long, 1 - short, 2 - auto) */
+#define AT76_SET_SHORT_PREAMBLE  (SIOCIWFIRSTPRIV + 0)
+#define AT76_GET_SHORT_PREAMBLE  (SIOCIWFIRSTPRIV + 1)
+/* which debug channels are enabled */
+#define AT76_SET_DEBUG           (SIOCIWFIRSTPRIV + 2)
+#define AT76_GET_DEBUG           (SIOCIWFIRSTPRIV + 3)
+/* power save mode (incl. the Atmel proprietary smart save mode) */
+#define AT76_SET_POWERSAVE_MODE  (SIOCIWFIRSTPRIV + 4)
+#define AT76_GET_POWERSAVE_MODE  (SIOCIWFIRSTPRIV + 5)
+/* min and max channel times for scan */
+#define AT76_SET_SCAN_TIMES      (SIOCIWFIRSTPRIV + 6)
+#define AT76_GET_SCAN_TIMES      (SIOCIWFIRSTPRIV + 7)
+/* scan mode (0 - active, 1 - passive) */
+#define AT76_SET_SCAN_MODE       (SIOCIWFIRSTPRIV + 8)
+#define AT76_GET_SCAN_MODE       (SIOCIWFIRSTPRIV + 9)
+/* international roaming (0 - disabled, 1 - enabled */
+#define AT76_SET_INTL_ROAMING    (SIOCIWFIRSTPRIV + 10)
+#define AT76_GET_INTL_ROAMING    (SIOCIWFIRSTPRIV + 11)
 
 #define DEVICE_VENDOR_REQUEST_OUT    0x40
 #define DEVICE_VENDOR_REQUEST_IN     0xc0
@@ -89,8 +93,9 @@
 #define INFRASTRUCTURE_MODE 2
 
 /* values for struct mib_local, field preamble_type */
-#define PREAMBLE_TYPE_SHORT 1
 #define PREAMBLE_TYPE_LONG  0
+#define PREAMBLE_TYPE_SHORT 1
+#define PREAMBLE_TYPE_AUTO 2
 
 /* values for tx_rate */
 #define TX_RATE_1MBIT   0
@@ -107,30 +112,6 @@
 /* international roaming state */
 #define IR_OFF        0
 #define IR_ON         1
-
-/* monitor mode - param of private ioctl */
-#define MM_OFF 0
-#define MM_ON  1
-#define MM_ON_NO_PRISM 2
-
-
-/* offsets into the MIBs we use to configure the device */
-#define TX_AUTORATE_FALLBACK_OFFSET offsetof(struct mib_local,txautorate_fallback)
-#define FRAGMENTATION_OFFSET        offsetof(struct mib_mac,frag_threshold)
-#define PREAMBLE_TYPE_OFFSET        offsetof(struct mib_local,preamble_type)
-#define RTS_OFFSET                  offsetof(struct mib_mac, rts_threshold)
-
-/* valid only for rfmd and 505 !*/
-#define IBSS_CHANGE_OK_OFFSET       offsetof(struct mib_mac_mgmt, ibss_change)
-#define IROAMING_IMPL_OFFSET	    offsetof(struct mib_mac_mgmt, multi_domain_capability_implemented)
-#define IROAMING_OFFSET \
-  offsetof(struct mib_mac_mgmt, multi_domain_capability_enabled)
-/* the AssocID */
-#define STATION_ID_OFFSET           offsetof(struct mib_mac_mgmt, station_id)
-#define POWER_MGMT_MODE_OFFSET      offsetof(struct mib_mac_mgmt, power_mgmt_mode)
-#define LISTEN_INTERVAL_OFFSET      offsetof(struct mib_mac, listen_interval)
-
-#define PRIVACY_OPT_IMPL            offsetof(struct mib_mac_mgmt, privacy_option_implemented)
 
 struct hwcfg_r505 {
 	u8 cr39_values[14];
@@ -165,6 +146,12 @@ struct hwcfg_intersil {
 	u8 reserved[1];
 } __attribute__ ((packed));
 
+union at76_hwcfg {
+	struct hwcfg_intersil i;
+	struct hwcfg_rfmd r3;
+	struct hwcfg_r505 r5;
+};
+
 #define WEP_SMALL_KEY_LEN (40/8)
 #define WEP_LARGE_KEY_LEN (104/8)
 
@@ -191,6 +178,7 @@ struct at76_command {
 	u8 cmd;
 	u8 reserved;
 	__le16 size;
+	u8 data[0];
 } __attribute__ ((packed));
 
 /* the length of the Atmel firmware specific rx header before IEEE 802.11 starts */
@@ -204,7 +192,7 @@ struct at76_rx_buffer {
 	u8 rssi;
 	u8 link_quality;
 	u8 noise_level;
-	u8 rx_time[4];
+	__le32 rx_time;
 	u8 packet[IEEE80211_FRAME_LEN + IEEE80211_FCS_LEN];
 } __attribute__ ((packed));
 
@@ -223,7 +211,7 @@ struct at76_tx_buffer {
 #define SCAN_TYPE_ACTIVE  0
 #define SCAN_TYPE_PASSIVE 1
 
-struct at76_start_scan {
+struct at76_req_scan {
 	u8 bssid[ETH_ALEN];
 	u8 essid[32];
 	u8 scan_type;
@@ -235,7 +223,7 @@ struct at76_start_scan {
 	u8 international_scan;
 } __attribute__ ((packed));
 
-struct at76_start_bss {
+struct at76_req_ibss {
 	u8 bssid[ETH_ALEN];
 	u8 essid[32];
 	u8 bss_type;
@@ -244,7 +232,7 @@ struct at76_start_bss {
 	u8 reserved[3];
 } __attribute__ ((packed));
 
-struct at76_join {
+struct at76_req_join {
 	u8 bssid[ETH_ALEN];
 	u8 essid[32];
 	u8 bss_type;
@@ -365,11 +353,19 @@ struct mib_mdomain {
 	u8 channel_list[14];	/* 0 for invalid channels */
 } __attribute__ ((packed));
 
-static u8 snapsig[] = { 0xaa, 0xaa, 0x03 };
-
-/* RFC 1042 encapsulates Ethernet frames in 802.2 SNAP (0xaa, 0xaa, 0x03) with
- * a SNAP OID of 0 (0x00, 0x00, 0x00) */
-static u8 rfc1042sig[] = { 0xaa, 0xaa, 0x03, 0x00, 0x00, 0x00 };
+struct at76_fw_header {
+	__le32 crc;		/* CRC32 of the whole image */
+	__le32 board_type;	/* firmware compatibility code */
+	u8 build;		/* firmware build number */
+	u8 patch;		/* firmware patch level */
+	u8 minor;		/* firmware minor version */
+	u8 major;		/* firmware major version */
+	__le32 str_offset;	/* offset of the copyright string */
+	__le32 int_fw_offset;	/* internal firmware image offset */
+	__le32 int_fw_len;	/* internal firmware image length */
+	__le32 ext_fw_offset;	/* external firmware image offset */
+	__le32 ext_fw_len;	/* external firmware image length */
+} __attribute__ ((packed));
 
 /* states in infrastructure mode */
 enum infra_state {
@@ -382,25 +378,8 @@ enum infra_state {
 	JOINING,
 	CONNECTED,
 	STARTIBSS,
-	INTFW_DOWNLOAD,
-	EXTFW_DOWNLOAD,
-	WAIT_FOR_DISCONNECT,
 	MONITORING,
 };
-
-#define AT76_DEVENT_CTRL_HALT		 1
-#define AT76_DEVENT_NEW_BSS		 2
-#define AT76_DEVENT_SET_PROMISC 	 3
-#define AT76_DEVENT_MGMT_TIMEOUT	 4
-#define AT76_DEVENT_SCAN	 	 5
-#define AT76_DEVENT_JOIN		 6
-#define AT76_DEVENT_STARTIBSS		 7
-#define AT76_DEVENT_SUBMIT_RX		 8
-#define AT76_DEVENT_RESTART		 9
-#define AT76_DEVENT_ASSOC_DONE		10
-#define AT76_DEVENT_EXTERNAL_FW		11
-#define AT76_DEVENT_INTERNAL_FW		12
-#define AT76_DEVENT_RESET_DEVICE 	13
 
 /* a description of a regulatory domain and the allowed channels */
 struct reg_domain {
@@ -420,17 +399,13 @@ struct reg_domain {
 struct bss_info {
 	struct list_head list;
 
-	u8 mac[ETH_ALEN];	/* real mac address, differs 
-				   for ad-hoc from bssid */
 	u8 bssid[ETH_ALEN];	/* bssid */
 	u8 ssid[IW_ESSID_MAX_SIZE + 1];	/* ssid, +1 for trailing \0 
 					   to make it printable */
 	u8 ssid_len;		/* length of ssid above */
 	u8 channel;
-	u16 capa;		/* the capabilities of the BSS (in original endianess -
-				   we only check IEEE802_11 bits in it) */
-	u16 beacon_interval;	/* the beacon interval in units of TU (1.024 ms)
-				   (in CPU endianess - we must calc. values from it) */
+	u16 capa;		/* BSS capabilities */
+	u16 beacon_interval;	/* beacon interval in Kus (1024 microseconds) */
 	u8 rates[BSS_LIST_MAX_RATE_LEN];	/* supported rates (list of bytes: 
 						   (basic_rate ? 0x80 : 0) + rate/(500 Kbit/s); e.g. 
 						   x82,x84,x8b,x96 for basic rates 1,2,5.5,11 MBit/s) */
@@ -442,7 +417,7 @@ struct bss_info {
 	u8 noise_level;
 
 	unsigned long last_rx;	/* time (jiffies) of last beacon received */
-	u16 assoc_id;		/* if this is dev->curr_bss this is the assoc id we got
+	u16 assoc_id;		/* if this is priv->curr_bss this is the assoc id we got
 				   in a successful AssocResponse */
 };
 
@@ -459,37 +434,53 @@ struct rx_data_buf {
 /* how often do we try to submit a rx urb until giving up */
 #define NR_SUBMIT_RX_TRIES 8
 
+/* Data for one loaded firmware file */
+struct fwentry {
+	const char *const fwname;
+	const struct firmware *fw;
+	int extfw_size;
+	int intfw_size;
+	/* these point into a buffer managed by the firmware dl functions, no need to dealloc */
+	u8 *extfw;		/* points to external firmware part, extfw_size bytes long */
+	u8 *intfw;		/* points to internal firmware part, intfw_size bytes long */
+	u32 board_type;		/* BOARDTYPE_* in at76_usb_ids.h */
+	struct mib_fw_version fw_version;
+	int loaded;		/* Loaded and parsed successfully */
+};
+
 struct at76_priv {
 	struct usb_device *udev;	/* USB device pointer */
 	struct net_device *netdev;	/* net device pointer */
 	struct net_device_stats stats;
 	struct iw_statistics wstats;
-	struct usb_interface *interface;	/* the interface for this device */
 
 	struct sk_buff *rx_skb;	/* skbuff for receiving packets */
-	__u8 bulk_in_endpointAddr;	/* the address of the bulk in endpoint */
+	unsigned int rx_bulk_pipe;	/* bulk in endpoint */
 
-	unsigned char *bulk_out_buffer;	/* the buffer to send data */
-	int bulk_out_size;	/* the size of the send buffer */
+	void *bulk_out_buffer;	/* the buffer to send data */
 	struct urb *write_urb;	/* the urb used to send data */
 	struct urb *read_urb;
-	__u8 bulk_out_endpointAddr;	/* the address of the bulk out endpoint */
+	unsigned int tx_bulk_pipe;	/* bulk out endpoint */
 
 	int open_count;		/* number of times this port has been opened */
-	struct semaphore sem;	/* locks this structure */
+	struct mutex mtx;	/* locks this structure */
 
-	/* our deferred event queue */
-	unsigned long devent_flags;
-	struct work_struct devent_queue;
+	/* work queues */
+	struct work_struct work_assoc_done;
+	struct work_struct work_join;
+	struct work_struct work_mgmt_timeout;
+	struct work_struct work_new_bss;
+	struct work_struct work_restart;
+	struct work_struct work_scan;
+	struct work_struct work_set_promisc;
+	struct work_struct work_submit_rx;
 
 	int nr_submit_rx_tries;	/* number of tries to submit an rx urb left */
-	struct tasklet_struct tasklet;
+	struct tasklet_struct rx_tasklet;
 	struct urb *rx_urb;	/* tmp urb pointer for rx_tasklet */
 
-	unsigned char *ctrl_buffer;
+	void *ctrl_buffer;
 	struct urb *ctrl_urb;
-
-	u8 op_mode;
 
 	/* the WEP stuff */
 	int wep_enabled;	/* 1 if WEP is enabled */
@@ -500,15 +491,13 @@ struct at76_priv {
 
 	int channel;
 	int iw_mode;
-	int curr_ap;
 	u8 bssid[ETH_ALEN];
 	u8 essid[IW_ESSID_MAX_SIZE];
-	char nickn[IW_ESSID_MAX_SIZE + 1];	/* nickname, only used in the iwconfig i/f */
 	int essid_size;
 	int radio_on;
 	int promisc;
 
-	int preamble_type;	/* 0 - long preamble, 1 - short preamble */
+	int preamble_type;	/* 0 - long, 1 - short, 2 - auto */
 	int auth_mode;		/* authentication type: 0 open, 1 shared key */
 	int txrate;		/* 0,1,2,3 = 1,2,5.5,11 MBit, 4 is auto-fallback */
 	int frag_threshold;	/* threshold for fragmentation of tx packets */
@@ -529,9 +518,9 @@ struct at76_priv {
 						   before and must not remove curr_bss nor
 						   new_bss ! */
 	struct bss_info *curr_bss;	/* if istate == AUTH, ASSOC, REASSOC, JOIN or CONN 
-					   dev->bss[curr_bss] is the currently selected BSS
+					   priv->bss[curr_bss] is the currently selected BSS
 					   we operate on */
-	struct bss_info *new_bss;	/* if istate == REASSOC dev->new_bss
+	struct bss_info *new_bss;	/* if istate == REASSOC priv->new_bss
 					   is the new bss we want to reassoc to */
 
 	u8 wanted_bssid[ETH_ALEN];
@@ -542,25 +531,24 @@ struct at76_priv {
 					   next_mgmt_bulk */
 
 	struct at76_tx_buffer *next_mgmt_bulk;	/* pending management msg to
-							   send via bulk out */
+						   send via bulk out */
 	enum infra_state istate;
 	enum {
-		SITE_SURVEY_IDLE,
-		SITE_SURVEY_IN_PROGRESS,
-		SITE_SURVEY_COMPLETED
-	} site_survey_state;
-	time_t last_survey;
+		SCAN_IDLE,
+		SCAN_IN_PROGRESS,
+		SCAN_COMPLETED
+	} scan_state;
+	time_t last_scan;
 
 	struct timer_list restart_timer;	/* the timer we use to delay the restart a bit */
 
 	struct timer_list mgmt_timer;	/* the timer we use to repeat auth_req etc. */
 	int retries;		/* counts backwards while re-trying to send auth/assoc_req's */
-	u16 assoc_id;		/* the assoc_id for states JOINING, REASSOCIATING, CONNECTED */
 	u8 pm_mode;		/* power management mode: AT76_PM_{OFF, ON, SMART} */
 	u32 pm_period;		/* power manag. period in us */
-	u32 board_type;		/* BOARDTYPE_* in at76_usb_ids.h */
 
 	struct reg_domain const *domain;	/* the description of the regulatory domain */
+	int international_roaming;
 
 	/* iwspy support */
 	spinlock_t spy_spinlock;
@@ -571,20 +559,9 @@ struct at76_priv {
 	/* These fields contain HW config provided by the device (not all of
 	 * these fields are used by all board types) */
 	u8 mac_addr[ETH_ALEN];
-	u8 bb_cr[14];
-	u8 pidvid[4];
 	u8 regulatory_domain;
-	u8 cr15_values[14];
-	u8 cr20_values[14];
-	u8 cr21_values[14];
-	u8 cr31_values[14];
-	u8 cr39_values[14];
-	u8 cr58_values[14];
-	u8 low_power_values[14];
-	u8 normal_power_values[14];
 
 	struct at76_card_config card_config;
-	struct mib_fw_version fw_version;
 
 	int rx_data_fcs_len;	/* length of the trailing FCS 
 				   (0 for fw <= 0.84.x, 4 otherwise) */
@@ -592,73 +569,32 @@ struct at76_priv {
 	/* store rx fragments until complete */
 	struct rx_data_buf rx_data[NR_RX_DATA_BUF];
 
-	/* firmware downloading stuff */
-	struct timer_list fw_dl_timer;	/* timer used to wait after REMAP
-					   until device is reset */
-	int extfw_size;
-	int intfw_size;
-	/* these point into a buffer managed by the firmware dl functions, no need to dealloc */
-	u8 *extfw;		/* points to external firmware part, extfw_size bytes long */
-	u8 *intfw;		/* points to internal firmware part, intfw_size bytes long */
+	struct fwentry *fwe;
 	unsigned int device_unplugged:1;
 	unsigned int netdev_registered:1;
-	char obuf[2 * 256 + 1];	/* global debug output buffer to reduce stack usage */
 	struct set_mib_buffer mib_buf;	/* global buffer for set_mib calls */
 
-	/* new whiz-bang feature flags */
-	int international_roaming;
-	int monitor_prism_header;	/* if iw_mode == IW_MODE_MONITOR, 
-					   use Prism header */
-	int monitor_scan_min_time;
-	int monitor_scan_max_time;
-
+	/* beacon counting */
 	int beacon_period;	/* period of mgmt beacons */
 	int beacons_received;
 	unsigned long beacons_last_qual;	/* last time we reset beacons_received = 0 */
 };
 
-/* Quasi-monitor mode defs (copied from <kernel>/drivers/net/wireless/orinoco.h) */
+struct at76_rx_radiotap {
+	struct ieee80211_radiotap_header rt_hdr;
+	__le64 rt_tsft;
+	u8 rt_flags;
+	u8 rt_rate;
+	s8 rt_signal;
+	s8 rt_noise;
+};
 
-/* message data item for INT, BOUNDEDINT, ENUMINT */
-struct p80211item_u32 {
-	uint32_t did;
-	uint16_t status;
-	uint16_t len;
-	uint32_t data;
-} __attribute__ ((packed));
-
-#define P80211ENUM_msgitem_status_data_ok	0
-#define P80211ENUM_msgitem_status_no_value	1
-#define P80211ENUM_truth_false			0
-#define P80211ENUM_truth_true			1
-
-#define DIDmsg_lnxind_wlansniffrm 0x0041
-#define DIDmsg_lnxind_wlansniffrm_hosttime 0x1041
-#define DIDmsg_lnxind_wlansniffrm_mactime 0x2041
-#define DIDmsg_lnxind_wlansniffrm_channel 0x3041
-#define DIDmsg_lnxind_wlansniffrm_rssi 0x4041
-#define DIDmsg_lnxind_wlansniffrm_sq 0x5041
-#define DIDmsg_lnxind_wlansniffrm_signal 0x6041
-#define DIDmsg_lnxind_wlansniffrm_noise 0x7041
-#define DIDmsg_lnxind_wlansniffrm_rate 0x8041
-#define DIDmsg_lnxind_wlansniffrm_istx 0x9041
-#define DIDmsg_lnxind_wlansniffrm_frmlen 0xA041
-
-struct p80211msg {
-	uint32_t msgcode;
-	uint32_t msglen;
-	uint8_t devname[IFNAMSIZ];
-	struct p80211item_u32 hosttime;
-	struct p80211item_u32 mactime;
-	struct p80211item_u32 channel;
-	struct p80211item_u32 rssi;
-	struct p80211item_u32 sq;
-	struct p80211item_u32 signal;
-	struct p80211item_u32 noise;
-	struct p80211item_u32 rate;
-	struct p80211item_u32 istx;
-	struct p80211item_u32 frmlen;
-} __attribute__ ((packed));
+#define AT76_RX_RADIOTAP_PRESENT (		  \
+	(1 << IEEE80211_RADIOTAP_TSFT)		| \
+	(1 << IEEE80211_RADIOTAP_FLAGS))	| \
+	(1 << IEEE80211_RADIOTAP_RATE)		| \
+	(1 << IEEE80211_RADIOTAP_DB_ANTSIGNAL)	| \
+	(1 << IEEE80211_RADIOTAP_DB_ANTNOISE)
 
 #define BEACON_MAX_DATA_LENGTH 1500
 
@@ -670,7 +606,7 @@ struct p80211msg {
   (AT76_TX_HDRLEN + sizeof(struct ieee80211_assoc_request) + \
    1+1+IW_ESSID_MAX_SIZE + 1+1+4)
 
-/* the maximum size of an AssocReq packet */
+/* the maximum size of a ReAssocReq packet */
 #define REASSOCREQ_MAX_SIZE \
   (AT76_TX_HDRLEN + sizeof(struct ieee80211_reassoc_request) + \
    1+1+IW_ESSID_MAX_SIZE + 1+1+4)
@@ -694,16 +630,6 @@ struct p80211msg {
 #define DEF_CHANNEL 10
 
 #define MAX_RTS_THRESHOLD (MAX_FRAG_THRESHOLD + 1)
-
-/* The frequency of each channel in MHz */
-static const long channel_frequency[] = {
-	2412, 2417, 2422, 2427, 2432, 2437, 2442,
-	2447, 2452, 2457, 2462, 2467, 2472, 2484
-};
-#define NUM_CHANNELS ARRAY_SIZE(channel_frequency)
-
-/* the supported rates of this hardware, bit7 marks a basic rate */
-static const u8 hw_rates[4] = { 0x82, 0x84, 0x0b, 0x16 };
 
 /* the max padding size for tx in bytes (see calc_padding) */
 #define MAX_PADDING_SIZE 53
@@ -746,7 +672,7 @@ static const u8 hw_rates[4] = { 0x82, 0x84, 0x0b, 0x16 };
 #define at76_dbg(bits, format, arg...) \
 	do { \
 		if (at76_debug & (bits)) \
-		printk(KERN_DEBUG __FILE__ ": " format "\n" , ## arg);\
+		printk(KERN_DEBUG DRIVER_NAME ": " format "\n" , ## arg);\
 	} while (0)
 
 #define at76_assert(x) \

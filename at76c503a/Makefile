@@ -33,11 +33,15 @@ KERNELRELEASE = $(shell sed -ne 's/"//g;s/^\#define UTS_RELEASE //p' \
 
 obj-m = at76_usb.o
 
-SRCS = at76_usb.c at76_usb.h at76_usb_ids.h
+SRCS = at76_usb.c at76_usb.h at76_usb_ids.h compat.h
 
 SPECFILE = at76_usb.spec
 
 DISTFILES = $(SRCS) Makefile README COPYING CHANGELOG kernel_patch.diff
+
+ifndef NO_COMPAT_HEADERS
+EXTRA_CFLAGS += -include $(obj)/compat.h
+endif
 
 # get the version from at76_usb.h
 ifndef M
