@@ -38,7 +38,7 @@ wireless networking.
 Firmware for your device in the format compatible with this driver.  To
 install the firmware, please read the README file included with the
 firmware package.  The firmware can be downloaded from
-https://developer.berlios.de/projects/at76c503a/
+http://developer.berlios.de/projects/at76c503a/
 
 
 Installation
@@ -95,49 +95,30 @@ load it manually by "modprobe":
 
   modprobe at76_usb
 
-If the driver is loaded but a wireless interface doesn't appear, make
-sure that the firmware is loaded by the driver.  If the driver cannot
-load the firmware, there will be a message from the driver in the kernel
-log.  Make sure that you have a file with exactly that name and that
-it's located in the firmware directory known to hotplug or udev.
+If the driver is loaded but "iwconfig" doesn't show a wireless
+interface, make sure that the firmware is loaded by the driver.  If the
+driver cannot load the firmware, there will be a message from the driver
+in the kernel log.  Make sure that you have a file with exactly that
+name and that it's located in the firmware directory known to hotplug or
+udev, usually /lib/firmware.
 
 If you see a wireless interface but you are not sure which driver
-created it, use "ethtool -i wlanX", where "wlanX" is the interface name.
+created it, use "ethtool -i ethX", where "ethX" is the interface name.
 
 If the interface is up, but "iwconfig" shows that it's not associated to
 an access point, make sure that the card is in managed mode and that it
 uses the same ESSID and WEP key as the access point you want to connect
 to.  If using WEP, make sure you are using an authentication method
-supported by the access point.
+supported by the access point (open system or shared key).
 
 When in the ad-hoc mode, make sure that all the participants are using
 the same channel.
 
-To learn about available access points, use "iwlist wlanX scan" where
-"wlanX" is the interface name.
+To learn about available access points, use "iwlist ethX scan" where
+"ethX" is the interface name.
 
 WPA is not currently supported by this driver, so you cannot connect to
 access points with WPA enabled.
-
-
-Module Parameters
------------------
-
-You can use "modinfo at76_usb" to see the complete list of the supported
-parameters with descriptions.  Use module parameters on the "modprobe"
-command line.  If the "at76_usb" module is loaded already, unload it
-first with "modprobe -r at76_usb".
-
-Once you know which parameters you need, use the "options" command in
-/etc/modprobe.conf to use them every time the module is loaded.
-
-For example, you can give the network device another name than wlanX by
-giving the module the "netdev_name" parameter:
-
-  modprobe at76_usb netdev_name=eth%d
-
-If this parameter is used, the first device would be eth0 (unless it's
-already used by another driver, of course), the second eth1 and so on. 
 
 
 Private Parameters
@@ -145,17 +126,17 @@ Private Parameters
 
 In addition to the wireless parameters set by "iwconfig", there are
 additional driver-specific parameters available via "iwpriv".  Running
-"iwpriv wlanX" will list all of them.
+"iwpriv ethX" will list all of them.
 
 Following are some of the supported parameters:
 
-- long preamble: iwpriv wlanX short_preamble 0
-- short preamble: iwpriv wlanX short_preamble 1
-- amount of debug messages: iwpriv wlanX set_debug N
+- long preamble: iwpriv ethX set_preamble 0
+- short preamble: iwpriv ethX set_preamble 1
+- amount of debug messages: iwpriv ethX set_debug N
   with N a combination of bits, see DBG_* in at76_usb.h
-- power save mode: iwpriv wlanX powersave_mode N (numbers 1, 2, 3 for
+- power save mode: iwpriv ethX set_powersave N (numbers 1, 2, 3 for
   for none, save and smart save respectively)
-- scan channel time: iwpriv wlanX scan_times <min_ch_time> <max_ch_time>
+- scan channel time: iwpriv ethX set_scan_times <min_ch_time> <max_ch_time>
   (this may be required for 0.90.x firmware, i.e. Intersil radios)
 
 
@@ -164,7 +145,7 @@ Power Save Modes in Managed Mode
 
 You can activate 802.11 power save mode by executing
 
-    iwconfig wlanX power on period N
+    iwconfig ethX power on power period N
 
 The default period value is 0 and the smallest possible period of power
 save (listen interval) is two beacon intervals.  This should lower power
@@ -178,13 +159,13 @@ sending PS_POLL packets.
 
 It can only be activated by
 
-  iwpriv wlanX powersave_mode 3
+  iwpriv ethX set_powersave 3
 
 I don't know if the listen_interval is used in this mode.  If yes, you
 can only set it earlier by iwconfig, e.g.
 
-   iwconfig wlanX power on period N
-   iwpriv wlanX powersave_mode 3
+   iwconfig ethX power on power period N
+   iwpriv ethX set_powersave 3
 
 
 Known Problems
@@ -201,10 +182,7 @@ Known Problems
       the Atmel driver may not find it. Try to increase the max
       channel time to 500 or 1000 (default 120) by calling
 
-              iwpriv wlanX scan_times 10 <max channel time>
-
-      If you found a working value, use the module parameter
-      scan_max_time.
+              iwpriv ethX set_scan_times 10 <max channel time>
 
     * You cannot connect to an access point which hides its ESSID and
       requires the STA to probe it!
@@ -212,11 +190,11 @@ Known Problems
   - After joining an existing IBSS of a 2 Mbps card, the basic rates are
     wrong in the beacon, e.g. a 2 Mbps card broadcasts a basic rate set
     of 1 + 2 Mbps, but the Atmel device sends out basic rates of 1, 2,
-    5.5 and 11 Mbps.  Subsequently it cannot connect to the 2 Mbps card,
-    because it sends it's data packets to broadcast addresses with 11
-    Mbps.
+    5.5 and 11 Mbps.  Subsequently, it cannot connect to the 2 Mbps
+    card, because it sends its data packets to broadcast addresses with
+    11 Mbps.
 
-  - power saving modes does not work
+  - power saving mode does not work
 
 2) firmware 1.101.0-84
 
@@ -227,7 +205,9 @@ Known Problems
     may be fixed by changing the tx rate in iwconfig from "auto"
     (default) to 1M or 2M.  I'm not sure if this is a firmware bug or a
     problem in the driver.
-    
+
+Only beacons are captured in monitor mode.
+
 
 Credits
 -------

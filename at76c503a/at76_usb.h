@@ -47,13 +47,6 @@
 #define AT76_SET_INTL_ROAMING    (SIOCIWFIRSTPRIV + 10)
 #define AT76_GET_INTL_ROAMING    (SIOCIWFIRSTPRIV + 11)
 
-#define DEVICE_VENDOR_REQUEST_OUT    0x40
-#define DEVICE_VENDOR_REQUEST_IN     0xc0
-#define INTERFACE_VENDOR_REQUEST_OUT 0x41
-#define INTERFACE_VENDOR_REQUEST_IN  0xc1
-#define CLASS_REQUEST_OUT            0x21
-#define CLASS_REQUEST_IN             0xa1
-
 #define CMD_STATUS_IDLE                   0x00
 #define CMD_STATUS_COMPLETE               0x01
 #define CMD_STATUS_UNKNOWN                0x02
@@ -468,19 +461,15 @@ struct at76_priv {
 	/* work queues */
 	struct work_struct work_assoc_done;
 	struct work_struct work_join;
-	struct work_struct work_mgmt_timeout;
 	struct work_struct work_new_bss;
-	struct work_struct work_restart;
 	struct work_struct work_scan;
 	struct work_struct work_set_promisc;
 	struct work_struct work_submit_rx;
+	struct delayed_work dwork_restart;
+	struct delayed_work dwork_mgmt;
 
 	int nr_submit_rx_tries;	/* number of tries to submit an rx urb left */
 	struct tasklet_struct rx_tasklet;
-	struct urb *rx_urb;	/* tmp urb pointer for rx_tasklet */
-
-	void *ctrl_buffer;
-	struct urb *ctrl_urb;
 
 	/* the WEP stuff */
 	int wep_enabled;	/* 1 if WEP is enabled */
@@ -540,9 +529,6 @@ struct at76_priv {
 	} scan_state;
 	time_t last_scan;
 
-	struct timer_list restart_timer;	/* the timer we use to delay the restart a bit */
-
-	struct timer_list mgmt_timer;	/* the timer we use to repeat auth_req etc. */
 	int retries;		/* counts backwards while re-trying to send auth/assoc_req's */
 	u8 pm_mode;		/* power management mode: AT76_PM_{OFF, ON, SMART} */
 	u32 pm_period;		/* power manag. period in us */
@@ -623,6 +609,8 @@ struct at76_rx_radiotap {
 #define BEACON_TIMEOUT 10
 /* the interval in ticks we poll if scan is completed */
 #define SCAN_POLL_INTERVAL (HZ/4)
+/* the interval in ticks to wait for a command to be completed */
+#define CMD_COMPLETION_TIMEOUT (5 * HZ)
 
 #define DEF_RTS_THRESHOLD 1536
 #define DEF_FRAG_THRESHOLD 1536
