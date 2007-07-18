@@ -12,41 +12,8 @@
 #include <linux/version.h>
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22)
-#include <linux/skbuff.h>
-static inline unsigned char *skb_mac_header(const struct sk_buff *skb)
-{
-	return skb->mac.raw;
-}
-
-static inline void skb_reset_mac_header(struct sk_buff *skb)
-{
-	skb->mac.raw = skb->data;
-}
-
-static inline void skb_set_mac_header(struct sk_buff *skb, const int offset)
-{
-	skb->mac.raw = skb->data + offset;
-}
-
-static inline unsigned char *skb_end_pointer(const struct sk_buff *skb)
-{
-	return skb->end;
-}
-
-static inline unsigned char *skb_tail_pointer(const struct sk_buff *skb)
-{
-	return skb->tail;
-}
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
-#undef INIT_WORK
-#define INIT_WORK(_work, _func)						\
-	do {								\
-		INIT_LIST_HEAD(&(_work)->entry);			\
-		(_work)->pending = 0;					\
-		PREPARE_WORK((_work), (void (*)(void *))(_func),	\
-			     (void *)(_work));				\
-		init_timer(&(_work)->timer);				\
-	} while (0)
+#define skb_reset_mac_header(_skb) \
+	do { (_skb)->mac.raw = (_skb)->data; } while(0)
+#define skb_end_pointer(_skb) ((_skb)->end)
+#define skb_tail_pointer(_skb) ((_skb)->tail)
 #endif

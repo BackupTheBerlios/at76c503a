@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2002,2003 Oliver Kurth
- *           (c) 2003,2004 Jörg Albert <joerg.albert@gmx.de>
- *           (c) 2007 Guido Guenther <agx@sigxcpu.org>
+ *	     (c) 2003,2004 Joerg Albert <joerg.albert@gmx.de>
+ *	     (c) 2007 Guido Guenther <agx@sigxcpu.org>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -25,86 +25,86 @@
 #include <net/ieee80211.h>
 
 /* current driver version */
-#define DRIVER_VERSION "0.15dev"
+#define DRIVER_VERSION	"0.16"
 
 /* our private ioctl's */
 /* preamble length (0 - long, 1 - short, 2 - auto) */
-#define AT76_SET_SHORT_PREAMBLE  (SIOCIWFIRSTPRIV + 0)
-#define AT76_GET_SHORT_PREAMBLE  (SIOCIWFIRSTPRIV + 1)
+#define AT76_SET_SHORT_PREAMBLE		(SIOCIWFIRSTPRIV + 0)
+#define AT76_GET_SHORT_PREAMBLE		(SIOCIWFIRSTPRIV + 1)
 /* which debug channels are enabled */
-#define AT76_SET_DEBUG           (SIOCIWFIRSTPRIV + 2)
-#define AT76_GET_DEBUG           (SIOCIWFIRSTPRIV + 3)
+#define AT76_SET_DEBUG			(SIOCIWFIRSTPRIV + 2)
+#define AT76_GET_DEBUG			(SIOCIWFIRSTPRIV + 3)
 /* power save mode (incl. the Atmel proprietary smart save mode) */
-#define AT76_SET_POWERSAVE_MODE  (SIOCIWFIRSTPRIV + 4)
-#define AT76_GET_POWERSAVE_MODE  (SIOCIWFIRSTPRIV + 5)
+#define AT76_SET_POWERSAVE_MODE		(SIOCIWFIRSTPRIV + 4)
+#define AT76_GET_POWERSAVE_MODE		(SIOCIWFIRSTPRIV + 5)
 /* min and max channel times for scan */
-#define AT76_SET_SCAN_TIMES      (SIOCIWFIRSTPRIV + 6)
-#define AT76_GET_SCAN_TIMES      (SIOCIWFIRSTPRIV + 7)
+#define AT76_SET_SCAN_TIMES		(SIOCIWFIRSTPRIV + 6)
+#define AT76_GET_SCAN_TIMES		(SIOCIWFIRSTPRIV + 7)
 /* scan mode (0 - active, 1 - passive) */
-#define AT76_SET_SCAN_MODE       (SIOCIWFIRSTPRIV + 8)
-#define AT76_GET_SCAN_MODE       (SIOCIWFIRSTPRIV + 9)
+#define AT76_SET_SCAN_MODE		(SIOCIWFIRSTPRIV + 8)
+#define AT76_GET_SCAN_MODE		(SIOCIWFIRSTPRIV + 9)
 /* international roaming (0 - disabled, 1 - enabled */
-#define AT76_SET_INTL_ROAMING    (SIOCIWFIRSTPRIV + 10)
-#define AT76_GET_INTL_ROAMING    (SIOCIWFIRSTPRIV + 11)
+#define AT76_SET_INTL_ROAMING		(SIOCIWFIRSTPRIV + 10)
+#define AT76_GET_INTL_ROAMING		(SIOCIWFIRSTPRIV + 11)
 
-#define CMD_STATUS_IDLE                   0x00
-#define CMD_STATUS_COMPLETE               0x01
-#define CMD_STATUS_UNKNOWN                0x02
-#define CMD_STATUS_INVALID_PARAMETER      0x03
-#define CMD_STATUS_FUNCTION_NOT_SUPPORTED 0x04
-#define CMD_STATUS_TIME_OUT               0x07
-#define CMD_STATUS_IN_PROGRESS            0x08
-#define CMD_STATUS_HOST_FAILURE           0xff
-#define CMD_STATUS_SCAN_FAILED            0xf0
+#define CMD_STATUS_IDLE				0x00
+#define CMD_STATUS_COMPLETE			0x01
+#define CMD_STATUS_UNKNOWN			0x02
+#define CMD_STATUS_INVALID_PARAMETER		0x03
+#define CMD_STATUS_FUNCTION_NOT_SUPPORTED	0x04
+#define CMD_STATUS_TIME_OUT			0x07
+#define CMD_STATUS_IN_PROGRESS			0x08
+#define CMD_STATUS_HOST_FAILURE			0xff
+#define CMD_STATUS_SCAN_FAILED			0xf0
 
 /* answers to get op mode */
-#define OPMODE_NONE                         0x00
-#define OPMODE_NORMAL_NIC_WITH_FLASH        0x01
-#define OPMODE_HW_CONFIG_MODE               0x02
-#define OPMODE_DFU_MODE_WITH_FLASH          0x03
-#define OPMODE_NORMAL_NIC_WITHOUT_FLASH     0x04
+#define OPMODE_NONE				0x00
+#define OPMODE_NORMAL_NIC_WITH_FLASH		0x01
+#define OPMODE_HW_CONFIG_MODE			0x02
+#define OPMODE_DFU_MODE_WITH_FLASH		0x03
+#define OPMODE_NORMAL_NIC_WITHOUT_FLASH		0x04
 
-#define CMD_SET_MIB    0x01
-#define CMD_GET_MIB    0x02
-#define CMD_SCAN       0x03
-#define CMD_JOIN       0x04
-#define CMD_START_IBSS 0x05
-#define CMD_RADIO      0x06
-#define CMD_STARTUP    0x0B
-#define CMD_GETOPMODE  0x33
+#define CMD_SET_MIB		0x01
+#define CMD_GET_MIB		0x02
+#define CMD_SCAN		0x03
+#define CMD_JOIN		0x04
+#define CMD_START_IBSS		0x05
+#define CMD_RADIO		0x06
+#define CMD_STARTUP		0x0B
+#define CMD_GETOPMODE		0x33
 
-#define MIB_LOCAL      0x01
-#define MIB_MAC_ADD    0x02
-#define MIB_MAC        0x03
-#define MIB_MAC_MGMT   0x05
-#define MIB_MAC_WEP    0x06
-#define MIB_PHY        0x07
-#define MIB_FW_VERSION 0x08
-#define MIB_MDOMAIN    0x09
+#define MIB_LOCAL		0x01
+#define MIB_MAC_ADD		0x02
+#define MIB_MAC			0x03
+#define MIB_MAC_MGMT		0x05
+#define MIB_MAC_WEP		0x06
+#define MIB_PHY			0x07
+#define MIB_FW_VERSION		0x08
+#define MIB_MDOMAIN		0x09
 
-#define ADHOC_MODE          1
-#define INFRASTRUCTURE_MODE 2
+#define ADHOC_MODE		1
+#define INFRASTRUCTURE_MODE	2
 
 /* values for struct mib_local, field preamble_type */
-#define PREAMBLE_TYPE_LONG  0
-#define PREAMBLE_TYPE_SHORT 1
-#define PREAMBLE_TYPE_AUTO 2
+#define PREAMBLE_TYPE_LONG	0
+#define PREAMBLE_TYPE_SHORT	1
+#define PREAMBLE_TYPE_AUTO	2
 
 /* values for tx_rate */
-#define TX_RATE_1MBIT   0
-#define TX_RATE_2MBIT   1
-#define TX_RATE_5_5MBIT 2
-#define TX_RATE_11MBIT  3
-#define TX_RATE_AUTO    4
+#define TX_RATE_1MBIT		0
+#define TX_RATE_2MBIT		1
+#define TX_RATE_5_5MBIT 	2
+#define TX_RATE_11MBIT		3
+#define TX_RATE_AUTO		4
 
 /* power management modes */
-#define AT76_PM_OFF   1
-#define AT76_PM_ON    2
-#define AT76_PM_SMART 3
+#define AT76_PM_OFF		1
+#define AT76_PM_ON		2
+#define AT76_PM_SMART		3
 
 /* international roaming state */
-#define IR_OFF        0
-#define IR_ON         1
+#define IR_OFF			0
+#define IR_ON			1
 
 struct hwcfg_r505 {
 	u8 cr39_values[14];
@@ -145,8 +145,8 @@ union at76_hwcfg {
 	struct hwcfg_r505 r5;
 };
 
-#define WEP_SMALL_KEY_LEN (40/8)
-#define WEP_LARGE_KEY_LEN (104/8)
+#define WEP_SMALL_KEY_LEN	(40 / 8)
+#define WEP_LARGE_KEY_LEN	(104 / 8)
 
 struct at76_card_config {
 	u8 exclude_unencrypted;
@@ -174,7 +174,7 @@ struct at76_command {
 	u8 data[0];
 } __attribute__ ((packed));
 
-/* the length of the Atmel firmware specific rx header before IEEE 802.11 starts */
+/* Length of Atmel-specific Rx header before 802.11 frame */
 #define AT76_RX_HDRLEN offsetof(struct at76_rx_buffer, packet)
 
 struct at76_rx_buffer {
@@ -189,7 +189,7 @@ struct at76_rx_buffer {
 	u8 packet[IEEE80211_FRAME_LEN + IEEE80211_FCS_LEN];
 } __attribute__ ((packed));
 
-/* the length of the Atmel firmware specific tx header before IEEE 802.11 starts */
+/* Length of Atmel-specific Tx header before 802.11 frame */
 #define AT76_TX_HDRLEN offsetof(struct at76_tx_buffer, packet)
 
 struct at76_tx_buffer {
@@ -201,8 +201,8 @@ struct at76_tx_buffer {
 } __attribute__ ((packed));
 
 /* defines for scan_type below */
-#define SCAN_TYPE_ACTIVE  0
-#define SCAN_TYPE_PASSIVE 1
+#define SCAN_TYPE_ACTIVE	0
+#define SCAN_TYPE_PASSIVE	1
 
 struct at76_req_scan {
 	u8 bssid[ETH_ALEN];
@@ -273,7 +273,7 @@ struct mib_mac {
 	u8 long_retry_time;
 	u8 scan_type;		/* active or passive */
 	u8 scan_channel;
-	__le16 probe_delay;	/* delay before sending a ProbeReq in active scan, RO */
+	__le16 probe_delay;	/* delay before ProbeReq in active scan, RO */
 	__le16 min_channel_time;
 	__le16 max_channel_time;
 	__le16 listen_interval;
@@ -360,18 +360,14 @@ struct at76_fw_header {
 	__le32 ext_fw_len;	/* external firmware image length */
 } __attribute__ ((packed));
 
-/* states in infrastructure mode */
-enum infra_state {
-	INIT,
-	SCANNING,
-	AUTHENTICATING,
-	ASSOCIATING,
-	REASSOCIATING,
-	DISASSOCIATING,
-	JOINING,
-	CONNECTED,
-	STARTIBSS,
-	MONITORING,
+enum mac_state {
+	MAC_INIT,
+	MAC_SCANNING,
+	MAC_AUTH,
+	MAC_ASSOC,
+	MAC_JOINING,
+	MAC_CONNECTED,
+	MAC_OWN_IBSS
 };
 
 /* a description of a regulatory domain and the allowed channels */
@@ -381,27 +377,27 @@ struct reg_domain {
 	u32 channel_map;	/* if bit N is set, channel (N+1) is allowed */
 };
 
-/* how long do we keep a (I)BSS in the bss_list in jiffies 
+/* how long do we keep a (I)BSS in the bss_list in jiffies
    this should be long enough for the user to retrieve the table
    (by iwlist ?) after the device started, because all entries from
    other channels than the one the device locks on get removed, too */
-#define BSS_LIST_TIMEOUT (120*HZ)
+#define BSS_LIST_TIMEOUT	(120 * HZ)
 /* struct to store BSS info found during scan */
-#define BSS_LIST_MAX_RATE_LEN 32	/* 32 rates should be enough ... */
+#define BSS_LIST_MAX_RATE_LEN	32	/* 32 rates should be enough ... */
 
 struct bss_info {
 	struct list_head list;
 
 	u8 bssid[ETH_ALEN];	/* bssid */
-	u8 ssid[IW_ESSID_MAX_SIZE + 1];	/* ssid, +1 for trailing \0 
+	u8 ssid[IW_ESSID_MAX_SIZE + 1];	/* ssid, +1 for trailing \0
 					   to make it printable */
 	u8 ssid_len;		/* length of ssid above */
 	u8 channel;
 	u16 capa;		/* BSS capabilities */
-	u16 beacon_interval;	/* beacon interval in Kus (1024 microseconds) */
-	u8 rates[BSS_LIST_MAX_RATE_LEN];	/* supported rates (list of bytes: 
-						   (basic_rate ? 0x80 : 0) + rate/(500 Kbit/s); e.g. 
-						   x82,x84,x8b,x96 for basic rates 1,2,5.5,11 MBit/s) */
+	u16 beacon_interval;	/* beacon interval, Kus (1024 microseconds) */
+	u8 rates[BSS_LIST_MAX_RATE_LEN];	/* supported rates in units of
+						   500 kbps, ORed with 0x80 for
+						   basic rates */
 	u8 rates_len;
 
 	/* quality of received beacon */
@@ -410,8 +406,6 @@ struct bss_info {
 	u8 noise_level;
 
 	unsigned long last_rx;	/* time (jiffies) of last beacon received */
-	u16 assoc_id;		/* if this is priv->curr_bss this is the assoc id we got
-				   in a successful AssocResponse */
 };
 
 /* a rx data buffer to collect rx fragments */
@@ -423,9 +417,9 @@ struct rx_data_buf {
 	struct sk_buff *skb;	/* == NULL if entry is free */
 };
 
-#define NR_RX_DATA_BUF 8
+#define NR_RX_DATA_BUF		8
 /* how often do we try to submit a rx urb until giving up */
-#define NR_SUBMIT_RX_TRIES 8
+#define NR_SUBMIT_RX_TRIES	8
 
 /* Data for one loaded firmware file */
 struct fwentry {
@@ -433,9 +427,9 @@ struct fwentry {
 	const struct firmware *fw;
 	int extfw_size;
 	int intfw_size;
-	/* these point into a buffer managed by the firmware dl functions, no need to dealloc */
-	u8 *extfw;		/* points to external firmware part, extfw_size bytes long */
-	u8 *intfw;		/* points to internal firmware part, intfw_size bytes long */
+	/* pointer to loaded firmware, no need to free */
+	u8 *extfw;		/* external firmware, extfw_size bytes long */
+	u8 *intfw;		/* internal firmware, intfw_size bytes long */
 	u32 board_type;		/* BOARDTYPE_* in at76_usb_ids.h */
 	struct mib_fw_version fw_version;
 	int loaded;		/* Loaded and parsed successfully */
@@ -444,29 +438,32 @@ struct fwentry {
 struct at76_priv {
 	struct usb_device *udev;	/* USB device pointer */
 	struct net_device *netdev;	/* net device pointer */
-	struct net_device_stats stats;
-	struct iw_statistics wstats;
+	struct net_device_stats stats;	/* net device stats */
+	struct iw_statistics wstats;	/* wireless stats */
 
-	struct sk_buff *rx_skb;	/* skbuff for receiving packets */
+	struct sk_buff *rx_skb;	/* skbuff for receiving data */
+	void *bulk_out_buffer;	/* buffer for sending data */
+
+	struct urb *write_urb;	/* URB for sending data */
+	struct urb *read_urb;	/* URB for receiving data */
+
+	unsigned int tx_bulk_pipe;	/* bulk out endpoint */
 	unsigned int rx_bulk_pipe;	/* bulk in endpoint */
 
-	void *bulk_out_buffer;	/* the buffer to send data */
-	struct urb *write_urb;	/* the urb used to send data */
-	struct urb *read_urb;
-	unsigned int tx_bulk_pipe;	/* bulk out endpoint */
-
-	int open_count;		/* number of times this port has been opened */
 	struct mutex mtx;	/* locks this structure */
 
 	/* work queues */
 	struct work_struct work_assoc_done;
 	struct work_struct work_join;
 	struct work_struct work_new_bss;
-	struct work_struct work_scan;
+	struct work_struct work_start_scan;
 	struct work_struct work_set_promisc;
 	struct work_struct work_submit_rx;
 	struct delayed_work dwork_restart;
-	struct delayed_work dwork_mgmt;
+	struct delayed_work dwork_get_scan;
+	struct delayed_work dwork_beacon;
+	struct delayed_work dwork_auth;
+	struct delayed_work dwork_assoc;
 
 	int nr_submit_rx_tries;	/* number of tries to submit an rx urb left */
 	struct tasklet_struct rx_tasklet;
@@ -488,7 +485,7 @@ struct at76_priv {
 
 	int preamble_type;	/* 0 - long, 1 - short, 2 - auto */
 	int auth_mode;		/* authentication type: 0 open, 1 shared key */
-	int txrate;		/* 0,1,2,3 = 1,2,5.5,11 MBit, 4 is auto-fallback */
+	int txrate;		/* 0,1,2,3 = 1,2,5.5,11 Mbps, 4 is auto */
 	int frag_threshold;	/* threshold for fragmentation of tx packets */
 	int rts_threshold;	/* threshold for RTS mechanism */
 	int short_retry_limit;
@@ -499,18 +496,12 @@ struct at76_priv {
 	int scan_runs;		/* counts how many scans are started */
 
 	/* the list we got from scanning */
-	spinlock_t bss_list_spinlock;	/* protects bss_list operations and setting
-					   curr_bss and new_bss */
-	struct list_head bss_list;	/* the list of bss we received beacons from */
-	struct timer_list bss_list_timer;	/* a timer removing old entries from
-						   the bss_list. It must acquire bss_list_spinlock
-						   before and must not remove curr_bss nor
-						   new_bss ! */
-	struct bss_info *curr_bss;	/* if istate == AUTH, ASSOC, REASSOC, JOIN or CONN 
-					   priv->bss[curr_bss] is the currently selected BSS
-					   we operate on */
-	struct bss_info *new_bss;	/* if istate == REASSOC priv->new_bss
-					   is the new bss we want to reassoc to */
+	spinlock_t bss_list_spinlock;	/* protects bss_list operations */
+	struct list_head bss_list;	/* list of BSS we got beacons from */
+	struct timer_list bss_list_timer;	/* timer to purge old entries
+						   from bss_list */
+	struct bss_info *curr_bss;	/* current BSS */
+	u16 assoc_id;		/* current association ID, if associated */
 
 	u8 wanted_bssid[ETH_ALEN];
 	int wanted_bssid_valid;	/* != 0 if wanted_bssid is to be used */
@@ -521,7 +512,7 @@ struct at76_priv {
 
 	struct at76_tx_buffer *next_mgmt_bulk;	/* pending management msg to
 						   send via bulk out */
-	enum infra_state istate;
+	enum mac_state mac_state;
 	enum {
 		SCAN_IDLE,
 		SCAN_IN_PROGRESS,
@@ -529,11 +520,12 @@ struct at76_priv {
 	} scan_state;
 	time_t last_scan;
 
-	int retries;		/* counts backwards while re-trying to send auth/assoc_req's */
-	u8 pm_mode;		/* power management mode: AT76_PM_{OFF, ON, SMART} */
-	u32 pm_period;		/* power manag. period in us */
+	int retries;		/* remaining retries in case of timeout when
+				 * sending AuthReq or AssocReq */
+	u8 pm_mode;		/* power management mode */
+	u32 pm_period;		/* power management period in microseconds */
 
-	struct reg_domain const *domain;	/* the description of the regulatory domain */
+	struct reg_domain const *domain;	/* reg domain description */
 	int international_roaming;
 
 	/* iwspy support */
@@ -549,13 +541,12 @@ struct at76_priv {
 
 	struct at76_card_config card_config;
 
-	int rx_data_fcs_len;	/* length of the trailing FCS 
-				   (0 for fw <= 0.84.x, 4 otherwise) */
-
 	/* store rx fragments until complete */
 	struct rx_data_buf rx_data[NR_RX_DATA_BUF];
 
-	struct fwentry *fwe;
+	int board_type;
+	struct mib_fw_version fw_version;
+
 	unsigned int device_unplugged:1;
 	unsigned int netdev_registered:1;
 	struct set_mib_buffer mib_buf;	/* global buffer for set_mib calls */
@@ -563,7 +554,8 @@ struct at76_priv {
 	/* beacon counting */
 	int beacon_period;	/* period of mgmt beacons */
 	int beacons_received;
-	unsigned long beacons_last_qual;	/* last time we reset beacons_received = 0 */
+	unsigned long beacons_last_qual;	/* time we restarted counting
+						   beacons */
 };
 
 struct at76_rx_radiotap {
@@ -575,98 +567,95 @@ struct at76_rx_radiotap {
 	s8 rt_noise;
 };
 
-#define AT76_RX_RADIOTAP_PRESENT (		  \
-	(1 << IEEE80211_RADIOTAP_TSFT)		| \
-	(1 << IEEE80211_RADIOTAP_FLAGS))	| \
+#define AT76_RX_RADIOTAP_PRESENT		  \
+	((1 << IEEE80211_RADIOTAP_TSFT)		| \
+	(1 << IEEE80211_RADIOTAP_FLAGS)		| \
 	(1 << IEEE80211_RADIOTAP_RATE)		| \
 	(1 << IEEE80211_RADIOTAP_DB_ANTSIGNAL)	| \
-	(1 << IEEE80211_RADIOTAP_DB_ANTNOISE)
+	(1 << IEEE80211_RADIOTAP_DB_ANTNOISE))
 
-#define BEACON_MAX_DATA_LENGTH 1500
-
-#define DISASSOC_FRAME_SIZE \
-  (AT76_TX_HDRLEN + sizeof(struct ieee80211_disassoc))
+#define BEACON_MAX_DATA_LENGTH	1500
 
 /* the maximum size of an AssocReq packet */
 #define ASSOCREQ_MAX_SIZE \
   (AT76_TX_HDRLEN + sizeof(struct ieee80211_assoc_request) + \
-   1+1+IW_ESSID_MAX_SIZE + 1+1+4)
-
-/* the maximum size of a ReAssocReq packet */
-#define REASSOCREQ_MAX_SIZE \
-  (AT76_TX_HDRLEN + sizeof(struct ieee80211_reassoc_request) + \
-   1+1+IW_ESSID_MAX_SIZE + 1+1+4)
+   1 + 1 + IW_ESSID_MAX_SIZE + 1 + 1 + 4)
 
 /* for shared secret auth, add the challenge text size */
 #define AUTH_FRAME_SIZE (AT76_TX_HDRLEN + sizeof(struct ieee80211_auth))
 
-/* how often do we re-try these packets ? */
-#define AUTH_RETRIES  3
-#define ASSOC_RETRIES 3
-#define DISASSOC_RETRIES 3
+/* Maximal number of AuthReq retries */
+#define AUTH_RETRIES		3
 
-/* the beacon timeout in infra mode when we are connected (in seconds) */
-#define BEACON_TIMEOUT 10
-/* the interval in ticks we poll if scan is completed */
-#define SCAN_POLL_INTERVAL (HZ/4)
-/* the interval in ticks to wait for a command to be completed */
-#define CMD_COMPLETION_TIMEOUT (5 * HZ)
+/* Maximal number of AssocReq retries */
+#define ASSOC_RETRIES		3
 
-#define DEF_RTS_THRESHOLD 1536
-#define DEF_FRAG_THRESHOLD 1536
-#define DEF_SHORT_RETRY_LIMIT 8
-#define DEF_CHANNEL 10
+/* Beacon timeout in managed mode when we are connected */
+#define BEACON_TIMEOUT		(10 * HZ)
 
-#define MAX_RTS_THRESHOLD (MAX_FRAG_THRESHOLD + 1)
+/* Timeout for authentication response */
+#define AUTH_TIMEOUT		(1 * HZ)
+
+/* Timeout for association response */
+#define ASSOC_TIMEOUT		(1 * HZ)
+
+/* Polling interval when scan is running */
+#define SCAN_POLL_INTERVAL	(HZ / 4)
+
+/* Command completion timeout */
+#define CMD_COMPLETION_TIMEOUT	(5 * HZ)
+
+#define DEF_RTS_THRESHOLD	1536
+#define DEF_FRAG_THRESHOLD	1536
+#define DEF_SHORT_RETRY_LIMIT	8
+#define DEF_CHANNEL		10
+#define DEF_SCAN_MIN_TIME	10
+#define DEF_SCAN_MAX_TIME	120
+
+#define MAX_RTS_THRESHOLD	(MAX_FRAG_THRESHOLD + 1)
 
 /* the max padding size for tx in bytes (see calc_padding) */
-#define MAX_PADDING_SIZE 53
+#define MAX_PADDING_SIZE	53
 
 /* at76_debug bits */
-#define DBG_PROGRESS        0x00000001	/* progress of scan-join-(auth-assoc)-connected */
-#define DBG_BSS_TABLE       0x00000002	/* show the bss table after scans */
-#define DBG_IOCTL           0x00000004	/* ioctl calls / settings */
-#define DBG_DEVENT          0x00000008	/* at76_devents */
-#define DBG_TX_DATA         0x00000010	/* tx header */
+#define DBG_PROGRESS	    0x00000001	/* authentication/accociation */
+#define DBG_BSS_TABLE	    0x00000002	/* show the BSS table after scans */
+#define DBG_IOCTL	    0x00000004	/* ioctl calls / settings */
+#define DBG_MAC_STATE	    0x00000008	/* MAC state transitions */
+#define DBG_TX_DATA	    0x00000010	/* tx header */
 #define DBG_TX_DATA_CONTENT 0x00000020	/* tx content */
-#define DBG_TX_MGMT         0x00000040
-#define DBG_RX_DATA         0x00000080	/* rx data header */
+#define DBG_TX_MGMT	    0x00000040
+#define DBG_RX_DATA	    0x00000080	/* rx data header */
 #define DBG_RX_DATA_CONTENT 0x00000100	/* rx data content */
-#define DBG_RX_MGMT         0x00000200	/* rx mgmt header except beacon and probe responses */
-#define DBG_RX_BEACON       0x00000400	/* rx beacon */
-#define DBG_RX_CTRL         0x00000800	/* rx control */
+#define DBG_RX_MGMT	    0x00000200	/* rx mgmt frame headers */
+#define DBG_RX_BEACON	    0x00000400	/* rx beacon */
+#define DBG_RX_CTRL	    0x00000800	/* rx control */
 #define DBG_RX_MGMT_CONTENT 0x00001000	/* rx mgmt content */
-#define DBG_RX_FRAGS        0x00002000	/* rx data fragment handling */
-#define DBG_DEVSTART        0x00004000	/* fw download, device start */
-#define DBG_URB             0x00008000	/* rx urb status, ... */
-#define DBG_RX_ATMEL_HDR    0x00010000	/* the Atmel specific header of each rx packet */
-#define DBG_PROC_ENTRY      0x00020000	/* procedure entries and exits */
-#define DBG_PM              0x00040000	/* power management settings */
-#define DBG_BSS_MATCH       0x00080000	/* show why a certain bss did not match */
-#define DBG_PARAMS          0x00100000	/* show the configured parameters */
+#define DBG_RX_FRAGS	    0x00002000	/* rx data fragment handling */
+#define DBG_DEVSTART	    0x00004000	/* fw download, device start */
+#define DBG_URB		    0x00008000	/* rx urb status, ... */
+#define DBG_RX_ATMEL_HDR    0x00010000	/* Atmel-specific Rx headers */
+#define DBG_PROC_ENTRY	    0x00020000	/* procedure entries and exits */
+#define DBG_PM		    0x00040000	/* power management settings */
+#define DBG_BSS_MATCH	    0x00080000	/* BSS match failures */
+#define DBG_PARAMS	    0x00100000	/* show the configured parameters */
 #define DBG_WAIT_COMPLETE   0x00200000	/* show the wait_completion progress */
-#define DBG_RX_FRAGS_SKB    0x00400000	/* show skb header for incoming rx fragments */
-#define DBG_BSS_TABLE_RM    0x00800000	/* inform on removal of old bss table entries */
+#define DBG_RX_FRAGS_SKB    0x00400000	/* skb header for Rx fragments */
+#define DBG_BSS_TABLE_RM    0x00800000	/* removal of old bss table entries */
 #define DBG_MONITOR_MODE    0x01000000	/* debugs from monitor mode */
-#define DBG_MIB             0x02000000	/* dump all MIBs in startup_device */
-#define DBG_MGMT_TIMER      0x04000000	/* dump mgmt_timer ops */
-#define DBG_WE_EVENTS       0x08000000	/* dump wireless events */
-#define DBG_FW              0x10000000	/* firmware download */
-#define DBG_DFU             0x20000000	/* device firmware upgrade */
+#define DBG_MIB		    0x02000000	/* dump all MIBs in startup_device */
+#define DBG_MGMT_TIMER	    0x04000000	/* dump mgmt_timer ops */
+#define DBG_WE_EVENTS	    0x08000000	/* dump wireless events */
+#define DBG_FW		    0x10000000	/* firmware download */
+#define DBG_DFU		    0x20000000	/* device firmware upgrade */
 
-#define DBG_DEFAULTS 0
+#define DBG_DEFAULTS		0
 
 /* Use our own dbg macro */
 #define at76_dbg(bits, format, arg...) \
 	do { \
 		if (at76_debug & (bits)) \
-		printk(KERN_DEBUG DRIVER_NAME ": " format "\n" , ## arg);\
+		printk(KERN_DEBUG DRIVER_NAME ": " format "\n" , ## arg); \
 	} while (0)
-
-#define at76_assert(x) \
-  do {\
-   if (!(x)) \
-     err("%d: assertion " #x " failed", __LINE__);\
-  } while (0)
 
 #endif				/* _AT76_USB_H */

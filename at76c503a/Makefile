@@ -81,6 +81,10 @@ TAGS:
 	rm -f TAGS
 	etags --append $(SRCS)
 
+indent:
+	indent $(SRCS)
+	sed -i 's/^      \([a-z_]*:\)$$/\1/' $(SRCS)
+
 clean:
 	rm -f core *.o *~ a.out *.d
 	rm -f *.ko *.mod.c .*.cmd

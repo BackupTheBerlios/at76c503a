@@ -1,0 +1,6 @@
+-npro -kr -i8 -ts8 -sob -l80 -ss -ncs
+-T s8 -T s16 -T s32 -T s64 -T __s8 -T __s16 -T __s32 -T __s64
+-T u8 -T u16 -T u32 -T u64 -T __u8 -T __u16 -T __u32 -T __u64
+-T __be16 -T __be32 -T __be64 -T __le16 -T __le32 -T __le64
+-T size_t -T u_int8_t -T u_int16_t -T u_int32_t -T u_int64_t
+-T UCHAR -T USHORT

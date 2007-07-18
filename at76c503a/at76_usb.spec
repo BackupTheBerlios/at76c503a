@@ -1,5 +1,5 @@
 %define KERNELVER %(rpm -q --qf "%%{version}-%%{release}" kernel-devel)
-%define PACKVER 0.14dev
+%define PACKVER 0.16
 # RPM Release number of this version
 %define TNREL 1
 

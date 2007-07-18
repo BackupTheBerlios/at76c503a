@@ -32,8 +32,8 @@ and many more.
 Requirements
 ------------
 
-Linux kernel 2.6.x (preferably current) with support for USB and
-wireless networking.
+Linux kernel 2.6.20 or newer with support for USB and wireless
+networking.
 
 Firmware for your device in the format compatible with this driver.  To
 install the firmware, please read the README file included with the
