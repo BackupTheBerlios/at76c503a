@@ -33,7 +33,7 @@ KERNELRELEASE = $(shell sed -ne 's/"//g;s/^\#define UTS_RELEASE //p' \
 
 obj-m = at76_usb.o
 
-SRCS = at76_usb.c at76_usb.h at76_usb_ids.h compat.h
+SRCS = at76_usb.c at76_usb.h compat.h
 
 SPECFILE = at76_usb.spec
 
@@ -82,8 +82,9 @@ TAGS:
 	etags --append $(SRCS)
 
 indent:
-	indent $(SRCS)
-	sed -i 's/^      \([a-z_]*:\)$$/\1/' $(SRCS)
+	for i in $(SRCS); do \
+		$(SHELL) ./lindent $$i || exit 1; \
+	done
 
 clean:
 	rm -f core *.o *~ a.out *.d

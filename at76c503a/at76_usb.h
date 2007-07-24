@@ -27,6 +27,53 @@
 /* current driver version */
 #define DRIVER_VERSION	"0.16"
 
+/* USB vendor IDs */
+#define VID_3COM		0x0506
+#define VID_ACTIONTEC		0x1668
+#define VID_ADDTRON		0x05dd
+#define VID_ASKEY		0x069a
+#define VID_ATMEL		0x03eb
+#define VID_BELKIN		0x0d5c
+#define VID_BELKIN_2		0x050d
+#define VID_BENQ		0x04a5
+#define VID_BLITZ		0x07b8
+#define VID_CNET		0x1371
+#define VID_COMPAQ		0x049f
+#define VID_GLOBAL_SUN		0x0d8e
+#define VID_COREGA		0x07aa
+#define VID_DICK_SMITH		0x1371
+#define VID_DLINK		0x2001
+#define VID_GIGABYTE		0x1044
+#define VID_GIGASET		0x1690
+#define VID_HP			0x03f0
+#define VID_INTEL		0x8086
+#define VID_IO_DATA		0x04bb
+#define VID_LINKSYS		0x077b
+#define VID_LINKSYS_1915	0x1915
+#define VID_LINKSYS_OLD		0x066b
+#define VID_MSI			0x0db0
+#define VID_ZCOM		0x0cde
+#define VID_NETGEAR		0x0864
+#define VID_SAMSUNG		0x055d
+#define VID_SIEMENS		0x0681
+#define VID_SMC			0x083a
+#define VID_SMC_OLD		0x0d5c
+#define VID_PLANEX		0x2019
+#define VID_TEKRAM		0x0b3b
+#define VID_XTERASYS		0x12fd
+
+/* Board types */
+enum board_type {
+	BOARD_503_ISL3861 = 1,
+	BOARD_503_ISL3863 = 2,
+	BOARD_503 = 3,
+	BOARD_503_ACC = 4,
+	BOARD_505 = 5,
+	BOARD_505_2958 = 6,
+	BOARD_505A_2958 = 7,
+	BOARD_505AMX = 8
+};
+
 /* our private ioctl's */
 /* preamble length (0 - long, 1 - short, 2 - auto) */
 #define AT76_SET_SHORT_PREAMBLE		(SIOCIWFIRSTPRIV + 0)
@@ -116,7 +163,7 @@ struct hwcfg_r505 {
 	u8 reserved2[14];
 	u8 cr15_values[14];
 	u8 reserved3[3];
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 struct hwcfg_rfmd {
 	u8 cr20_values[14];
@@ -128,7 +175,7 @@ struct hwcfg_rfmd {
 	u8 low_power_values[14];
 	u8 normal_power_values[14];
 	u8 reserved1[3];
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 struct hwcfg_intersil {
 	u8 mac_addr[ETH_ALEN];
@@ -137,7 +184,7 @@ struct hwcfg_intersil {
 	u8 pidvid[4];
 	u8 regulatory_domain;
 	u8 reserved[1];
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 union at76_hwcfg {
 	struct hwcfg_intersil i;
@@ -165,14 +212,14 @@ struct at76_card_config {
 	u8 ssid_len;
 	u8 short_preamble;
 	__le16 beacon_period;
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 struct at76_command {
 	u8 cmd;
 	u8 reserved;
 	__le16 size;
 	u8 data[0];
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 /* Length of Atmel-specific Rx header before 802.11 frame */
 #define AT76_RX_HDRLEN offsetof(struct at76_rx_buffer, packet)
@@ -187,7 +234,7 @@ struct at76_rx_buffer {
 	u8 noise_level;
 	__le32 rx_time;
 	u8 packet[IEEE80211_FRAME_LEN + IEEE80211_FCS_LEN];
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 /* Length of Atmel-specific Tx header before 802.11 frame */
 #define AT76_TX_HDRLEN offsetof(struct at76_tx_buffer, packet)
@@ -198,7 +245,7 @@ struct at76_tx_buffer {
 	u8 padding;
 	u8 reserved[4];
 	u8 packet[IEEE80211_FRAME_LEN + IEEE80211_FCS_LEN];
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 /* defines for scan_type below */
 #define SCAN_TYPE_ACTIVE	0
@@ -214,7 +261,7 @@ struct at76_req_scan {
 	__le16 max_channel_time;
 	u8 essid_size;
 	u8 international_scan;
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 struct at76_req_ibss {
 	u8 bssid[ETH_ALEN];
@@ -223,7 +270,7 @@ struct at76_req_ibss {
 	u8 channel;
 	u8 essid_size;
 	u8 reserved[3];
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 struct at76_req_join {
 	u8 bssid[ETH_ALEN];
@@ -233,7 +280,7 @@ struct at76_req_join {
 	__le16 timeout;
 	u8 essid_size;
 	u8 reserved;
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 struct set_mib_buffer {
 	u8 type;
@@ -241,7 +288,7 @@ struct set_mib_buffer {
 	u8 index;
 	u8 reserved;
 	u8 data[72];
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 struct mib_local {
 	u16 reserved0;
@@ -253,14 +300,14 @@ struct mib_local {
 	u16 reserved2;
 	u8 preamble_type;
 	u16 reserved3;
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 struct mib_mac_addr {
 	u8 mac_addr[ETH_ALEN];
 	u8 res[2];		/* ??? */
 	u8 group_addr[4][ETH_ALEN];
 	u8 group_addr_status[4];
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 struct mib_mac {
 	__le32 max_tx_msdu_lifetime;
@@ -281,7 +328,7 @@ struct mib_mac {
 	u8 desired_bssid[ETH_ALEN];
 	u8 desired_bsstype;	/* ad-hoc or infrastructure */
 	u8 reserved2;
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 struct mib_mac_mgmt {
 	__le16 beacon_period;
@@ -304,7 +351,7 @@ struct mib_mac_mgmt {
 	u8 multi_domain_capability_enabled;
 	u8 country_string[3];
 	u8 reserved[3];
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 struct mib_mac_wep {
 	u8 privacy_invoked;	/* 0 disable encr., 1 enable encr */
@@ -315,7 +362,7 @@ struct mib_mac_wep {
 	__le32 wep_excluded_count;
 	u8 wep_default_keyvalue[WEP_KEYS][WEP_KEY_LEN];
 	u8 encryption_level;	/* 1 for 40bit, 2 for 104bit encryption */
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 struct mib_phy {
 	__le32 ed_threshold;
@@ -332,19 +379,19 @@ struct mib_phy {
 	u8 current_cca_mode;
 	u8 phy_type;
 	u8 current_reg_domain;
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 struct mib_fw_version {
 	u8 major;
 	u8 minor;
 	u8 patch;
 	u8 build;
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 struct mib_mdomain {
 	u8 tx_powerlevel[14];
 	u8 channel_list[14];	/* 0 for invalid channels */
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 struct at76_fw_header {
 	__le32 crc;		/* CRC32 of the whole image */
@@ -358,7 +405,7 @@ struct at76_fw_header {
 	__le32 int_fw_len;	/* internal firmware image length */
 	__le32 ext_fw_offset;	/* external firmware image offset */
 	__le32 ext_fw_len;	/* external firmware image length */
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 enum mac_state {
 	MAC_INIT,
@@ -430,7 +477,7 @@ struct fwentry {
 	/* pointer to loaded firmware, no need to free */
 	u8 *extfw;		/* external firmware, extfw_size bytes long */
 	u8 *intfw;		/* internal firmware, intfw_size bytes long */
-	u32 board_type;		/* BOARDTYPE_* in at76_usb_ids.h */
+	enum board_type board_type;	/* board type */
 	struct mib_fw_version fw_version;
 	int loaded;		/* Loaded and parsed successfully */
 };
@@ -544,7 +591,7 @@ struct at76_priv {
 	/* store rx fragments until complete */
 	struct rx_data_buf rx_data[NR_RX_DATA_BUF];
 
-	int board_type;
+	enum board_type board_type;
 	struct mib_fw_version fw_version;
 
 	unsigned int device_unplugged:1;
@@ -618,36 +665,36 @@ struct at76_rx_radiotap {
 #define MAX_PADDING_SIZE	53
 
 /* at76_debug bits */
-#define DBG_PROGRESS	    0x00000001	/* authentication/accociation */
-#define DBG_BSS_TABLE	    0x00000002	/* show the BSS table after scans */
-#define DBG_IOCTL	    0x00000004	/* ioctl calls / settings */
-#define DBG_MAC_STATE	    0x00000008	/* MAC state transitions */
-#define DBG_TX_DATA	    0x00000010	/* tx header */
-#define DBG_TX_DATA_CONTENT 0x00000020	/* tx content */
-#define DBG_TX_MGMT	    0x00000040
-#define DBG_RX_DATA	    0x00000080	/* rx data header */
-#define DBG_RX_DATA_CONTENT 0x00000100	/* rx data content */
-#define DBG_RX_MGMT	    0x00000200	/* rx mgmt frame headers */
-#define DBG_RX_BEACON	    0x00000400	/* rx beacon */
-#define DBG_RX_CTRL	    0x00000800	/* rx control */
-#define DBG_RX_MGMT_CONTENT 0x00001000	/* rx mgmt content */
-#define DBG_RX_FRAGS	    0x00002000	/* rx data fragment handling */
-#define DBG_DEVSTART	    0x00004000	/* fw download, device start */
-#define DBG_URB		    0x00008000	/* rx urb status, ... */
-#define DBG_RX_ATMEL_HDR    0x00010000	/* Atmel-specific Rx headers */
-#define DBG_PROC_ENTRY	    0x00020000	/* procedure entries and exits */
-#define DBG_PM		    0x00040000	/* power management settings */
-#define DBG_BSS_MATCH	    0x00080000	/* BSS match failures */
-#define DBG_PARAMS	    0x00100000	/* show the configured parameters */
-#define DBG_WAIT_COMPLETE   0x00200000	/* show the wait_completion progress */
-#define DBG_RX_FRAGS_SKB    0x00400000	/* skb header for Rx fragments */
-#define DBG_BSS_TABLE_RM    0x00800000	/* removal of old bss table entries */
-#define DBG_MONITOR_MODE    0x01000000	/* debugs from monitor mode */
-#define DBG_MIB		    0x02000000	/* dump all MIBs in startup_device */
-#define DBG_MGMT_TIMER	    0x04000000	/* dump mgmt_timer ops */
-#define DBG_WE_EVENTS	    0x08000000	/* dump wireless events */
-#define DBG_FW		    0x10000000	/* firmware download */
-#define DBG_DFU		    0x20000000	/* device firmware upgrade */
+#define DBG_PROGRESS		0x00000001	/* authentication/accociation */
+#define DBG_BSS_TABLE		0x00000002	/* show BSS table after scans */
+#define DBG_IOCTL		0x00000004	/* ioctl calls / settings */
+#define DBG_MAC_STATE		0x00000008	/* MAC state transitions */
+#define DBG_TX_DATA		0x00000010	/* tx header */
+#define DBG_TX_DATA_CONTENT	0x00000020	/* tx content */
+#define DBG_TX_MGMT		0x00000040	/* tx management */
+#define DBG_RX_DATA		0x00000080	/* rx data header */
+#define DBG_RX_DATA_CONTENT	0x00000100	/* rx data content */
+#define DBG_RX_MGMT		0x00000200	/* rx mgmt frame headers */
+#define DBG_RX_BEACON		0x00000400	/* rx beacon */
+#define DBG_RX_CTRL		0x00000800	/* rx control */
+#define DBG_RX_MGMT_CONTENT	0x00001000	/* rx mgmt content */
+#define DBG_RX_FRAGS		0x00002000	/* rx data fragment handling */
+#define DBG_DEVSTART		0x00004000	/* fw download, device start */
+#define DBG_URB			0x00008000	/* rx urb status, ... */
+#define DBG_RX_ATMEL_HDR	0x00010000	/* Atmel-specific Rx headers */
+#define DBG_PROC_ENTRY		0x00020000	/* procedure entries/exits */
+#define DBG_PM			0x00040000	/* power management settings */
+#define DBG_BSS_MATCH		0x00080000	/* BSS match failures */
+#define DBG_PARAMS		0x00100000	/* show configured parameters */
+#define DBG_WAIT_COMPLETE	0x00200000	/* command completion */
+#define DBG_RX_FRAGS_SKB	0x00400000	/* skb header of Rx fragments */
+#define DBG_BSS_TABLE_RM	0x00800000	/* purging bss table entries */
+#define DBG_MONITOR_MODE	0x01000000	/* monitor mode */
+#define DBG_MIB			0x02000000	/* dump all MIBs on startup */
+#define DBG_MGMT_TIMER		0x04000000	/* dump mgmt_timer ops */
+#define DBG_WE_EVENTS		0x08000000	/* dump wireless events */
+#define DBG_FW			0x10000000	/* firmware download */
+#define DBG_DFU			0x20000000	/* device firmware upgrade */
 
 #define DBG_DEFAULTS		0
 
