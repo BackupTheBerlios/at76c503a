@@ -1,7 +1,7 @@
 This driver is no longer developed in CVS.  Please use git to obtain the
 current sources:
 
-git-clone http://honk.sigxcpu.org/git/at76c503a.git/
+git-clone http://git.80211libre.org/at76_usb.git
 
 This repository is synchronized with the git repository from time to
 time, but it may be removed at any time.

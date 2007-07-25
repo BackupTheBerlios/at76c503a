@@ -56,7 +56,7 @@ static struct fwentry firmwares[] = {
 	[BOARD_503_ACC] = {"atmel_at76c503-rfmd-acc.bin"},
 	[BOARD_505] = {"atmel_at76c505-rfmd.bin"},
 	[BOARD_505_2958] = {"atmel_at76c505-rfmd2958.bin"},
-	[BOARD_505A_2958] = {"atmel_at76c505a-rfmd2958.bin"},
+	[BOARD_505A] = {"atmel_at76c505a-rfmd2958.bin"},
 	[BOARD_505AMX] = {"atmel_at76c505amx-rfmd.bin"},
 };
 
@@ -171,11 +171,11 @@ static struct usb_device_id dev_table[] = {
 	 * at76c505a-rfmd2958
 	 */
 	/* Generic AT76C505A device */
-	{USB_DEVICE(VID_ATMEL, 0x7614), .driver_info = BOARD_505A_2958},
+	{USB_DEVICE(VID_ATMEL, 0x7614), .driver_info = BOARD_505A},
 	/* Generic AT76C505AS device */
-	{USB_DEVICE(VID_ATMEL, 0x7617), .driver_info = BOARD_505A_2958},
+	{USB_DEVICE(VID_ATMEL, 0x7617), .driver_info = BOARD_505A},
 	/* Siemens Gigaset USB WLAN Adapter 11 */
-	{USB_DEVICE(VID_GIGASET, 0x0701), .driver_info = BOARD_505A_2958},
+	{USB_DEVICE(VID_GIGASET, 0x0701), .driver_info = BOARD_505A},
 	/*
 	 * at76c505amx-rfmd
 	 */
@@ -232,7 +232,7 @@ static const char *const mac_states[] = {
 #define DFU_GETSTATE			5
 #define DFU_ABORT			6
 
-#define DFU_PACKETSIZE 1024
+#define FW_BLOCK_SIZE 1024
 
 struct dfu_status {
 	unsigned char status;
@@ -241,20 +241,29 @@ struct dfu_status {
 	unsigned char string;
 } __attribute__((packed));
 
+static inline int at76_is_intersil(enum board_type board)
+{
+	return (board == BOARD_503_ISL3861 || board == BOARD_503_ISL3863);
+}
+
+static inline int at76_is_503rfmd(enum board_type board)
+{
+	return (board == BOARD_503 || board == BOARD_503_ACC);
+}
+
+static inline int at76_is_505a(enum board_type board)
+{
+	return (board == BOARD_505A || board == BOARD_505AMX);
+}
+
 /* Load a block of the first (internal) part of the firmware */
 static int at76_load_int_fw_block(struct usb_device *udev, int blockno,
 				  void *block, int size)
 {
-	int ret;
-
-	at76_dbg(DBG_DFU, "%s(): block=%p, size=%d, blockno=%d", __func__,
-		 block, size, blockno);
-
-	ret = usb_control_msg(udev, usb_sndctrlpipe(udev, 0), DFU_DNLOAD,
-			      USB_TYPE_CLASS | USB_DIR_OUT |
-			      USB_RECIP_INTERFACE, blockno, 0, block, size,
-			      USB_CTRL_GET_TIMEOUT);
-	return ret;
+	return usb_control_msg(udev, usb_sndctrlpipe(udev, 0), DFU_DNLOAD,
+			       USB_TYPE_CLASS | USB_DIR_OUT |
+			       USB_RECIP_INTERFACE, blockno, 0, block, size,
+			       USB_CTRL_GET_TIMEOUT);
 }
 
 static int at76_dfu_get_status(struct usb_device *udev,
@@ -289,8 +298,8 @@ static inline u32 at76_get_timeout(struct dfu_status *s)
 
 /* Load internal firmware from the buffer.  If manifest_sync_timeout > 0, use
  * its value in msec in the MANIFEST_SYNC state.  */
-static int at76_usbdfu_download(struct usb_device *udev, u8 *dfu_buffer,
-				u32 dfu_len, int manifest_sync_timeout)
+static int at76_usbdfu_download(struct usb_device *udev, u8 *buf, u32 size,
+				int manifest_sync_timeout)
 {
 	u8 *block;
 	struct dfu_status dfu_stat_buf;
@@ -299,21 +308,19 @@ static int at76_usbdfu_download(struct usb_device *udev, u8 *dfu_buffer,
 	int is_done = 0;
 	u8 dfu_state = 0;
 	u32 dfu_timeout = 0;
-	int dfu_block_bytes = 0;
-	int dfu_bytes_left = dfu_len;
-	int dfu_buffer_offset = 0;
-	int dfu_block_cnt = 0;
+	int bsize = 0;
+	int blockno = 0;
 
-	at76_dbg(DBG_DFU, "%s( %p, %u, %d)", __func__, dfu_buffer,
-		 dfu_len, manifest_sync_timeout);
+	at76_dbg(DBG_DFU, "%s( %p, %u, %d)", __func__, buf, size,
+		 manifest_sync_timeout);
 
-	if (dfu_len == 0) {
+	if (!size) {
 		err("FW Buffer length invalid!");
 		return -EINVAL;
 	}
 
-	block = kmalloc(DFU_PACKETSIZE, GFP_KERNEL);
-	if (block == NULL)
+	block = kmalloc(FW_BLOCK_SIZE, GFP_KERNEL);
+	if (!block)
 		return -ENOMEM;
 
 	do {
@@ -353,16 +360,18 @@ static int at76_usbdfu_download(struct usb_device *udev, u8 *dfu_buffer,
 		case STATE_DFU_IDLE:
 			at76_dbg(DBG_DFU, "DFU IDLE");
 
-			dfu_block_bytes = min(dfu_bytes_left, DFU_PACKETSIZE);
-			dfu_bytes_left -= dfu_block_bytes;
-			memcpy(block, dfu_buffer + dfu_buffer_offset,
-			       dfu_block_bytes);
-			ret = at76_load_int_fw_block(udev, dfu_block_cnt, block,
-						     dfu_block_bytes);
-			dfu_buffer_offset += dfu_block_bytes;
-			dfu_block_cnt++;
+			bsize = min_t(int, size, FW_BLOCK_SIZE);
+			memcpy(block, buf, bsize);
+			at76_dbg(DBG_DFU, "int fw, size left = %5d, "
+				 "bsize = %4d, blockno = %2d", size, bsize,
+				 blockno);
+			ret =
+			    at76_load_int_fw_block(udev, blockno, block, bsize);
+			buf += bsize;
+			size -= bsize;
+			blockno++;
 
-			if (ret < 0)
+			if (ret != bsize)
 				err("dfu_download_block failed with %d", ret);
 			need_dfu_state = 1;
 			break;
@@ -578,7 +587,10 @@ static int at76_get_op_mode(struct usb_device *udev)
 			      USB_CTRL_GET_TIMEOUT);
 	if (ret < 0)
 		return ret;
-	return op_mode;
+	else if (ret < 1)
+		return -EIO;
+	else
+		return op_mode;
 }
 
 /* Load a block of the second ("external") part of the firmware */
@@ -596,7 +608,7 @@ static inline int at76_get_hw_cfg(struct usb_device *udev,
 {
 	return usb_control_msg(udev, usb_rcvctrlpipe(udev, 0), 0x33,
 			       USB_TYPE_VENDOR | USB_DIR_IN |
-			       USB_RECIP_INTERFACE, ((0x0a << 8) | 0x02), 0,
+			       USB_RECIP_INTERFACE, 0x0a02, 0,
 			       buf, buf_size, USB_CTRL_GET_TIMEOUT);
 }
 
@@ -606,7 +618,7 @@ static inline int at76_get_hw_cfg_intersil(struct usb_device *udev,
 {
 	return usb_control_msg(udev, usb_rcvctrlpipe(udev, 0), 0x33,
 			       USB_TYPE_VENDOR | USB_DIR_IN |
-			       USB_RECIP_INTERFACE, ((0x09 << 8) | 0x02), 0,
+			       USB_RECIP_INTERFACE, 0x0902, 0,
 			       buf, buf_size, USB_CTRL_GET_TIMEOUT);
 }
 
@@ -621,45 +633,29 @@ static int at76_get_hw_config(struct at76_priv *priv)
 	if (!hwcfg)
 		return -ENOMEM;
 
-	switch (priv->board_type) {
-
-	case BOARD_503_ISL3861:
-	case BOARD_503_ISL3863:
+	if (at76_is_intersil(priv->board_type)) {
 		ret = at76_get_hw_cfg_intersil(priv->udev, hwcfg,
 					       sizeof(hwcfg->i));
 		if (ret < 0)
-			break;
+			goto exit;
 		memcpy(priv->mac_addr, hwcfg->i.mac_addr, ETH_ALEN);
 		priv->regulatory_domain = hwcfg->i.regulatory_domain;
-		break;
-
-	case BOARD_503:
-	case BOARD_503_ACC:
+	} else if (at76_is_503rfmd(priv->board_type)) {
 		ret = at76_get_hw_cfg(priv->udev, hwcfg, sizeof(hwcfg->r3));
 		if (ret < 0)
-			break;
+			goto exit;
 		memcpy(priv->mac_addr, hwcfg->r3.mac_addr, ETH_ALEN);
 		priv->regulatory_domain = hwcfg->r3.regulatory_domain;
-		break;
-
-	case BOARD_505:
-	case BOARD_505_2958:
-	case BOARD_505A_2958:
+	} else {
 		ret = at76_get_hw_cfg(priv->udev, hwcfg, sizeof(hwcfg->r5));
 		if (ret < 0)
-			break;
+			goto exit;
 		memcpy(priv->mac_addr, hwcfg->r5.mac_addr, ETH_ALEN);
 		priv->regulatory_domain = hwcfg->r5.regulatory_domain;
-		break;
-
-	default:
-		err("Bad board type set (%d).  Unable to get hardware config.",
-		    priv->board_type);
-		ret = -EINVAL;
 	}
 
+exit:
 	kfree(hwcfg);
-
 	if (ret < 0)
 		err("Get HW Config failed (%d)", ret);
 
@@ -695,10 +691,15 @@ static struct reg_domain const *at76_get_reg_domain(u16 code)
 static inline int at76_get_mib(struct usb_device *udev, u16 mib, void *buf,
 			       int buf_size)
 {
-	return usb_control_msg(udev, usb_rcvctrlpipe(udev, 0), 0x33,
-			       USB_TYPE_VENDOR | USB_DIR_IN |
-			       USB_RECIP_INTERFACE, mib << 8, 0, buf, buf_size,
-			       USB_CTRL_GET_TIMEOUT);
+	int ret;
+
+	ret = usb_control_msg(udev, usb_rcvctrlpipe(udev, 0), 0x33,
+			      USB_TYPE_VENDOR | USB_DIR_IN |
+			      USB_RECIP_INTERFACE, mib << 8, 0, buf, buf_size,
+			      USB_CTRL_GET_TIMEOUT);
+	if (ret >= 0 && ret != buf_size)
+		return -EIO;
+	return ret;
 }
 
 /* Return positive number for status, negative for an error */
@@ -715,54 +716,6 @@ static inline int at76_get_cmd_status(struct usb_device *udev, u8 cmd)
 		return ret;
 
 	return stat_buf[5];
-}
-
-#define EXT_FW_BLOCK_SIZE 1024
-static int at76_download_external_fw(struct usb_device *udev, u8 *buf, int size)
-{
-	int i = 0;
-	int ret;
-	u8 *block;
-
-	if (size < 0)
-		return -EINVAL;
-	if ((size > 0) && (buf == NULL))
-		return -EFAULT;
-
-	block = kmalloc(EXT_FW_BLOCK_SIZE, GFP_KERNEL);
-	if (block == NULL)
-		return -ENOMEM;
-
-	at76_dbg(DBG_DEVSTART, "downloading external firmware");
-
-	while (size > 0) {
-		int bsize = size > EXT_FW_BLOCK_SIZE ? EXT_FW_BLOCK_SIZE : size;
-
-		memcpy(block, buf, bsize);
-		at76_dbg(DBG_DEVSTART,
-			 "ext fw, size left = %5d, bsize = %4d, i = %2d",
-			 size, bsize, i);
-		ret = at76_load_ext_fw_block(udev, i, block, bsize);
-		if (ret < 0) {
-			err("loading %dth firmware block failed: %d", i, ret);
-			goto exit;
-		}
-		buf += bsize;
-		size -= bsize;
-		i++;
-	}
-
-	/* for fw >= 0.100, the device needs
-	   an extra empty block: */
-	ret = at76_load_ext_fw_block(udev, i, block, 0);
-	if (ret < 0) {
-		err("loading %dth firmware block failed: %d", ret, i);
-		goto exit;
-	}
-
-exit:
-	kfree(block);
-	return ret;
 }
 
 static int at76_set_card_command(struct usb_device *udev, int cmd, void *buf,
@@ -1544,7 +1497,7 @@ static int at76_join_bss(struct at76_priv *priv, struct bss_info *ptr)
 {
 	struct at76_req_join join;
 
-	BUG_ON(ptr == NULL);
+	BUG_ON(!ptr);
 
 	memset(&join, 0, sizeof(struct at76_req_join));
 	memcpy(join.bssid, ptr->bssid, ETH_ALEN);
@@ -1731,8 +1684,8 @@ static int at76_auth_req(struct at76_priv *priv, struct bss_info *bss,
 	int buf_len = (seq_nr != 3 ? AUTH_FRAME_SIZE :
 		       AUTH_FRAME_SIZE + 1 + 1 + challenge->len);
 
-	BUG_ON(bss == NULL);
-	BUG_ON(seq_nr == 3 && challenge == NULL);
+	BUG_ON(!bss);
+	BUG_ON(seq_nr == 3 && !challenge);
 	tx_buffer = kmalloc(buf_len + MAX_PADDING_SIZE, GFP_ATOMIC);
 	if (!tx_buffer)
 		return -ENOMEM;
@@ -1783,7 +1736,7 @@ static int at76_assoc_req(struct at76_priv *priv, struct bss_info *bss)
 	int len;
 	u16 capa;
 
-	BUG_ON(bss == NULL);
+	BUG_ON(!bss);
 
 	tx_buffer = kmalloc(ASSOCREQ_MAX_SIZE + MAX_PADDING_SIZE, GFP_ATOMIC);
 	if (!tx_buffer)
@@ -1918,7 +1871,7 @@ static void at76_work_assoc_done(struct work_struct *work)
 	mutex_lock(&priv->mtx);
 
 	WARN_ON(priv->mac_state != MAC_ASSOC);
-	WARN_ON(priv->curr_bss == NULL);
+	WARN_ON(!priv->curr_bss);
 	if (priv->mac_state != MAC_ASSOC || !priv->curr_bss)
 		goto exit;
 
@@ -1956,124 +1909,6 @@ static void at76_work_assoc_done(struct work_struct *work)
 
 exit:
 	mutex_unlock(&priv->mtx);
-}
-
-static void at76_delete_device(struct at76_priv *priv)
-{
-	int i;
-
-	at76_dbg(DBG_PROC_ENTRY, "%s: ENTER", __func__);
-
-	/* The device is gone, don't bother turning it off */
-	priv->device_unplugged = 1;
-
-	tasklet_kill(&priv->rx_tasklet);
-
-	if (priv->netdev_registered)
-		unregister_netdev(priv->netdev);
-
-	/* assuming we used keventd, it must quiesce too */
-	flush_scheduled_work();
-
-	if (priv->bulk_out_buffer != NULL)
-		kfree(priv->bulk_out_buffer);
-
-	if (priv->write_urb != NULL) {
-		usb_kill_urb(priv->write_urb);
-		usb_free_urb(priv->write_urb);
-	}
-	if (priv->read_urb != NULL) {
-		usb_kill_urb(priv->read_urb);
-		usb_free_urb(priv->read_urb);
-	}
-
-	at76_dbg(DBG_PROC_ENTRY, "%s: unlinked urbs", __func__);
-
-	if (priv->rx_skb != NULL)
-		kfree_skb(priv->rx_skb);
-
-	at76_free_bss_list(priv);
-	del_timer_sync(&priv->bss_list_timer);
-	cancel_delayed_work(&priv->dwork_get_scan);
-	cancel_delayed_work(&priv->dwork_beacon);
-	cancel_delayed_work(&priv->dwork_auth);
-	cancel_delayed_work(&priv->dwork_assoc);
-
-	if (priv->mac_state == MAC_CONNECTED)
-		at76_iwevent_bss_disconnect(priv->netdev);
-
-	for (i = 0; i < NR_RX_DATA_BUF; i++)
-		if (priv->rx_data[i].skb != NULL) {
-			dev_kfree_skb(priv->rx_data[i].skb);
-			priv->rx_data[i].skb = NULL;
-		}
-	usb_put_dev(priv->udev);
-
-	at76_dbg(DBG_PROC_ENTRY, "%s: before freeing priv/netdev", __func__);
-	free_netdev(priv->netdev);	/* priv is in netdev */
-
-	at76_dbg(DBG_PROC_ENTRY, "%s: EXIT", __func__);
-}
-
-static int at76_alloc_urbs(struct at76_priv *priv,
-			   struct usb_interface *interface)
-{
-	struct usb_endpoint_descriptor *endpoint;
-	struct usb_device *udev = priv->udev;
-	int i;
-	int buffer_size;
-	struct usb_host_interface *iface_desc;
-
-	at76_dbg(DBG_PROC_ENTRY, "%s: ENTER", __func__);
-
-	at76_dbg(DBG_URB, "%s: NumEndpoints %d ", __func__,
-		 interface->altsetting[0].desc.bNumEndpoints);
-
-	iface_desc = interface->cur_altsetting;
-	for (i = 0; i < iface_desc->desc.bNumEndpoints; i++) {
-		endpoint = &iface_desc->endpoint[i].desc;
-
-		at76_dbg(DBG_URB, "%s: %d. endpoint: addr 0x%x attr 0x%x",
-			 __func__,
-			 i, endpoint->bEndpointAddress, endpoint->bmAttributes);
-
-		if ((endpoint->bEndpointAddress & 0x80) &&
-		    ((endpoint->bmAttributes & 3) == 0x02)) {
-			/* we found a bulk in endpoint */
-
-			priv->read_urb = usb_alloc_urb(0, GFP_KERNEL);
-			if (!priv->read_urb) {
-				err("No free urbs available");
-				return -ENOMEM;
-			}
-			priv->rx_bulk_pipe =
-			    usb_rcvbulkpipe(udev, endpoint->bEndpointAddress);
-		}
-
-		if (((endpoint->bEndpointAddress & 0x80) == 0x00) &&
-		    ((endpoint->bmAttributes & 3) == 0x02)) {
-			/* we found a bulk out endpoint */
-			priv->write_urb = usb_alloc_urb(0, GFP_KERNEL);
-			if (!priv->write_urb) {
-				err("no free urbs available");
-				return -ENOMEM;
-			}
-			buffer_size = sizeof(struct at76_tx_buffer) +
-			    MAX_PADDING_SIZE;
-			priv->tx_bulk_pipe =
-			    usb_sndbulkpipe(udev, endpoint->bEndpointAddress);
-			priv->bulk_out_buffer =
-			    kmalloc(buffer_size, GFP_KERNEL);
-			if (!priv->bulk_out_buffer) {
-				err("couldn't allocate bulk_out_buffer");
-				return -ENOMEM;
-			}
-		}
-	}
-
-	at76_dbg(DBG_PROC_ENTRY, "%s: EXIT", __func__);
-
-	return 0;
 }
 
 /* We only store the new mac address in netdev struct,
@@ -2468,7 +2303,6 @@ static int at76_iw_handler_set_scan(struct net_device *netdev,
 	struct at76_priv *priv = netdev_priv(netdev);
 	unsigned long flags;
 	int ret = 0;
-	struct iw_scan_req *req = NULL;
 
 	at76_dbg(DBG_IOCTL, "%s: SIOCSIWSCAN", netdev->name);
 
@@ -2510,7 +2344,7 @@ static int at76_iw_handler_set_scan(struct net_device *netdev,
 	/* Try to do passive or active scan if WE asks as. */
 	if (wrqu->data.length
 	    && wrqu->data.length == sizeof(struct iw_scan_req)) {
-		req = (struct iw_scan_req *)extra;
+		struct iw_scan_req *req = (struct iw_scan_req *)extra;
 
 		if (req->scan_type == IW_SCAN_TYPE_PASSIVE)
 			priv->scan_mode = SCAN_TYPE_PASSIVE;
@@ -2610,8 +2444,7 @@ static int at76_iw_handler_get_scan(struct net_device *netdev,
 		iwe->u.qual.level = (curr_bss->rssi * 100 / 42);
 		if (iwe->u.qual.level > 100)
 			iwe->u.qual.level = 100;
-		if ((priv->board_type == BOARD_503_ISL3861) ||
-		    (priv->board_type == BOARD_503_ISL3863))
+		if (at76_is_intersil(priv->board_type))
 			iwe->u.qual.qual = curr_bss->link_qual;
 		else {
 			iwe->u.qual.qual = 0;
@@ -3549,14 +3382,14 @@ static int at76_submit_read_urb(struct at76_priv *priv)
 	int size;
 	struct sk_buff *skb = priv->rx_skb;
 
-	if (priv->read_urb == NULL) {
+	if (!priv->read_urb) {
 		err("%s: priv->read_urb is NULL", __func__);
 		return -EFAULT;
 	}
 
-	if (skb == NULL) {
+	if (!skb) {
 		skb = dev_alloc_skb(sizeof(struct at76_rx_buffer));
-		if (skb == NULL) {
+		if (!skb) {
 			err("%s: unable to allocate rx skbuff.",
 			    priv->netdev->name);
 			ret = -ENOMEM;
@@ -3715,96 +3548,19 @@ static struct ethtool_ops at76_ethtool_ops = {
 	.get_link = at76_ethtool_get_link,
 };
 
-/* Register network device and initialize the hardware */
-static int at76_init_new_device(struct at76_priv *priv,
-				struct usb_interface *interface)
-{
-	struct net_device *netdev = priv->netdev;
-	int ret;
-
-	/* set up the endpoint information */
-	/* check out the endpoints */
-
-	at76_dbg(DBG_DEVSTART, "USB interface: %d endpoints",
-		 interface->cur_altsetting->desc.bNumEndpoints);
-
-	ret = at76_alloc_urbs(priv, interface);
-	if (ret < 0)
-		goto exit;
-
-	/* MAC address */
-	ret = at76_get_hw_config(priv);
-	if (ret < 0) {
-		err("could not get MAC address");
-		goto exit;
-	}
-
-	priv->domain = at76_get_reg_domain(priv->regulatory_domain);
-	/* init. netdev->dev_addr */
-	memcpy(netdev->dev_addr, priv->mac_addr, ETH_ALEN);
-
-	/* initializing */
-	priv->international_roaming = IR_OFF;
-	priv->channel = DEF_CHANNEL;
-	priv->iw_mode = IW_MODE_INFRA;
-	memset(priv->essid, 0, IW_ESSID_MAX_SIZE);
-	priv->rts_threshold = DEF_RTS_THRESHOLD;
-	priv->frag_threshold = DEF_FRAG_THRESHOLD;
-	priv->short_retry_limit = DEF_SHORT_RETRY_LIMIT;
-	priv->txrate = TX_RATE_AUTO;
-	priv->preamble_type = PREAMBLE_TYPE_LONG;
-	priv->beacon_period = 100;
-	priv->beacons_last_qual = jiffies_to_msecs(jiffies);
-	priv->auth_mode = WLAN_AUTH_OPEN;
-	priv->scan_min_time = DEF_SCAN_MIN_TIME;
-	priv->scan_max_time = DEF_SCAN_MAX_TIME;
-	priv->scan_mode = SCAN_TYPE_ACTIVE;
-
-	netdev->flags &= ~IFF_MULTICAST;	/* not yet or never */
-	netdev->open = at76_open;
-	netdev->stop = at76_stop;
-	netdev->get_stats = at76_get_stats;
-	netdev->ethtool_ops = &at76_ethtool_ops;
-
-	/* Add pointers to enable iwspy support. */
-	priv->wireless_data.spy_data = &priv->spy_data;
-	netdev->wireless_data = &priv->wireless_data;
-
-	netdev->hard_start_xmit = at76_tx;
-	netdev->tx_timeout = at76_tx_timeout;
-	netdev->watchdog_timeo = 2 * HZ;
-	netdev->wireless_handlers = &at76_handler_def;
-	netdev->set_multicast_list = at76_set_multicast;
-	netdev->set_mac_address = at76_set_mac_address;
-
-	ret = register_netdev(priv->netdev);
-	if (ret) {
-		err("unable to register netdevice %s (status %d)!",
-		    priv->netdev->name, ret);
-		goto exit;
-	}
-	priv->netdev_registered = 1;
-
-	printk(KERN_INFO "%s: MAC address %s\n", netdev->name,
-	       mac2str(priv->mac_addr));
-	printk(KERN_INFO "%s: firmware version %d.%d.%d-%d\n", netdev->name,
-	       priv->fw_version.major, priv->fw_version.minor,
-	       priv->fw_version.patch, priv->fw_version.build);
-	printk(KERN_INFO "%s: regulatory domain %s (id %d)\n", netdev->name,
-	       priv->domain->name, priv->regulatory_domain);
-
-	/* we let this timer run the whole time this driver instance lives */
-	mod_timer(&priv->bss_list_timer, jiffies + BSS_LIST_TIMEOUT);
-
-exit:
-	return ret;
-}
-
 /* Download external firmware */
 static int at76_load_external_fw(struct usb_device *udev, struct fwentry *fwe)
 {
 	int ret;
 	int op_mode;
+	int blockno = 0;
+	int bsize;
+	u8 *block;
+	u8 *buf = fwe->extfw;
+	int size = fwe->extfw_size;
+
+	if (!buf || !size)
+		return -ENOENT;
 
 	op_mode = at76_get_op_mode(udev);
 	at76_dbg(DBG_DEVSTART, "opmode %d", op_mode);
@@ -3814,27 +3570,47 @@ static int at76_load_external_fw(struct usb_device *udev, struct fwentry *fwe)
 		return -EINVAL;
 	}
 
-	if (!fwe->extfw || !fwe->extfw_size)
-		return -ENOENT;
+	block = kmalloc(FW_BLOCK_SIZE, GFP_KERNEL);
+	if (!block)
+		return -ENOMEM;
 
-	ret = at76_download_external_fw(udev, fwe->extfw, fwe->extfw_size);
-	if (ret < 0) {
-		err("Downloading external firmware failed: %d", ret);
-		return ret;
-	}
+	at76_dbg(DBG_DEVSTART, "downloading external firmware");
 
-	if (fwe->board_type == BOARD_505A_2958) {
-		at76_dbg(DBG_DEVSTART, "200 ms delay for board type 7");
+	/* for fw >= 0.100, the device needs an extra empty block */
+	do {
+		bsize = min_t(int, size, FW_BLOCK_SIZE);
+		memcpy(block, buf, bsize);
+		at76_dbg(DBG_DEVSTART,
+			 "ext fw, size left = %5d, bsize = %4d, blockno = %2d",
+			 size, bsize, blockno);
+		ret = at76_load_ext_fw_block(udev, blockno, block, bsize);
+		if (ret != bsize) {
+			err("loading %dth firmware block failed: %d", blockno,
+			    ret);
+			goto exit;
+		}
+		buf += bsize;
+		size -= bsize;
+		blockno++;
+	} while (bsize > 0);
+
+	if (at76_is_505a(fwe->board_type)) {
+		at76_dbg(DBG_DEVSTART, "200 ms delay for 505a");
 		schedule_timeout_interruptible(HZ / 5 + 1);
 	}
-	return 0;
+
+exit:
+	kfree(block);
+	if (ret < 0)
+		err("Downloading external firmware failed: %d", ret);
+	return ret;
 }
 
 /* Download internal firmware */
 static int at76_load_internal_fw(struct usb_device *udev, struct fwentry *fwe)
 {
 	int ret;
-	int need_remap = (fwe->board_type != BOARD_505A_2958);
+	int need_remap = !at76_is_505a(fwe->board_type);
 
 	ret = at76_usbdfu_download(udev, fwe->intfw, fwe->intfw_size,
 				   need_remap ? 0 : 2000);
@@ -3970,7 +3746,7 @@ static struct bss_info *at76_match_bss(struct at76_priv *priv,
 	struct bss_info *ptr = NULL;
 	struct list_head *curr;
 
-	curr = last != NULL ? last->list.next : priv->bss_list.next;
+	curr = last ? last->list.next : priv->bss_list.next;
 	while (curr != &priv->bss_list) {
 		ptr = list_entry(curr, struct bss_info, list);
 		if (at76_match_essid(priv, ptr) && at76_match_mode(priv, ptr)
@@ -4008,7 +3784,7 @@ static void at76_work_join(struct work_struct *work)
 	priv->curr_bss = at76_match_bss(priv, priv->curr_bss);
 	spin_unlock_irqrestore(&priv->bss_list_spinlock, flags);
 
-	if (priv->curr_bss == NULL) {
+	if (!priv->curr_bss) {
 		/* here we haven't found a matching (i)bss ... */
 		if (priv->iw_mode == IW_MODE_ADHOC) {
 			at76_set_mac_state(priv, MAC_OWN_IBSS);
@@ -4538,7 +4314,7 @@ static void at76_rx_mgmt_assoc(struct at76_priv *priv,
 		return;
 	}
 
-	BUG_ON(priv->curr_bss == NULL);
+	BUG_ON(!priv->curr_bss);
 
 	if (status == WLAN_STATUS_SUCCESS) {
 		struct bss_info *ptr = priv->curr_bss;
@@ -4574,7 +4350,7 @@ static void at76_rx_mgmt_disassoc(struct at76_priv *priv,
 
 	/* We are not connected, ignore */
 	if (priv->mac_state == MAC_SCANNING || priv->mac_state == MAC_INIT
-	    || priv->curr_bss == NULL)
+	    || !priv->curr_bss)
 		return;
 
 	/* Not our BSSID, ignore */
@@ -4635,7 +4411,7 @@ static void at76_rx_mgmt_auth(struct at76_priv *priv,
 		return;
 	}
 
-	BUG_ON(priv->curr_bss == NULL);
+	BUG_ON(!priv->curr_bss);
 
 	/* Not our BSSID or not for our STA, ignore */
 	if (compare_ether_addr(mgmt->addr3, priv->curr_bss->bssid)
@@ -4689,7 +4465,7 @@ static void at76_rx_mgmt_deauth(struct at76_priv *priv,
 		return;
 	}
 
-	BUG_ON(priv->curr_bss == NULL);
+	BUG_ON(!priv->curr_bss);
 
 	/* Not our BSSID, ignore */
 	if (compare_ether_addr(mgmt->addr3, priv->curr_bss->bssid))
@@ -4734,7 +4510,7 @@ static void at76_rx_mgmt_beacon(struct at76_priv *priv,
 	if (priv->mac_state == MAC_CONNECTED) {
 		/* in state MAC_CONNECTED we use the mgmt_timer to control
 		   the beacon of the BSS */
-		BUG_ON(priv->curr_bss == NULL);
+		BUG_ON(!priv->curr_bss);
 
 		if (!compare_ether_addr(priv->curr_bss->bssid, mgmt->addr3)) {
 			/* We got our AP's beacon, defer the timeout handler.
@@ -4763,7 +4539,7 @@ static void at76_rx_mgmt_beacon(struct at76_priv *priv,
 		}
 	}
 
-	if (match == NULL) {
+	if (!match) {
 		/* BSS not in the list - append it */
 		match = kmalloc(sizeof(struct bss_info), GFP_ATOMIC);
 		if (!match) {
@@ -4910,8 +4686,7 @@ static void at76_calc_level(struct at76_priv *priv, struct at76_rx_buffer *buf,
 static void at76_calc_qual(struct at76_priv *priv, struct at76_rx_buffer *buf,
 			   struct iw_quality *qual)
 {
-	if ((priv->board_type == BOARD_503_ISL3861) ||
-	    (priv->board_type == BOARD_503_ISL3863))
+	if (at76_is_intersil(priv->board_type))
 		qual->qual = buf->link_quality;
 	else {
 		unsigned long msec;
@@ -4970,10 +4745,10 @@ static void at76_rx_mgmt(struct at76_priv *priv, struct at76_rx_buffer *buf)
 		   only read link quality info from management packets.
 		   Atmel driver actually averages the present, and previous
 		   values, we just present the raw value at the moment - TJS */
-		if (priv->iw_mode == IW_MODE_ADHOC ||
-		    (priv->curr_bss != NULL
-		     && !compare_ether_addr(mgmt->addr3,
-					    priv->curr_bss->bssid)))
+		if (priv->iw_mode == IW_MODE_ADHOC
+		    || (priv->curr_bss
+			&& !compare_ether_addr(mgmt->addr3,
+					       priv->curr_bss->bssid)))
 			at76_update_wstats(priv, buf);
 	}
 
@@ -5176,7 +4951,7 @@ static struct sk_buff *at76_check_for_rx_frags(struct at76_priv *priv)
 	bptr = priv->rx_data;
 	optr = NULL;
 	for (i = 0; i < NR_RX_DATA_BUF; i++, bptr++) {
-		if (bptr->skb == NULL) {
+		if (!bptr->skb) {
 			optr = bptr;
 			oldest = 0UL;
 			continue;
@@ -5185,7 +4960,7 @@ static struct sk_buff *at76_check_for_rx_frags(struct at76_priv *priv)
 		if (!compare_ether_addr(i802_11_hdr->addr2, bptr->sender))
 			break;
 
-		if (optr == NULL) {
+		if (!optr) {
 			optr = bptr;
 			oldest = bptr->last_rx;
 		} else if (bptr->last_rx < oldest)
@@ -5277,8 +5052,8 @@ static struct sk_buff *at76_check_for_rx_frags(struct at76_priv *priv)
 		return NULL;
 	}
 
-	BUG_ON(optr == NULL);
-	if (optr->skb != NULL) {
+	BUG_ON(!optr);
+	if (optr->skb) {
 		/* swap the skb's */
 		skb = optr->skb;
 		optr->skb = priv->rx_skb;
@@ -5324,7 +5099,7 @@ static void at76_rx_data(struct at76_priv *priv)
 		at76_dbg_dumpbuf("packet", skb->data + AT76_RX_HDRLEN, length);
 
 	skb = at76_check_for_rx_frags(priv);
-	if (skb == NULL)
+	if (!skb)
 		return;
 
 	/* Atmel header and the FCS are already removed */
@@ -5376,7 +5151,7 @@ static void at76_rx_monitor_mode(struct at76_priv *priv)
 	skblen = sizeof(struct at76_rx_radiotap) + length;
 
 	skb = dev_alloc_skb(skblen);
-	if (skb == NULL) {
+	if (!skb) {
 		err("%s: MONITOR MODE: dev_alloc_skb for radiotap header "
 		    "returned NULL", priv->netdev->name);
 		return;
@@ -5511,68 +5286,6 @@ exit:
 	at76_submit_read_urb(priv);
 }
 
-/* Allocate network device and initialize private data */
-static struct at76_priv *at76_alloc_new_device(struct usb_device *udev)
-{
-	struct net_device *netdev;
-	struct at76_priv *priv = NULL;
-	int i;
-
-	/* allocate memory for our device state and initialize it */
-	netdev = alloc_etherdev(sizeof(struct at76_priv));
-	if (netdev == NULL) {
-		err("out of memory");
-		return NULL;
-	}
-
-	priv = netdev_priv(netdev);
-	memset(priv, 0, sizeof(*priv));
-
-	priv->udev = udev;
-	priv->netdev = netdev;
-
-	mutex_init(&priv->mtx);
-	INIT_WORK(&priv->work_assoc_done, at76_work_assoc_done);
-	INIT_WORK(&priv->work_join, at76_work_join);
-	INIT_WORK(&priv->work_new_bss, at76_work_new_bss);
-	INIT_WORK(&priv->work_start_scan, at76_work_start_scan);
-	INIT_WORK(&priv->work_set_promisc, at76_work_set_promisc);
-	INIT_WORK(&priv->work_submit_rx, at76_work_submit_rx);
-	INIT_DELAYED_WORK(&priv->dwork_restart, at76_dwork_restart);
-	INIT_DELAYED_WORK(&priv->dwork_get_scan, at76_dwork_get_scan);
-	INIT_DELAYED_WORK(&priv->dwork_beacon, at76_dwork_beacon);
-	INIT_DELAYED_WORK(&priv->dwork_auth, at76_dwork_auth);
-	INIT_DELAYED_WORK(&priv->dwork_assoc, at76_dwork_assoc);
-
-	spin_lock_init(&priv->mgmt_spinlock);
-	priv->next_mgmt_bulk = NULL;
-	priv->mac_state = MAC_INIT;
-
-	/* initialize empty BSS list */
-	priv->curr_bss = NULL;
-	INIT_LIST_HEAD(&priv->bss_list);
-	spin_lock_init(&priv->bss_list_spinlock);
-
-	init_timer(&priv->bss_list_timer);
-	priv->bss_list_timer.data = (unsigned long)priv;
-	priv->bss_list_timer.function = at76_bss_list_timeout;
-
-	spin_lock_init(&priv->spy_spinlock);
-
-	/* mark all rx data entries as unused */
-	for (i = 0; i < NR_RX_DATA_BUF; i++)
-		priv->rx_data[i].skb = NULL;
-
-	priv->rx_tasklet.func = at76_rx_tasklet;
-	priv->rx_tasklet.data = 0;
-	tasklet_disable(&priv->rx_tasklet);
-
-	priv->pm_mode = AT76_PM_OFF;
-	priv->pm_period = 0;
-
-	return priv;
-}
-
 /* Load firmware into kernel memory and parse it */
 static struct fwentry *at76_load_firmware(struct usb_device *udev,
 					  enum board_type board_type)
@@ -5641,6 +5354,269 @@ exit:
 		return fwe;
 	else
 		return NULL;
+}
+
+/* Allocate network device and initialize private data */
+static struct at76_priv *at76_alloc_new_device(struct usb_device *udev)
+{
+	struct net_device *netdev;
+	struct at76_priv *priv;
+	int i;
+
+	/* allocate memory for our device state and initialize it */
+	netdev = alloc_etherdev(sizeof(struct at76_priv));
+	if (!netdev) {
+		err("out of memory");
+		return NULL;
+	}
+
+	priv = netdev_priv(netdev);
+	memset(priv, 0, sizeof(*priv));
+
+	priv->udev = udev;
+	priv->netdev = netdev;
+
+	mutex_init(&priv->mtx);
+	INIT_WORK(&priv->work_assoc_done, at76_work_assoc_done);
+	INIT_WORK(&priv->work_join, at76_work_join);
+	INIT_WORK(&priv->work_new_bss, at76_work_new_bss);
+	INIT_WORK(&priv->work_start_scan, at76_work_start_scan);
+	INIT_WORK(&priv->work_set_promisc, at76_work_set_promisc);
+	INIT_WORK(&priv->work_submit_rx, at76_work_submit_rx);
+	INIT_DELAYED_WORK(&priv->dwork_restart, at76_dwork_restart);
+	INIT_DELAYED_WORK(&priv->dwork_get_scan, at76_dwork_get_scan);
+	INIT_DELAYED_WORK(&priv->dwork_beacon, at76_dwork_beacon);
+	INIT_DELAYED_WORK(&priv->dwork_auth, at76_dwork_auth);
+	INIT_DELAYED_WORK(&priv->dwork_assoc, at76_dwork_assoc);
+
+	spin_lock_init(&priv->mgmt_spinlock);
+	priv->next_mgmt_bulk = NULL;
+	priv->mac_state = MAC_INIT;
+
+	/* initialize empty BSS list */
+	priv->curr_bss = NULL;
+	INIT_LIST_HEAD(&priv->bss_list);
+	spin_lock_init(&priv->bss_list_spinlock);
+
+	init_timer(&priv->bss_list_timer);
+	priv->bss_list_timer.data = (unsigned long)priv;
+	priv->bss_list_timer.function = at76_bss_list_timeout;
+
+	spin_lock_init(&priv->spy_spinlock);
+
+	/* mark all rx data entries as unused */
+	for (i = 0; i < NR_RX_DATA_BUF; i++)
+		priv->rx_data[i].skb = NULL;
+
+	priv->rx_tasklet.func = at76_rx_tasklet;
+	priv->rx_tasklet.data = 0;
+	tasklet_disable(&priv->rx_tasklet);
+
+	priv->pm_mode = AT76_PM_OFF;
+	priv->pm_period = 0;
+
+	return priv;
+}
+
+static int at76_alloc_urbs(struct at76_priv *priv,
+			   struct usb_interface *interface)
+{
+	struct usb_endpoint_descriptor *endpoint, *ep_in, *ep_out;
+	int i;
+	int buffer_size;
+	struct usb_host_interface *iface_desc;
+
+	at76_dbg(DBG_PROC_ENTRY, "%s: ENTER", __func__);
+
+	at76_dbg(DBG_URB, "%s: NumEndpoints %d ", __func__,
+		 interface->altsetting[0].desc.bNumEndpoints);
+
+	ep_in = NULL;
+	ep_out = NULL;
+	iface_desc = interface->cur_altsetting;
+	for (i = 0; i < iface_desc->desc.bNumEndpoints; i++) {
+		endpoint = &iface_desc->endpoint[i].desc;
+
+		at76_dbg(DBG_URB, "%s: %d. endpoint: addr 0x%x attr 0x%x",
+			 __func__, i, endpoint->bEndpointAddress,
+			 endpoint->bmAttributes);
+
+		if (!ep_in && usb_endpoint_is_bulk_in(endpoint))
+			ep_in = endpoint;
+
+		if (!ep_out && usb_endpoint_is_bulk_out(endpoint))
+			ep_out = endpoint;
+	}
+
+	if (!ep_in || !ep_out) {
+		printk(KERN_ERR DRIVER_NAME ": bulk endpoints missing\n");
+		return -ENXIO;
+	}
+
+	priv->rx_bulk_pipe =
+	    usb_rcvbulkpipe(priv->udev, ep_in->bEndpointAddress);
+	priv->tx_bulk_pipe =
+	    usb_sndbulkpipe(priv->udev, ep_out->bEndpointAddress);
+
+	priv->read_urb = usb_alloc_urb(0, GFP_KERNEL);
+	priv->write_urb = usb_alloc_urb(0, GFP_KERNEL);
+	if (!priv->read_urb || !priv->write_urb) {
+		printk(KERN_ERR DRIVER_NAME ": cannot allocate URB\n");
+		return -ENOMEM;
+	}
+
+	buffer_size = sizeof(struct at76_tx_buffer) + MAX_PADDING_SIZE;
+	priv->bulk_out_buffer = kmalloc(buffer_size, GFP_KERNEL);
+	if (!priv->bulk_out_buffer) {
+		printk(KERN_ERR DRIVER_NAME
+		       ": cannot allocate output buffer\n");
+		return -ENOMEM;
+	}
+
+	at76_dbg(DBG_PROC_ENTRY, "%s: EXIT", __func__);
+
+	return 0;
+}
+
+/* Register network device and initialize the hardware */
+static int at76_init_new_device(struct at76_priv *priv,
+				struct usb_interface *interface)
+{
+	struct net_device *netdev = priv->netdev;
+	int ret;
+
+	/* set up the endpoint information */
+	/* check out the endpoints */
+
+	at76_dbg(DBG_DEVSTART, "USB interface: %d endpoints",
+		 interface->cur_altsetting->desc.bNumEndpoints);
+
+	ret = at76_alloc_urbs(priv, interface);
+	if (ret < 0)
+		goto exit;
+
+	/* MAC address */
+	ret = at76_get_hw_config(priv);
+	if (ret < 0) {
+		err("could not get MAC address");
+		goto exit;
+	}
+
+	priv->domain = at76_get_reg_domain(priv->regulatory_domain);
+	/* init. netdev->dev_addr */
+	memcpy(netdev->dev_addr, priv->mac_addr, ETH_ALEN);
+
+	/* initializing */
+	priv->international_roaming = IR_OFF;
+	priv->channel = DEF_CHANNEL;
+	priv->iw_mode = IW_MODE_INFRA;
+	memset(priv->essid, 0, IW_ESSID_MAX_SIZE);
+	priv->rts_threshold = DEF_RTS_THRESHOLD;
+	priv->frag_threshold = DEF_FRAG_THRESHOLD;
+	priv->short_retry_limit = DEF_SHORT_RETRY_LIMIT;
+	priv->txrate = TX_RATE_AUTO;
+	priv->preamble_type = PREAMBLE_TYPE_LONG;
+	priv->beacon_period = 100;
+	priv->beacons_last_qual = jiffies_to_msecs(jiffies);
+	priv->auth_mode = WLAN_AUTH_OPEN;
+	priv->scan_min_time = DEF_SCAN_MIN_TIME;
+	priv->scan_max_time = DEF_SCAN_MAX_TIME;
+	priv->scan_mode = SCAN_TYPE_ACTIVE;
+
+	netdev->flags &= ~IFF_MULTICAST;	/* not yet or never */
+	netdev->open = at76_open;
+	netdev->stop = at76_stop;
+	netdev->get_stats = at76_get_stats;
+	netdev->ethtool_ops = &at76_ethtool_ops;
+
+	/* Add pointers to enable iwspy support. */
+	priv->wireless_data.spy_data = &priv->spy_data;
+	netdev->wireless_data = &priv->wireless_data;
+
+	netdev->hard_start_xmit = at76_tx;
+	netdev->tx_timeout = at76_tx_timeout;
+	netdev->watchdog_timeo = 2 * HZ;
+	netdev->wireless_handlers = &at76_handler_def;
+	netdev->set_multicast_list = at76_set_multicast;
+	netdev->set_mac_address = at76_set_mac_address;
+
+	ret = register_netdev(priv->netdev);
+	if (ret) {
+		err("unable to register netdevice %s (status %d)!",
+		    priv->netdev->name, ret);
+		goto exit;
+	}
+	priv->netdev_registered = 1;
+
+	printk(KERN_INFO "%s: MAC address %s\n", netdev->name,
+	       mac2str(priv->mac_addr));
+	printk(KERN_INFO "%s: firmware version %d.%d.%d-%d\n", netdev->name,
+	       priv->fw_version.major, priv->fw_version.minor,
+	       priv->fw_version.patch, priv->fw_version.build);
+	printk(KERN_INFO "%s: regulatory domain %s (id %d)\n", netdev->name,
+	       priv->domain->name, priv->regulatory_domain);
+
+	/* we let this timer run the whole time this driver instance lives */
+	mod_timer(&priv->bss_list_timer, jiffies + BSS_LIST_TIMEOUT);
+
+exit:
+	return ret;
+}
+
+static void at76_delete_device(struct at76_priv *priv)
+{
+	int i;
+
+	at76_dbg(DBG_PROC_ENTRY, "%s: ENTER", __func__);
+
+	/* The device is gone, don't bother turning it off */
+	priv->device_unplugged = 1;
+
+	tasklet_kill(&priv->rx_tasklet);
+
+	if (priv->netdev_registered)
+		unregister_netdev(priv->netdev);
+
+	/* assuming we used keventd, it must quiesce too */
+	flush_scheduled_work();
+
+	kfree(priv->bulk_out_buffer);
+
+	if (priv->write_urb) {
+		usb_kill_urb(priv->write_urb);
+		usb_free_urb(priv->write_urb);
+	}
+	if (priv->read_urb) {
+		usb_kill_urb(priv->read_urb);
+		usb_free_urb(priv->read_urb);
+	}
+
+	at76_dbg(DBG_PROC_ENTRY, "%s: unlinked urbs", __func__);
+
+	if (priv->rx_skb)
+		kfree_skb(priv->rx_skb);
+
+	at76_free_bss_list(priv);
+	del_timer_sync(&priv->bss_list_timer);
+	cancel_delayed_work(&priv->dwork_get_scan);
+	cancel_delayed_work(&priv->dwork_beacon);
+	cancel_delayed_work(&priv->dwork_auth);
+	cancel_delayed_work(&priv->dwork_assoc);
+
+	if (priv->mac_state == MAC_CONNECTED)
+		at76_iwevent_bss_disconnect(priv->netdev);
+
+	for (i = 0; i < NR_RX_DATA_BUF; i++)
+		if (priv->rx_data[i].skb) {
+			dev_kfree_skb(priv->rx_data[i].skb);
+			priv->rx_data[i].skb = NULL;
+		}
+	usb_put_dev(priv->udev);
+
+	at76_dbg(DBG_PROC_ENTRY, "%s: before freeing priv/netdev", __func__);
+	free_netdev(priv->netdev);	/* priv is in netdev */
+
+	at76_dbg(DBG_PROC_ENTRY, "%s: EXIT", __func__);
 }
 
 static int at76_probe(struct usb_interface *interface,
@@ -5824,5 +5800,6 @@ MODULE_AUTHOR("Joerg Albert <joerg.albert@gmx.de>");
 MODULE_AUTHOR("Alex <alex@foogod.com>");
 MODULE_AUTHOR("Nick Jones");
 MODULE_AUTHOR("Balint Seeber <n0_5p4m_p13453@hotmail.com>");
+MODULE_AUTHOR("Pavel Roskin <proski@gnu.org>");
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
