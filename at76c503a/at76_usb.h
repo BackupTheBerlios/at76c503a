@@ -27,41 +27,6 @@
 /* current driver version */
 #define DRIVER_VERSION	"0.16"
 
-/* USB vendor IDs */
-#define VID_3COM		0x0506
-#define VID_ACTIONTEC		0x1668
-#define VID_ADDTRON		0x05dd
-#define VID_ASKEY		0x069a
-#define VID_ATMEL		0x03eb
-#define VID_BELKIN		0x0d5c
-#define VID_BELKIN_2		0x050d
-#define VID_BENQ		0x04a5
-#define VID_BLITZ		0x07b8
-#define VID_CNET		0x1371
-#define VID_COMPAQ		0x049f
-#define VID_GLOBAL_SUN		0x0d8e
-#define VID_COREGA		0x07aa
-#define VID_DICK_SMITH		0x1371
-#define VID_DLINK		0x2001
-#define VID_GIGABYTE		0x1044
-#define VID_GIGASET		0x1690
-#define VID_HP			0x03f0
-#define VID_INTEL		0x8086
-#define VID_IO_DATA		0x04bb
-#define VID_LINKSYS		0x077b
-#define VID_LINKSYS_1915	0x1915
-#define VID_LINKSYS_OLD		0x066b
-#define VID_MSI			0x0db0
-#define VID_ZCOM		0x0cde
-#define VID_NETGEAR		0x0864
-#define VID_SAMSUNG		0x055d
-#define VID_SIEMENS		0x0681
-#define VID_SMC			0x083a
-#define VID_SMC_OLD		0x0d5c
-#define VID_PLANEX		0x2019
-#define VID_TEKRAM		0x0b3b
-#define VID_XTERASYS		0x12fd
-
 /* Board types */
 enum board_type {
 	BOARD_503_ISL3861 = 1,
@@ -90,9 +55,6 @@ enum board_type {
 /* scan mode (0 - active, 1 - passive) */
 #define AT76_SET_SCAN_MODE		(SIOCIWFIRSTPRIV + 8)
 #define AT76_GET_SCAN_MODE		(SIOCIWFIRSTPRIV + 9)
-/* international roaming (0 - disabled, 1 - enabled */
-#define AT76_SET_INTL_ROAMING		(SIOCIWFIRSTPRIV + 10)
-#define AT76_GET_INTL_ROAMING		(SIOCIWFIRSTPRIV + 11)
 
 #define CMD_STATUS_IDLE				0x00
 #define CMD_STATUS_COMPLETE			0x01
@@ -116,12 +78,12 @@ enum board_type {
 #define CMD_SCAN		0x03
 #define CMD_JOIN		0x04
 #define CMD_START_IBSS		0x05
-#define CMD_RADIO		0x06
+#define CMD_RADIO_ON		0x06
+#define CMD_RADIO_OFF		0x07
 #define CMD_STARTUP		0x0B
-#define CMD_GETOPMODE		0x33
 
 #define MIB_LOCAL		0x01
-#define MIB_MAC_ADD		0x02
+#define MIB_MAC_ADDR		0x02
 #define MIB_MAC			0x03
 #define MIB_MAC_MGMT		0x05
 #define MIB_MAC_WEP		0x06
@@ -148,10 +110,6 @@ enum board_type {
 #define AT76_PM_OFF		1
 #define AT76_PM_ON		2
 #define AT76_PM_SMART		3
-
-/* international roaming state */
-#define IR_OFF			0
-#define IR_ON			1
 
 struct hwcfg_r505 {
 	u8 cr39_values[14];
@@ -287,7 +245,11 @@ struct set_mib_buffer {
 	u8 size;
 	u8 index;
 	u8 reserved;
-	u8 data[72];
+	union {
+		u8 byte;
+		__le16 word;
+		u8 addr[ETH_ALEN];
+	} data;
 } __attribute__((packed));
 
 struct mib_local {
@@ -436,8 +398,7 @@ struct bss_info {
 	struct list_head list;
 
 	u8 bssid[ETH_ALEN];	/* bssid */
-	u8 ssid[IW_ESSID_MAX_SIZE + 1];	/* ssid, +1 for trailing \0
-					   to make it printable */
+	u8 ssid[IW_ESSID_MAX_SIZE];	/* essid */
 	u8 ssid_len;		/* length of ssid above */
 	u8 channel;
 	u16 capa;		/* BSS capabilities */
@@ -465,8 +426,6 @@ struct rx_data_buf {
 };
 
 #define NR_RX_DATA_BUF		8
-/* how often do we try to submit a rx urb until giving up */
-#define NR_SUBMIT_RX_TRIES	8
 
 /* Data for one loaded firmware file */
 struct fwentry {
@@ -491,11 +450,11 @@ struct at76_priv {
 	struct sk_buff *rx_skb;	/* skbuff for receiving data */
 	void *bulk_out_buffer;	/* buffer for sending data */
 
-	struct urb *write_urb;	/* URB for sending data */
-	struct urb *read_urb;	/* URB for receiving data */
+	struct urb *tx_urb;	/* URB for sending data */
+	struct urb *rx_urb;	/* URB for receiving data */
 
-	unsigned int tx_bulk_pipe;	/* bulk out endpoint */
-	unsigned int rx_bulk_pipe;	/* bulk in endpoint */
+	unsigned int tx_pipe;	/* bulk out pipe */
+	unsigned int rx_pipe;	/* bulk in pipe */
 
 	struct mutex mtx;	/* locks this structure */
 
@@ -512,7 +471,6 @@ struct at76_priv {
 	struct delayed_work dwork_auth;
 	struct delayed_work dwork_assoc;
 
-	int nr_submit_rx_tries;	/* number of tries to submit an rx urb left */
 	struct tasklet_struct rx_tasklet;
 
 	/* the WEP stuff */
@@ -540,7 +498,7 @@ struct at76_priv {
 	int scan_min_time;	/* scan min channel time */
 	int scan_max_time;	/* scan max channel time */
 	int scan_mode;		/* SCAN_TYPE_ACTIVE, SCAN_TYPE_PASSIVE */
-	int scan_runs;		/* counts how many scans are started */
+	int scan_need_any;	/* if set, need to scan for any ESSID */
 
 	/* the list we got from scanning */
 	spinlock_t bss_list_spinlock;	/* protects bss_list operations */
@@ -573,7 +531,6 @@ struct at76_priv {
 	u32 pm_period;		/* power management period in microseconds */
 
 	struct reg_domain const *domain;	/* reg domain description */
-	int international_roaming;
 
 	/* iwspy support */
 	spinlock_t spy_spinlock;

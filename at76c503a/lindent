@@ -8,5 +8,4 @@ INDENT_FLAGS="-npro -kr -i8 -ts8 -sob -l80 -ss -ncs
 -T UCHAR -T USHORT"
 
 indent $INDENT_FLAGS $1
-sed -i -e 's/^      \([a-z_]*:\)$/\1/' -e 's/,\./, ./g' \
- -e 's/__attribute__ (/__attribute__(/g' $1
+sed -i -e 's/^ *\([^ :]\+:\)$/\1/;s/\(__attribute__\) ((/\1((/g' $1
