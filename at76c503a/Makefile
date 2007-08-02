@@ -37,15 +37,15 @@ SRCS = at76_usb.c at76_usb.h compat.h
 
 SPECFILE = at76_usb.spec
 
-DISTFILES = $(SRCS) Makefile README COPYING CHANGELOG kernel_patch.diff
+DISTFILES = $(SRCS) Makefile README COPYING kernel_patch.diff
 
 ifndef NO_COMPAT_HEADERS
 EXTRA_CFLAGS += -include $(obj)/compat.h
 endif
 
-# get the version from at76_usb.h
+# get the version from at76_usb.c
 ifndef M
-VERSION = $(shell sed -n 's/^\#define.*DRIVER_VERSION.*"\(.*\)".*$$/\1/p' at76_usb.h)
+VERSION = $(shell sed -n 's/^\#define.*DRIVER_VERSION.*"\(.*\)".*$$/\1/p' at76_usb.c)
 DISTNAME = at76_usb-$(VERSION)
 DISTDIR = $(DISTNAME)
 endif
@@ -92,9 +92,6 @@ clean:
 	rm -f *.s *.i
 	rm -rf .tmp_versions
 
-ChangeLog: CVS/Entries
-	cvs2cl
-
 dist:
 	rm -rf $(DISTNAME)
 	mkdir $(DISTNAME)
@@ -104,7 +101,4 @@ dist:
 	tar zcvf $(DISTNAME).tar.gz $(DISTNAME)
 	rm -rf $(DISTNAME)
 
-rmmod:
-	-rmmod $(obj-m:%.o=%)	
-
-.PHONY: all modules check install uninstall clean dist rmmod
+.PHONY: all modules check install uninstall clean indent dist

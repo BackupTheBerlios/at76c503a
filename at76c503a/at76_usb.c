@@ -36,12 +36,55 @@
 #include <net/ieee80211_radiotap.h>
 #include <linux/firmware.h>
 #include <linux/leds.h>
+#include <net/ieee80211.h>
 
 #include "at76_usb.h"
 
 /* Version information */
 #define DRIVER_NAME "at76_usb"
+#define DRIVER_VERSION	"0.16"
 #define DRIVER_DESC "Atmel at76x USB Wireless LAN Driver"
+
+/* at76_debug bits */
+#define DBG_PROGRESS		0x00000001	/* authentication/accociation */
+#define DBG_BSS_TABLE		0x00000002	/* show BSS table after scans */
+#define DBG_IOCTL		0x00000004	/* ioctl calls / settings */
+#define DBG_MAC_STATE		0x00000008	/* MAC state transitions */
+#define DBG_TX_DATA		0x00000010	/* tx header */
+#define DBG_TX_DATA_CONTENT	0x00000020	/* tx content */
+#define DBG_TX_MGMT		0x00000040	/* tx management */
+#define DBG_RX_DATA		0x00000080	/* rx data header */
+#define DBG_RX_DATA_CONTENT	0x00000100	/* rx data content */
+#define DBG_RX_MGMT		0x00000200	/* rx mgmt frame headers */
+#define DBG_RX_BEACON		0x00000400	/* rx beacon */
+#define DBG_RX_CTRL		0x00000800	/* rx control */
+#define DBG_RX_MGMT_CONTENT	0x00001000	/* rx mgmt content */
+#define DBG_RX_FRAGS		0x00002000	/* rx data fragment handling */
+#define DBG_DEVSTART		0x00004000	/* fw download, device start */
+#define DBG_URB			0x00008000	/* rx urb status, ... */
+#define DBG_RX_ATMEL_HDR	0x00010000	/* Atmel-specific Rx headers */
+#define DBG_PROC_ENTRY		0x00020000	/* procedure entries/exits */
+#define DBG_PM			0x00040000	/* power management settings */
+#define DBG_BSS_MATCH		0x00080000	/* BSS match failures */
+#define DBG_PARAMS		0x00100000	/* show configured parameters */
+#define DBG_WAIT_COMPLETE	0x00200000	/* command completion */
+#define DBG_RX_FRAGS_SKB	0x00400000	/* skb header of Rx fragments */
+#define DBG_BSS_TABLE_RM	0x00800000	/* purging bss table entries */
+#define DBG_MONITOR_MODE	0x01000000	/* monitor mode */
+#define DBG_MIB			0x02000000	/* dump all MIBs on startup */
+#define DBG_MGMT_TIMER		0x04000000	/* dump mgmt_timer ops */
+#define DBG_WE_EVENTS		0x08000000	/* dump wireless events */
+#define DBG_FW			0x10000000	/* firmware download */
+#define DBG_DFU			0x20000000	/* device firmware upgrade */
+
+#define DBG_DEFAULTS		0
+
+/* Use our own dbg macro */
+#define at76_dbg(bits, format, arg...) \
+	do { \
+		if (at76_debug & (bits)) \
+		printk(KERN_DEBUG DRIVER_NAME ": " format "\n" , ## arg); \
+	} while (0)
 
 static int at76_debug = DBG_DEFAULTS;
 
@@ -199,6 +242,8 @@ static const long channel_frequency[] = {
 	2447, 2452, 2457, 2462, 2467, 2472, 2484
 };
 
+#define NUM_CHANNELS ARRAY_SIZE(channel_frequency)
+
 static const char *const preambles[] = { "long", "short", "auto" };
 
 static const char *const mac_states[] = {
@@ -210,8 +255,6 @@ static const char *const mac_states[] = {
 	[MAC_CONNECTED] = "CONNECTED",
 	[MAC_OWN_IBSS] = "OWN_IBSS"
 };
-
-#define NUM_CHANNELS ARRAY_SIZE(channel_frequency)
 
 /* Firmware download */
 /* DFU states */
@@ -292,16 +335,16 @@ static u8 at76_dfu_get_state(struct usb_device *udev, u8 *state)
 	return ret;
 }
 
-static inline u32 at76_get_timeout(struct dfu_status *s)
+/* Convert timeout from the DFU status to jiffies */
+static inline unsigned long at76_get_timeout(struct dfu_status *s)
 {
-	u32 ret = (s->poll_timeout[2] << 16) | (s->poll_timeout[1] << 8) |
-	    (s->poll_timeout[0]);
-
-	return ret;
+	return msecs_to_jiffies((s->poll_timeout[2] << 16)
+				| (s->poll_timeout[1] << 8)
+				| (s->poll_timeout[0]));
 }
 
 /* Load internal firmware from the buffer.  If manifest_sync_timeout > 0, use
- * its value in msec in the MANIFEST_SYNC state.  */
+ * its value in jiffies in the MANIFEST_SYNC state.  */
 static int at76_usbdfu_download(struct usb_device *udev, u8 *buf, u32 size,
 				int manifest_sync_timeout)
 {
@@ -357,8 +400,7 @@ static int at76_usbdfu_download(struct usb_device *udev, u8 *buf, u32 size,
 			need_dfu_state = 1;
 
 			at76_dbg(DBG_DFU, "DFU: Resetting device");
-			schedule_timeout_interruptible(msecs_to_jiffies
-						       (dfu_timeout));
+			schedule_timeout_interruptible(dfu_timeout);
 			break;
 
 		case STATE_DFU_DOWNLOAD_IDLE:
@@ -402,8 +444,7 @@ static int at76_usbdfu_download(struct usb_device *udev, u8 *buf, u32 size,
 				dfu_timeout = manifest_sync_timeout;
 
 			at76_dbg(DBG_DFU, "DFU: Waiting for manifest phase");
-			schedule_timeout_interruptible(msecs_to_jiffies
-						       (dfu_timeout));
+			schedule_timeout_interruptible(dfu_timeout);
 			break;
 
 		case STATE_DFU_MANIFEST:
@@ -534,7 +575,7 @@ static void at76_ledtrig_tx_timerfunc(unsigned long data)
 	if (tx_lastactivity != tx_activity) {
 		tx_lastactivity = tx_activity;
 		led_trigger_event(ledtrig_tx, LED_FULL);
-		mod_timer(&ledtrig_tx_timer, jiffies + msecs_to_jiffies(250));
+		mod_timer(&ledtrig_tx_timer, jiffies + HZ / 4);
 	} else
 		led_trigger_event(ledtrig_tx, LED_OFF);
 }
@@ -543,7 +584,7 @@ static void at76_ledtrig_tx_activity(void)
 {
 	tx_activity++;
 	if (!timer_pending(&ledtrig_tx_timer))
-		mod_timer(&ledtrig_tx_timer, jiffies + msecs_to_jiffies(250));
+		mod_timer(&ledtrig_tx_timer, jiffies + HZ / 4);
 }
 
 /* Check if the given ssid is hidden */
@@ -3404,7 +3445,7 @@ static int at76_load_internal_fw(struct usb_device *udev, struct fwentry *fwe)
 	int need_remap = !at76_is_505a(fwe->board_type);
 
 	ret = at76_usbdfu_download(udev, fwe->intfw, fwe->intfw_size,
-				   need_remap ? 0 : 2000);
+				   need_remap ? 0 : 2 * HZ);
 
 	if (ret < 0) {
 		printk(KERN_ERR DRIVER_NAME
@@ -4428,17 +4469,17 @@ static void at76_calc_qual(struct at76_priv *priv, struct at76_rx_buffer *buf,
 	if (at76_is_intersil(priv->board_type))
 		qual->qual = buf->link_quality;
 	else {
-		unsigned long msec;
+		unsigned long elapsed;
 
 		/* Update qual at most once a second */
-		msec = jiffies_to_msecs(jiffies) - priv->beacons_last_qual;
-		if (msec < 1000)
+		elapsed = jiffies - priv->beacons_last_qual;
+		if (elapsed < 1 * HZ)
 			return;
 
 		qual->qual = qual->level * priv->beacons_received *
-		    priv->beacon_period / msec;
+		    msecs_to_jiffies(priv->beacon_period) / elapsed;
 
-		priv->beacons_last_qual = jiffies_to_msecs(jiffies);
+		priv->beacons_last_qual = jiffies;
 		priv->beacons_received = 0;
 	}
 	qual->qual = (qual->qual > 100) ? 100 : qual->qual;
@@ -5227,7 +5268,7 @@ static int at76_init_new_device(struct at76_priv *priv,
 	priv->txrate = TX_RATE_AUTO;
 	priv->preamble_type = PREAMBLE_TYPE_LONG;
 	priv->beacon_period = 100;
-	priv->beacons_last_qual = jiffies_to_msecs(jiffies);
+	priv->beacons_last_qual = jiffies;
 	priv->auth_mode = WLAN_AUTH_OPEN;
 	priv->scan_min_time = DEF_SCAN_MIN_TIME;
 	priv->scan_max_time = DEF_SCAN_MAX_TIME;
