@@ -37,7 +37,7 @@ SRCS = at76_usb.c at76_usb.h compat.h
 
 SPECFILE = at76_usb.spec
 
-DISTFILES = $(SRCS) Makefile README COPYING kernel_patch.diff
+DISTFILES = $(SRCS) Makefile README COPYING
 
 ifndef NO_COMPAT_HEADERS
 EXTRA_CFLAGS += -include $(obj)/compat.h

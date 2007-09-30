@@ -103,7 +103,7 @@ name and that it's located in the firmware directory known to hotplug or
 udev, usually /lib/firmware.
 
 If you see a wireless interface but you are not sure which driver
-created it, use "ethtool -i ethX", where "ethX" is the interface name.
+created it, use "ethtool -i wlanX", where "wlanX" is the interface name.
 
 If the interface is up, but "iwconfig" shows that it's not associated to
 an access point, make sure that the card is in managed mode and that it
@@ -114,8 +114,8 @@ supported by the access point (open system or shared key).
 When in the ad-hoc mode, make sure that all the participants are using
 the same channel.
 
-To learn about available access points, use "iwlist ethX scan" where
-"ethX" is the interface name.
+To learn about available access points, use "iwlist wlanX scan" where
+"wlanX" is the interface name.
 
 WPA is not currently supported by this driver, so you cannot connect to
 access points with WPA enabled.
@@ -126,17 +126,17 @@ Private Parameters
 
 In addition to the wireless parameters set by "iwconfig", there are
 additional driver-specific parameters available via "iwpriv".  Running
-"iwpriv ethX" will list all of them.
+"iwpriv wlanX" will list all of them.
 
 Following are some of the supported parameters:
 
-- long preamble: iwpriv ethX set_preamble 0
-- short preamble: iwpriv ethX set_preamble 1
-- amount of debug messages: iwpriv ethX set_debug N
+- long preamble: iwpriv wlanX set_preamble 0
+- short preamble: iwpriv wlanX set_preamble 1
+- amount of debug messages: iwpriv wlanX set_debug N
   with N a combination of bits, see DBG_* in at76_usb.h
-- power save mode: iwpriv ethX set_powersave N (numbers 1, 2, 3 for
+- power save mode: iwpriv wlanX set_powersave N (numbers 1, 2, 3 for
   for none, save and smart save respectively)
-- scan channel time: iwpriv ethX set_scan_times <min_ch_time> <max_ch_time>
+- scan channel time: iwpriv wlanX set_scan_times <min_ch_time> <max_ch_time>
   (this may be required for 0.90.x firmware, i.e. Intersil radios)
 
 
@@ -145,7 +145,7 @@ Power Save Modes in Managed Mode
 
 You can activate 802.11 power save mode by executing
 
-    iwconfig ethX power on power period N
+    iwconfig wlanX power on power period N
 
 The default period value is 0 and the smallest possible period of power
 save (listen interval) is two beacon intervals.  This should lower power
@@ -159,13 +159,13 @@ sending PS_POLL packets.
 
 It can only be activated by
 
-  iwpriv ethX set_powersave 3
+  iwpriv wlanX set_powersave 3
 
 I don't know if the listen_interval is used in this mode.  If yes, you
 can only set it earlier by iwconfig, e.g.
 
-   iwconfig ethX power on power period N
-   iwpriv ethX set_powersave 3
+   iwconfig wlanX power on power period N
+   iwpriv wlanX set_powersave 3
 
 
 Known Problems
@@ -182,7 +182,7 @@ Known Problems
       the Atmel driver may not find it. Try to increase the max
       channel time to 500 or 1000 (default 120) by calling
 
-              iwpriv ethX set_scan_times 10 <max channel time>
+              iwpriv wlanX set_scan_times 10 <max channel time>
 
     * You cannot connect to an access point which hides its ESSID and
       requires the STA to probe it!
